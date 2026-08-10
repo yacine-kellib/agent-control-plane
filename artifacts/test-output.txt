@@ -1,0 +1,165 @@
+# Generated against ACP-SPEC-001 v1.3.11 — reproduce with ./verify.sh
+
+==========================================================================
+ACP-SPEC-001 v1.3.5 — CONFORMANCE SUITE vs REFERENCE EXECUTOR
+==========================================================================
+
+(A) POSITIVE PATH — must EXECUTE
+--------------------------------------------------------------------------
+  PASS  honest floor-HIGH                  floor-HIGH executes with a valid bound quorum
+  PASS  honest floor-LOW                   floor-LOW executes with no attestation required
+  PASS  DS-6 re-drive dedup                DS-6 re-drive is dedupped (stable key, fresh authorization)
+  PASS  deferred hold then release         reversible floor-HIGH released on silence, counted as unverified
+  PASS  floor-LOW not deferred             floor-LOW executes immediately, no hold, no notification
+  PASS  A-8 lying screen caught            compromised screen caught: approver repudiates, action blocked
+  PASS  irreversible needs confirm         irreversible action executes only after positive acknowledgement
+  PASS  sampling forces confirm            sampled reversible action requires confirmation like an irreversible one
+
+(B) ATTACKS — must FAIL CLOSED
+--------------------------------------------------------------------------
+  PASS  Y1  attestation misbinding         critical [9.3-7b-ii]
+  PASS  Y1b garbage attestation_id         critical [Y1b]
+  PASS  Y2  over-long validity window      critical [L-14]
+  PASS  Y4  operator substitution          critical [AT-2]
+  PASS  Z3  origin substitution            critical [DS-6f]
+  PASS  Z4  optional-field encoding        critical [AT-8b]
+  PASS  X1  risk downgrade in receipt      critical [TR-8]
+  PASS  --  floor-HIGH, no attestation     critical [INV-1-HIGH]
+  PASS  T15 epoch rollback                 critical [RAD-3]
+  PASS  T13 receipt nonce replay           critical [CL-2]
+  PASS  T14 attestation replay             critical [CL-3]
+  PASS  AT-2 operator self-approval        critical [AT-2]
+  PASS  T10 capability revoked in window   critical [9.3-9]
+  PASS  B-1a proposal tampered post-sign   critical [9.3-3]
+  PASS  B-1a tamper, floor-LOW (unmasked)  critical [9.3-3]
+  PASS  DR-1 release before hold elapsed   closed   [DR-1]
+  PASS  DR-2 notifier proxies approval UI  critical [DR-2]
+  PASS  DR-2 shared render library         critical [DR-2]
+  PASS  DR-8 notification undeliverable    critical [DR-8]
+  PASS  DR-8 no reachable recipients       critical [DR-8]
+  PASS  DR-5 repudiation by non-recipient  closed   [DR-5]
+  PASS  DR-6 hold outlives receipt         critical [DR-6]
+  PASS  DR-6 hold exceeds L-14 ceiling     critical [DR-6]
+  PASS  DR-9 irreversible silent release   critical [DR-9]
+  PASS  DR-9 operator confirms own action  closed   [DR-9]
+  PASS  DR-10 sampled silent release       critical [DR-9]
+  PASS  RV-3 receipt claims REVERSIBLE     critical [RV-3]
+  PASS  RV-1 unclassified defaults irrev.  critical [DR-9]
+  PASS  CR-4 receipt suite downgrade       critical [CR-4]
+  PASS  CR-4 attestation suite downgrade   critical [CR-4]
+  PASS  CR-3 PQ signature stripped         critical [9.3-1]
+  PASS  CR-3 classical sig stripped        critical [9.3-1]
+  PASS  CR-3 PQ forged, classical genuine  critical [9.3-1]
+  PASS  CR-3 extra undeclared primitive    critical [9.3-1]
+  PASS  CR-2 legacy scalar signature       critical [9.3-1]
+  PASS  CR-1 unknown suite                 critical [CR-4]
+
+==========================================================================
+RESULT: 44/44 — CONFORMANT
+Honest path executes; every historical finding fails closed.
+
+==========================================================================
+EXECUTOR MUTATION TESTING — each check must be load-bearing
+==========================================================================
+  KILL   binding check (ii) [Y1]          attack succeeds without it (honest path still works)
+  KILL   id recomputation [Y1b]           attack succeeds without it (honest path still works)
+  KILL   window length [Y2]               attack succeeds without it (honest path still works)
+  KILL   closed schema [Z4]               attack succeeds without it (honest path still works)
+  KILL   risk RECOMPUTATION [X1/TR-8]     attack succeeds without it (honest path still works)
+  KILL   operator distinctness [AT-2]     attack succeeds without it (honest path still works)
+  KILL   live capability recheck [T10]    attack succeeds without it (honest path still works)
+  KILL   proposal rehash [B-1a]           attack succeeds without it (honest path still works)
+  KILL   notification path independence [DR-2] attack succeeds without it (honest path still works)
+  KILL   hold window enforcement [DR-1]   attack succeeds without it (honest path still works)
+  KILL   delivery completeness [DR-8]     attack succeeds without it (honest path still works)
+  KILL   receipt-outlives-hold [DR-6]     attack succeeds without it (honest path still works)
+  KILL   confirmation requirement [DR-9]  attack succeeds without it (honest path still works)
+  KILL   reversibility RECOMPUTATION [RV-3] attack succeeds without it (honest path still works)
+  KILL   fail-safe default [RV-1]         attack succeeds without it (honest path still works)
+  KILL   operator self-confirm bar [DR-9] attack succeeds without it (honest path still works)
+  KILL   hybrid AND composition [CR-3]    attack succeeds without it (honest path still works)
+  KILL   suite completeness [CR-3]        attack succeeds without it (honest path still works)
+  KILL   suite floor [CR-4]               attack succeeds without it (honest path still works)
+==========================================================================
+RESULT: 19/19 killed — every check is load-bearing and every test is non-vacuous
+
+==========================================================================
+CONSUMPTION LEDGER — PARTITION AND FAULT INJECTION (N=5, majority=3)
+==========================================================================
+  PASS  CL-2  claim exactly once                     [CL-2]
+  PASS  CL-6  minority refuses                       [CL-6]
+  PASS  CL-6  majority still serves                  3/5 side proceeds
+  PASS  CL-6  no split-brain double claim            minority refused [CL-6]
+  PASS  CL-1  no disjoint majorities (exhaustive)    all 32 splits checked, no disjoint majorities
+  PASS  CL-4  heal preserves consumption             [CL-2]
+  PASS  CL-6  replica loss tolerance                 tolerated 2 losses, refused the 3rd [CL-6]
+  PASS  DS-6f origin immutable across partition      adopted 'nonce-origin', healed read 'nonce-origin'
+  PASS  CL-6  origin read needs majority             [CL-6]
+==========================================================================
+RESULT: 9/9 — CL-6 HOLDS
+
+==========================================================================
+EXECUTOR × DISTRIBUTED LEDGER — INTEGRATION UNDER FAULT INJECTION
+==========================================================================
+  PASS  full attack suite on quorum ledger       36 vectors held
+  PASS  honest floor-HIGH on quorum ledger       floor-HIGH executes against a 5-replica ledger
+  PASS  minority partition blocks at step 6      blocked at nonce claim [CL-6]
+  PASS  partition mid-checklist burns nonce      nonce stays burned after heal [CL-2]
+  PASS  2/5 replica loss tolerated               executes with 3/5 replicas alive
+  PASS  3/5 replica loss fails closed            [CL-6]
+==========================================================================
+RESULT: 6/6 — INTEGRATION HOLDS
+
+==========================================================================
+SUITE 5 — CANONICAL CBOR (AT-8a): REJECT, NEVER NORMALISE
+==========================================================================
+  PASS  canonical round-trip accepted            20 bytes round-trip
+  PASS  map keys out of canonical order          map keys not in canonical order
+  PASS  non-shortest integer argument            non-shortest argument
+  PASS  indefinite length                        indefinite length forbidden in canonical CBOR
+  PASS  trailing bytes                           trailing bytes
+  PASS  duplicate map keys                       map keys not in canonical order
+  PASS  floats refused, encode and decode        encoder and decoder both refuse (float or unsupported simple value)
+  PASS  two encodings, one value (Z4)            canonical accepted, non-canonical twin refused
+==========================================================================
+RESULT: 8/8 — AT-8a HOLDS
+
+==========================================================================
+SUITE 7 — AC-5 / AU-6 / AU-7 / AU-8 UNDER ATTACK
+==========================================================================
+  PASS  honest release: anchor first, count once       executes, anchored before release, one increment
+  PASS  DS-3 re-drive increments once                  two releases of one action_id -> count=1
+  PASS  T-28 repudiations do not increment [AC-5]      5 repudiations, count=0, victim not locked
+  PASS  T-28 DR-9 timeout does not increment [AC-5]    DR-9 refusal, no increment
+  PASS  T-29 no anchor -> no release [AU-7]            fail closed [AU-7]
+  PASS  T-29 anchor drops mid-release [AU-7]           terminal anchor failure caught [AU-7]
+  PASS  T-29 post-anchor rewrite detected [AU-4]       reconcile: ['chain rewritten: anchor seq=2 head mismatch']
+  PASS  T-30 outage suspends sampling [AU-6]           reversible demands=0, irreversible demands=1
+  PASS  AU-8 genesis outlives chain destruction        genesis anchor exists independently of the chain
+  PASS  AU-8 genesis anchor down fails closed          [AU-8]
+  PASS  reconciliation (g)+(h) clean                   checks (g) and (h) hold
+==========================================================================
+RESULT: 11/11 — AC-5/AU-6/AU-7/AU-8 HOLD
+
+==========================================================================
+AUDIT MUTATION — each new check must be load-bearing
+==========================================================================
+  KILL   AC-5 DS-3 dedup guard (re-drive double count) attack succeeds without it (honest path still works)
+  KILL   AC-5 increment moved before DR checks    attack succeeds without it (honest path still works)
+  KILL   AU-7 terminal anchor (anchor down)       attack succeeds without it (honest path still works)
+  KILL   AU-6 sampling suspension deleted         attack succeeds without it (honest path still works)
+==========================================================================
+RESULT: 4/4 killed — every new check is load-bearing
+
+canonical CBOR payload: 132 bytes
+
+ed25519                    sig=   64 B  sign=0.041 ms  verify=0.125 ms  p99=0.162 ms
+hybrid-ed25519-mldsa65     sig= 3373 B  sign=61.418 ms  verify=11.701 ms  p99=14.096 ms
+
+Per floor-HIGH receipt (4 signatures: 1 receipt + 3 attestations, quorum k=3):
+  ed25519                       256 B on the wire, verify p99 0.6 ms
+  hybrid-ed25519-mldsa65      13492 B on the wire, verify p99 56.4 ms
+
+  size factor  : 52.7x (256 B -> 13492 B)  [algorithm-bound]
+  latency factor: 87x [implementation-bound: pure-Python ML-DSA]
+
