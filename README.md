@@ -22,7 +22,7 @@ A compromised model can request a €40,000 synthesis order as often as it likes
 
 ```bash
 python3 -m pip install --break-system-packages cryptography dilithium-py
-./verify.sh
+./tools/verify.sh
 ```
 
 ```
@@ -38,7 +38,7 @@ The mutation results are the ones worth reading. Each security check is deleted 
 ### See it happen
 
 ```bash
-python3 artifacts/demo_flow.py
+python3 reference/suites/demo_flow.py
 ```
 
 A supplier report arrives with an instruction hidden in white text. The model reads it and complies. The demo runs that same output down two paths side by side: without a control plane the data leaves the company, with ACP nothing irreversible happens.
@@ -96,7 +96,7 @@ Note the shape: it does not say the system is safe. It says what must be true si
 
 ## Framework mapping
 
-Mapped against **MITRE ATLAS content release 2026.07** (verified 2026-08-10 against the machine-readable source at `github.com/mitre-atlas/atlas-data`, not against secondary sources). Three identifiers used in earlier revisions were wrong or stale and are corrected in `02-THREAT-MODEL-MITRE.md`; the release and date are recorded there, and re-pinning is a release obligation because ATLAS updates monthly.
+Mapped against **MITRE ATLAS content release 2026.07** (verified 2026-08-10 against the machine-readable source at `github.com/mitre-atlas/atlas-data`, not against secondary sources). Three identifiers used in earlier revisions were wrong or stale and are corrected in `dossier/02-THREAT-MODEL-MITRE.md`; the release and date are recorded there, and re-pinning is a release obligation because ATLAS updates monthly.
 
 **ATLAS.** ACP does not defend the model, so the input-side techniques stay open by design and the impact-side ones are constrained.
 
@@ -122,7 +122,7 @@ ACP covers three ATLAS techniques and partly. That is intended: an architecture 
 | `T1499` Endpoint DoS | Anchor denial leading to approver saturation | Sampling suspended or fail closed during outage |
 | `T1098` Account Manipulation | Accumulator inflation to lock out an operator | Count at release, never at decision |
 
-**Also mapped:** NIST AI RMF and ISO 42001 as the control-side complements, and OWASP LLM Top 10, where **LLM06 Excessive Agency** is the core of the design and LLM01, LLM02, LLM05 and LLM08 are addressed in `02-THREAT-MODEL-MITRE.md`.
+**Also mapped:** NIST AI RMF and ISO 42001 as the control-side complements, and OWASP LLM Top 10, where **LLM06 Excessive Agency** is the core of the design and LLM01, LLM02, LLM05 and LLM08 are addressed in `dossier/02-THREAT-MODEL-MITRE.md`.
 
 **Threats neither framework covers.** Notification habituation, where a control whose default outcome equals its approved outcome teaches its users to skip it. Label dishonesty, which needs no attacker at all. Both are documented rather than solved.
 
@@ -130,12 +130,12 @@ ACP covers three ATLAS techniques and partly. That is intended: an architecture 
 
 | | | |
 |---|---|---|
-| `00-INDEX.md` | how to read this | 2 min |
-| `01-EXECUTIVE-SUMMARY.md` | why the architecture exists | 10 min |
-| `02-THREAT-MODEL-MITRE.md` | ATLAS 2026.07 + ATT&CK mapping | 20 min |
-| `02b-CLASSIFICATION-TABLE.md` | every control input classified R/B/T | 20 min |
-| `06-RESIDUAL-RISK.md` | **what is wrong, before what is right** | 15 min |
-| `07-REPRODUCTION.md` | the exact command for every claim | — |
+| `dossier/00-INDEX.md` | how to read this | 2 min |
+| `dossier/01-EXECUTIVE-SUMMARY.md` | why the architecture exists | 10 min |
+| `dossier/02-THREAT-MODEL-MITRE.md` | ATLAS 2026.07 + ATT&CK mapping | 20 min |
+| `dossier/02b-CLASSIFICATION-TABLE.md` | every control input classified R/B/T | 20 min |
+| `dossier/06-RESIDUAL-RISK.md` | **what is wrong, before what is right** | 15 min |
+| `dossier/07-REPRODUCTION.md` | the exact command for every claim | — |
 
 ---
 
@@ -145,7 +145,7 @@ Conformance suite 11 requires review by a party with **no authorship or revision
 
 This repository is therefore **sufficient to evaluate the architecture and not sufficient to deploy it.**
 
-If you can read Dafny proof artifacts and want to break something, `07-REPRODUCTION.md` names where the return is highest:
+If you can read Dafny proof artifacts and want to break something, `dossier/07-REPRODUCTION.md` names where the return is highest:
 
 1. `acp_ack.py` and `acp_audit.py`, the newest code. The pattern says the next defect is there.
 2. DR-2 path separation, an architectural property that the model cannot prove.

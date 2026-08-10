@@ -71,7 +71,7 @@ This surface had never been classified. Both findings are here.
 
 ### T-32 — the notifier self-certifies its own independence *(new)*
 
-`from_canonical`, `source_path` and the delivered-recipients set are all **produced by the notification service** and consumed by the Executor as evidence *about that same service*. A compromised notifier that renders through the approval path, labels itself `notify-mobile`, sets `from_canonical = True` and reports full delivery **passes every DR-2 and DR-8 check**. Demonstrated in `artifacts/class_findings.py`.
+`from_canonical`, `source_path` and the delivered-recipients set are all **produced by the notification service** and consumed by the Executor as evidence *about that same service*. A compromised notifier that renders through the approval path, labels itself `notify-mobile`, sets `from_canonical = True` and reports full delivery **passes every DR-2 and DR-8 check**. Demonstrated in `reference/suites/class_findings.py`.
 
 This is RES-8 verbatim: *a verifier must never accept a derived security value from the party it is verifying.*
 

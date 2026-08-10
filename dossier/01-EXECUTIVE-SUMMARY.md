@@ -127,7 +127,7 @@ Two further defects were found in the proof artifacts themselves and are disclos
 
 Hybrid post-quantum signatures mandatory on every path (Ed25519 + ML-DSA-65, FIPS 204), per the French ANSSI hybridation doctrine. Composition is **conjunctive** — both signatures must verify — proven mechanically, including its converse: a disjunctive composition would be *weaker* than either primitive alone.
 
-Cost measured rather than assumed: **13.2 kB of signatures per high-impact receipt (four signers) versus 256 B classical, a 53× increase**, and tens of milliseconds of verification on a pure-Python reference implementation. Both figures are emitted by `artifacts/acp_crypto.py`; each deployment must publish its own.
+Cost measured rather than assumed: **13.2 kB of signatures per high-impact receipt (four signers) versus 256 B classical, a 53× increase**, and tens of milliseconds of verification on a pure-Python reference implementation. Both figures are emitted by `reference/src/acp_crypto.py`; each deployment must publish its own.
 
 ### The decision this dossier supports
 

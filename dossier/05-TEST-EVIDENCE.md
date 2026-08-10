@@ -1,6 +1,6 @@
 # 05 — Test evidence
 
-Each suite states the invariant it targets, its method, and what it does not cover. Raw output is in `artifacts/test-output.txt` and `artifacts/dafny-output.txt`.
+Each suite states the invariant it targets, its method, and what it does not cover. Raw output is in `reference/proofs/test-output.txt` and `reference/proofs/dafny-output.txt`.
 
 ## The criterion
 
@@ -17,7 +17,7 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ## Suite 1 — Conformance (44/44)
 
-`python3 artifacts/conformance.py`
+`python3 reference/suites/conformance.py`
 
 Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, stripped hybrid signature.
 
@@ -27,7 +27,7 @@ Eight positive paths, which is why the suite total is 44 and not 36: floor-HIGH 
 
 ## Suite 2 — Implementation mutation (19/19 kill)
 
-`python3 artifacts/mutate_executor.py`
+`python3 reference/suites/mutate_executor.py`
 
 For each check: delete it, then require the corresponding attack to succeed **and** the honest path to still work — otherwise the mutant is a syntax break, not a weakening.
 
@@ -39,7 +39,7 @@ For each check: delete it, then require the corresponding attack to succeed **an
 
 ## Suite 3 — Ledger partition (9/9)
 
-`python3 artifacts/partition_suite.py`
+`python3 reference/suites/partition_suite.py`
 
 CL-6 ("fail closed on partition") could not be exercised against an in-memory ledger that is linearizable by construction. Quorum ledger, 5 replicas, fault injection: minorities refuse, the majority side keeps serving, consumption survives a heal, replica loss is tolerated to the bound then refused. **Quorum intersection is verified by exhaustive enumeration of all 32 splits**, not asserted.
 
@@ -47,31 +47,31 @@ CL-6 ("fail closed on partition") could not be exercised against an in-memory le
 
 ## Suite 4 — Executor × distributed ledger integration (6/6)
 
-`python3 artifacts/partition_integration.py`
+`python3 reference/suites/partition_integration.py`
 
 Closes the last gap: suites 1 and 3 tested the Executor and the ledger **separately**, so nothing exercised a CL-6 failure landing mid-checklist in §9.3. Covers in particular a partition arriving **between** the nonce claim (step 6) and the attestation claim (7b): the receipt is permanently burned — the documented liveness cost, now exercised.
 
 ## Suite 5 — Canonical encoding (8/8)
 
-`python3 artifacts/cbor_suite.py`
+`python3 reference/suites/cbor_suite.py`
 
 RFC 8949 §4.2.1 canonical CBOR with a **validating decoder**: it re-encodes what it parsed and refuses anything not byte-identical. A permissive decoder silently normalises and reopens Z4. Covers key ordering, non-shortest integer arguments, indefinite lengths, trailing bytes, duplicate keys, floats, and the two-encodings-one-value case.
 
-*Traceability note (v1.3.11).* Through v1.3.10 this row was asserted from the decoder in `artifacts/acp_crypto.py`, which implements every refusal path but shipped **no test asserting them**: the 8/8 was a claim without an artifact. `cbor_suite.py` supplies the eight cases. The finding is recorded because a green number with no replay is exactly what §07 tells the reader not to believe.
+*Traceability note (v1.3.11).* Through v1.3.10 this row was asserted from the decoder in `reference/src/acp_crypto.py`, which implements every refusal path but shipped **no test asserting them**: the 8/8 was a claim without an artifact. `cbor_suite.py` supplies the eight cases. The finding is recorded because a green number with no replay is exactly what §07 tells the reader not to believe.
 
 ## Suite 6 — Prose-derived differential
 
-`python3 artifacts/diff_prose.py`
+`python3 reference/suites/diff_prose.py`
 
 Two evaluators written from the **specification text alone**, then diffed. Produced defect **Z1**: the grammar stated no precedence for `&&` / `||`, and the two faithful readings diverge on **493 of 10,000 cases**. Invisible to the proofs (which quantify over already-parsed expressions) and to the official differential harness (which generates trees, not text).
 
-`artifacts/el1_migrate.py` closes the residual: exhaustive per-bundle check, with a witness and the resulting risk-grade impact.
+`reference/suites/el1_migrate.py` closes the residual: exhaustive per-bundle check, with a witness and the resulting risk-grade impact.
 
 ## Suite 7 — Audit, anchoring and accumulators (11/11, 4/4 mutants)
 
-`python3 artifacts/audit_suite.py` and `python3 artifacts/audit_suite.py --mutate`
+`python3 reference/suites/audit_suite.py` and `python3 reference/suites/audit_suite.py --mutate`
 
-Closes the §06 row "normative text written, mechanism not implemented". AC-5, AU-6 (revised), AU-7 and AU-8 existed as clauses only; `artifacts/acp_audit.py` mechanizes them by **extending** the frozen reference gate, so all 19 original mutants and 44 vectors still pass unchanged.
+Closes the §06 row "normative text written, mechanism not implemented". AC-5, AU-6 (revised), AU-7 and AU-8 existed as clauses only; `reference/src/acp_audit.py` mechanizes them by **extending** the frozen reference gate, so all 19 original mutants and 44 vectors still pass unchanged.
 
 T-28, T-29 and T-30 are replayed as live attacks: repudiated and timed-out Decisions increment nothing and a victim operator is never locked out; a floor-HIGH release with an unreachable anchor fails closed; a post-anchor chain rewrite is detected by reconciliation; an anchoring outage suspends DR-10 sampling so the ATTEST cap cannot compound with DR-9 into approver saturation. AU-8 genesis is anchored at tenant creation and survives destruction of the entire chain. Reconciliation checks §11.3 (g) and (h).
 
@@ -85,7 +85,7 @@ T-28, T-29 and T-30 are replayed as live attacks: repudiated and timed-out Decis
 
 ## Suite 8 — classification findings (4/4 reproduced)
 
-`python3 artifacts/class_findings.py`
+`python3 reference/suites/class_findings.py`
 
 Produced by regenerating ACP-CLASS-001 against v1.3.11 (`02b`). Both findings are **undisclosed T** entries — inputs consumed for a control decision, taken as transmitted from the party under verification, never enumerated against a residual. By 02b's own rule that is a conformance failure: **v1.3.6 through v1.3.10 were non-conformant against suite 12 and did not know it.**
 
@@ -95,7 +95,7 @@ These tests pass when the defect is *present*; they invert once the v1.3.12 fixe
 
 ## Suite 9 — ACK-1..ACK-6, the T-31 fix (14/14, mutants 6/6)
 
-`python3 artifacts/ack_suite.py` and `--mutate`
+`python3 reference/suites/ack_suite.py` and `--mutate`
 
 The T-31 tests in Suite 8 pass when the defect is present; these are their inversions. Bare-string acknowledgement, unregistered identity, forged signature, identity swap, operator self-confirmation, cross-action acknowledgement, replay, expiry, over-long window, open schema and decision confusion all fail closed. The honest path still releases, and silence still fails closed for irreversible actions.
 
@@ -106,7 +106,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 
 ## Suite 10 — consolidated registry and composition (73/73, 4/4)
 
-`python3 artifacts/attack_registry.py` and `--compose`
+`python3 reference/suites/attack_registry.py` and `--compose`
 
 All 73 attacks and positive paths, declared once, each tagged with the rule it targets. `--coverage` renders the clause matrix and, more usefully, what no attack covers: A-7, A-8, T-32, RR-1.
 
@@ -116,7 +116,7 @@ All 73 attacks and positive paths, declared once, each tagged with the rule it t
 
 ## Performance measurement
 
-`python3 artifacts/acp_crypto.py`
+`python3 reference/src/acp_crypto.py`
 
 Floor-HIGH receipt, real cryptography (Ed25519 + ML-DSA-65):
 
