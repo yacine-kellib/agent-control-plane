@@ -18,7 +18,7 @@ sha256sum -c MANIFEST.sha256
 ## Replay the formal proofs
 
 ```bash
-dafny verify --function-syntax:4 artifacts/binding_v1_3_8.dfy
+dafny verify --function-syntax:4 reference/proofs/binding.dfy
 # expected: 36 verified, 0 errors
 ```
 
@@ -32,11 +32,11 @@ dafny verify --function-syntax:4 artifacts/binding_v1_3_8.dfy
 ## The consolidated attack registry
 
 ```bash
-python3 artifacts/attack_registry.py             # all 73, grouped by suite
-python3 artifacts/attack_registry.py --explain   # each with what it does and why
-python3 artifacts/attack_registry.py --coverage  # which clause each attack exercises
-python3 artifacts/attack_registry.py --compose   # acknowledgement x partitioned ledger
-python3 artifacts/attack_registry.py -i          # interactive browser
+python3 reference/suites/attack_registry.py             # all 73, grouped by suite
+python3 reference/suites/attack_registry.py --explain   # each with what it does and why
+python3 reference/suites/attack_registry.py --coverage  # which clause each attack exercises
+python3 reference/suites/attack_registry.py --compose   # acknowledgement x partitioned ledger
+python3 reference/suites/attack_registry.py -i          # interactive browser
 ```
 
 Every attack is declared once here with the rule it targets and a plain-language statement of what it does. `--coverage` also lists what **no** attack covers and why: A-7, A-8, T-32 and RR-1.
@@ -46,18 +46,18 @@ Until v1.3.12 the attacks lived in eight separate files, so a reader running `co
 ## Replay the tests
 
 ```bash
-python3 artifacts/conformance.py           # expected: 44/44 CONFORMANT
-python3 artifacts/mutate_executor.py       # expected: 19/19 killed
-python3 artifacts/partition_suite.py       # expected: 9/9 CL-6 HOLDS
-python3 artifacts/partition_integration.py # expected: 6/6 INTEGRATION HOLDS
-python3 artifacts/cbor_suite.py            # expected: 8/8 AT-8a HOLDS
-python3 artifacts/class_findings.py        # expected: T-32 reproduced; T-31 closed in v1.3.12
-python3 artifacts/ack_suite.py             # expected: 14/14 T-31 CLOSED
-python3 artifacts/ack_suite.py --mutate    # expected: 6/6 killed
-python3 artifacts/audit_suite.py           # expected: 11/11 AC-5/AU-6/AU-7/AU-8 HOLD
-python3 artifacts/audit_suite.py --mutate  # expected: 4/4 killed
-python3 artifacts/acp_crypto.py          # performance measurement
-python3 artifacts/diff_prose.py            # expected: Z1 divergences detected
+python3 reference/suites/conformance.py           # expected: 44/44 CONFORMANT
+python3 reference/suites/mutate_executor.py       # expected: 19/19 killed
+python3 reference/suites/partition_suite.py       # expected: 9/9 CL-6 HOLDS
+python3 reference/suites/partition_integration.py # expected: 6/6 INTEGRATION HOLDS
+python3 reference/suites/cbor_suite.py            # expected: 8/8 AT-8a HOLDS
+python3 reference/suites/class_findings.py        # expected: T-32 reproduced; T-31 closed in v1.3.12
+python3 reference/suites/ack_suite.py             # expected: 14/14 T-31 CLOSED
+python3 reference/suites/ack_suite.py --mutate    # expected: 6/6 killed
+python3 reference/suites/audit_suite.py           # expected: 11/11 AC-5/AU-6/AU-7/AU-8 HOLD
+python3 reference/suites/audit_suite.py --mutate  # expected: 4/4 killed
+python3 reference/src/acp_crypto.py          # performance measurement
+python3 reference/suites/diff_prose.py            # expected: Z1 divergences detected
 ```
 
 ## Replay the performance measurement

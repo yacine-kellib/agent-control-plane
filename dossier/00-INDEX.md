@@ -9,7 +9,7 @@
 
 ## How to read this dossier
 
-Two layers. The **summary** layer (01, 02, 06) reads in twenty minutes and is enough to decide. The **evidence** layer (03, 04, 05, 07 + `artifacts/`) exists for a sceptical reader: every claim is tied to a replayable artifact, with its command and hash.
+Two layers. The **summary** layer (01, 02, 06) reads in twenty minutes and is enough to decide. The **evidence** layer (03, 04, 05, 07 + `reference/suites/`) exists for a sceptical reader: every claim is tied to a replayable artifact, with its command and hash.
 
 This dossier is built to be **attacked**, not merely read. If a claim looks doubtful, §07 gives the exact command that verifies or refutes it.
 
@@ -40,7 +40,7 @@ That the system is safe. That any human read a notification — acknowledgement 
 `MANIFEST.sha256` covers every file:
 
 ```bash
-sha256sum -c MANIFEST.sha256      # or: ./verify.sh  (integrity + full replay)
+sha256sum -c MANIFEST.sha256      # or: ./tools/verify.sh  (integrity + full replay)
 ```
 
 The manifest itself is signed. `MANIFEST.sha256.sig` is an Ed25519 detached signature under the offline release key; the fingerprint is published in `RELEASE.md`. An unsigned manifest is a list, not a commitment — the same objection this architecture makes everywhere else.

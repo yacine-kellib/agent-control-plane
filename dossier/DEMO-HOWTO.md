@@ -92,7 +92,7 @@ This is the part that earns credibility, and it costs you nothing because it's a
 
 > "Two things I want to be straight about. First, this demo runs every component in one process. DR-2 requires the notification path and the approval path to be genuinely separate services with no shared rendering code — the demo *labels* that separation, it doesn't implement it. A demo can't evidence it. Second, the architecture cannot tell whether a label is honest. If someone tags a production synthesis queue as 'sandbox', the screen is honest and the system is wrong, with no attack. That's conceded as unprovable.
 >
-> The evidence isn't this demo — it's `./verify.sh`, which replays every claim in the dossier in ninety seconds. And no independent adversarial review has happened yet. This is sufficient to evaluate the architecture, not to deploy it."
+> The evidence isn't this demo — it's `./tools/verify.sh`, which replays every claim in the dossier in ninety seconds. And no independent adversarial review has happened yet. This is sufficient to evaluate the architecture, not to deploy it."
 
 Volunteering this is what separates you from a vendor pitch. It also pre-empts the two objections a good CISO will raise anyway.
 
@@ -101,7 +101,7 @@ Volunteering this is what separates you from a vendor pitch. It also pre-empts t
 ## 5. If you have another 90 seconds: the evidence
 
 ```bash
-cd acp && ./verify.sh
+cd acp && ./tools/verify.sh
 ```
 
 Integrity check, signature check, then all seven test suites: 44 conformance vectors, 19 executor mutants, 9 partition tests, 6 integration tests, 8 encoding tests, 11 audit tests, 4 audit mutants, and the reproduced grammar-ambiguity witness.
@@ -114,7 +114,7 @@ Integrity check, signature check, then all seven test suites: 44 conformance vec
 
 The demo is domain-agnostic; a new domain is a bundle, not a build. Roughly 15 minutes:
 
-1. Copy `artifacts/research_bundle.py` to `artifacts/<domain>_bundle.py`.
+1. Copy `reference/suites/research_bundle.py` to `reference/suites/<domain>_bundle.py`.
 2. Edit three things: `floors` (resources and their sensitivity tiers), `risk_functions` (base risk per action class and what raises it), `reversibility` (which actions can be undone).
 3. Register it in `BUNDLES` at the top of `demo.py` with a label, the `make` function, the action list shown in the UI, and the proposal constructor.
 4. `python3 demo.py --bundle <domain>` and click through steps 1–4 above.

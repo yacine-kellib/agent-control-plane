@@ -1,8 +1,8 @@
 # 04 — Formal verification
 
 **Tool:** Dafny 4.9.1+452c307284e1511e5c2d10b9615f4c9c15f010e2, Z3 4.12.1
-**Command:** `dafny verify --function-syntax:4 artifacts/binding_v1_3_8.dfy`
-**Result:** `36 verified, 0 errors` — raw output in `artifacts/dafny-output.txt`
+**Command:** `dafny verify --function-syntax:4 reference/proofs/binding.dfy`
+**Result:** `36 verified, 0 errors` — raw output in `reference/proofs/dafny-output.txt`
 
 ## What the model covers, and its boundary
 

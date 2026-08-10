@@ -1,7 +1,7 @@
 # Annex D — Worked example: action control in an agentic research pipeline
 
 **Status:** illustrative, non-normative. Companion to ACP-SPEC-001 v1.3.11.
-**Executable:** `python3 artifacts/research_bundle.py`
+**Executable:** `python3 reference/suites/research_bundle.py`
 
 > **What this is not.** This annex describes no organisation's internal architecture and claims no knowledge of one. It is built from publicly known characteristics of AI-driven discovery workflows, by an author who does not work in the field. The action classes, tiers and thresholds below are a *method* applied to a domain, not a recommendation for anyone's pipeline — a real deployment must re-derive every value with the scientists and risk owners who own the consequences. Where the domain reasoning is wrong, the mapping is wrong; the control-plane properties are not affected, because they do not depend on the domain being modelled correctly.
 
@@ -24,7 +24,7 @@ The last point deserves emphasis, because it determines the grading axis. **Acti
 
 ## D.2 The action classes
 
-Produced by the policy engine from `artifacts/research_bundle.py`, not written by hand:
+Produced by the policy engine from `reference/suites/research_bundle.py`, not written by hand:
 
 | Action | Target | Floor | Reversible | What the control plane demands |
 |---|---|---|---|---|
@@ -50,7 +50,7 @@ Three design points are worth naming, because each of them is a place where this
 
 A model that has been fully compromised — by prompt injection through a poisoned literature corpus, by training-data poisoning, by a backdoor — can emit `order_synthesis` against `synthesis-queue` continuously. **It cannot cause one to execute.** The floor is recomputed by the Executor from the signed policy bundle, never read from the proposal or the receipt; and INV-1-HIGH requires a fresh, single-use, quorum-satisfying set of attestations cryptographically bound to that action's canonical hash.
 
-Run `python3 artifacts/research_bundle.py --attacks` for four attacks expressed in this domain's action classes: an uncompromised quorum requirement (`INV-1-HIGH`), a *signed* receipt downgrading a synthesis order to LOW (`TR-8`, recomputation), a receipt claiming a partner release is reversible (`RV-3`), and an ungraded action type defaulting to the strict case (`RV-1`). All four fail closed on the same rules that fire in the reference suite.
+Run `python3 reference/suites/research_bundle.py --attacks` for four attacks expressed in this domain's action classes: an uncompromised quorum requirement (`INV-1-HIGH`), a *signed* receipt downgrading a synthesis order to LOW (`TR-8`, recomputation), a receipt claiming a partner release is reversible (`RV-3`), and an ungraded action type defaulting to the strict case (`RV-1`). All four fail closed on the same rules that fire in the reference suite.
 
 **A correction worth recording**, since this dossier's discipline is to publish these rather than quietly fix them: an earlier draft of this annex claimed the 44 conformance vectors could be replayed unchanged by swapping the bundle. That is false — the fixtures construct proposals with `modify_firewall_rule` / `fw.v1`, which do not exist here, so 34 vectors error on unknown task types rather than passing. The invariance that actually holds is of the **control plane**, not of the fixtures: the same rules fire, on the same recomputed values, against different action classes. Attacks must be re-expressed per domain; the mechanism is not re-derived.
 

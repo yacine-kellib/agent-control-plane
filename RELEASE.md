@@ -1,14 +1,14 @@
 # ACP-SPEC-001 — release v1.3.11
 
 **Date:** August 2026
-**Package:** dossier (00–07) + `artifacts/` + `verify.sh`
+**Package:** dossier (00–07) + `reference/suites/` + `verify.sh`
 **Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig`
 **Release key fingerprint:** *(published out of band — see "Signing" below)*
 
 Reproduce everything in one command:
 
 ```bash
-./verify.sh
+./tools/verify.sh
 ```
 
 ---
@@ -17,7 +17,7 @@ Reproduce everything in one command:
 
 ### 1. AC-5, AU-6 (revised), AU-7, AU-8 — implemented
 
-These were normative text with no mechanism: §06 listed them as "closed on paper, not exercised". They are now implemented in `artifacts/acp_audit.py` and attacked in `artifacts/audit_suite.py` (11/11, plus 4/4 mutants).
+These were normative text with no mechanism: §06 listed them as "closed on paper, not exercised". They are now implemented in `reference/src/acp_audit.py` and attacked in `reference/suites/audit_suite.py` (11/11, plus 4/4 mutants).
 
 The module **extends** the frozen reference gate rather than editing it, so all 44 conformance vectors and all 19 original mutants still pass unchanged.
 
@@ -29,7 +29,7 @@ The module **extends** the frozen reference gate rather than editing it, so all 
 
 ### 2. Suite 5 now has the tests it always claimed
 
-v1.3.10 reported "canonical CBOR 8/8". The validating decoder existed; **no test asserted any of it**. `artifacts/cbor_suite.py` supplies the eight cases (canonical round-trip, key order, non-shortest argument, indefinite length, trailing bytes, duplicate keys, floats, two-encodings-one-value).
+v1.3.10 reported "canonical CBOR 8/8". The validating decoder existed; **no test asserted any of it**. `reference/suites/cbor_suite.py` supplies the eight cases (canonical round-trip, key order, non-shortest argument, indefinite length, trailing bytes, duplicate keys, floats, two-encodings-one-value).
 
 This was a green number with no artifact behind it, in a dossier whose §07 opens by telling the reader not to believe exactly that. Recorded rather than quietly fixed.
 
@@ -72,8 +72,8 @@ This package is sufficient to **evaluate** the architecture. It is not sufficien
 ## Signing
 
 ```bash
-./sign-release.sh keygen                     # once, on an offline host
-./sign-release.sh sign ~/acp-release.key   # regenerate manifest + sign
+./tools/sign-release.sh keygen                     # once, on an offline host
+./tools/sign-release.sh sign ~/acp-release.key   # regenerate manifest + sign
 ```
 
 Publish the fingerprint **out of band** — repository README, talk, review brief. A public key that ships only inside the package it authenticates proves nothing, which is the same argument this dossier makes about every other transmitted value.
