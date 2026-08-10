@@ -1,0 +1,19 @@
+{
+  "name": "@acp/approval",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b"
+  },
+  "comment-dr2": "Dependencies here must never overlap with @acp/notifier above the wire format. @acp/types is the permitted exception: it IS the wire format. A shared rendering, templating, formatting or sanitising dependency voids DR-2 and is a conformance failure, not a style issue.",
+  "dependencies": {
+    "@acp/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.9.2"
+  }
+}

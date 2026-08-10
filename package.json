@@ -1,0 +1,17 @@
+{
+  "name": "acp",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

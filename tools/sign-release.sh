@@ -24,10 +24,10 @@ cd "$(dirname "$0")/.."   # tools/ -> repo root; the manifest covers paths from 
 # That is how the previous blanket `find .` would have swept private/ and a
 # stray .venv into a public manifest, publishing their filenames and hashes.
 #
-# Roots that exist today. As the polyglot layout fills in, add each of
-# crates services packages orchestrator deploy here -- deliberately, one at a
-# time. A root that is not named is not signed, which is the intended default.
-ROOTS="spec dossier reference sim tools"
+# Every root of the polyglot layout. Adding one is deliberate; a root that is
+# not named here is not signed, which is the intended default. assert_roots_
+# present fails loudly if one is missing, so a typo cannot silently sign less.
+ROOTS="spec dossier reference crates services packages orchestrator sim deploy tools"
 EXTS="md py rs ts json cddl dfy toml yml yaml lock txt sh pub"
 NAMED="LICENSE Dockerfile .gitignore"
 
