@@ -33,6 +33,53 @@ hasnot '^docs/'           "does NOT cover docs/ (working documents, not release 
 hasnot 'MANIFEST\.sha256' "does NOT cover the manifest or its signature"
 hasnot '__pycache__'      "does NOT cover build outputs"
 
+printf '\n\033[1m== signer halt-assertion ==\033[0m\n'
+
+# A new file type must stop the release rather than be silently signed or
+# silently skipped. Uses a git-tracked file because tracked-ness is axis 2 --
+# `git add -N` is enough: an intent-to-add path does appear in `git ls-files`
+# (verified), so the signer sees it without anything being committed.
+# Trap covers INT/TERM as well as EXIT: an interrupted self-test must not
+# leave the user's index dirty.
+cleanup_scratch() {
+  git rm -q --cached artifacts/scratch.bin 2>/dev/null || true
+  rm -f artifacts/scratch.bin
+}
+trap cleanup_scratch INT TERM EXIT
+printf 'x' > artifacts/scratch.bin
+git add -N artifacts/scratch.bin
+
+OUT=$(./sign-release.sh list 2>&1); rc=$?
+[ $rc -eq 4 ]; chk $? "unrecognised extension halts the signer (exit 4, got $rc)"
+has 'artifacts/scratch\.bin' "names the offending file"
+
+cleanup_scratch
+trap - INT TERM EXIT
+
+OUT=$(./sign-release.sh list 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "clean tree lists successfully again (got $rc)"
+
+printf '\n\033[1m== sign never destroys a signed manifest ==\033[0m\n'
+
+# sign builds into temporaries and moves into place only after the signature
+# exists. These assertions run the REAL sign path with keys that cannot work,
+# and prove the existing release survives. Without this, a mistyped key path
+# leaves a regenerated manifest that only the offline key holder can re-sign.
+before=$(sha256sum MANIFEST.sha256 | awk '{print $1}')
+
+OUT=$(./sign-release.sh sign /nonexistent/key.pem 2>&1); rc=$?
+[ $rc -eq 5 ]; chk $? "missing key file exits 5 before touching anything (got $rc)"
+
+printf 'not a key' > /tmp/acp_bogus_key.pem
+OUT=$(./sign-release.sh sign /tmp/acp_bogus_key.pem 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "unparseable key fails (got $rc)"
+rm -f /tmp/acp_bogus_key.pem
+
+after=$(sha256sum MANIFEST.sha256 | awk '{print $1}')
+[ "$before" = "$after" ]; chk $? "MANIFEST.sha256 is byte-identical after both failures"
+[ ! -f MANIFEST.sha256.tmp ]; chk $? "no .tmp manifest left behind"
+[ ! -f MANIFEST.sha256.sig.tmp ]; chk $? "no .tmp signature left behind"
+
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then echo "  tooling self-test passed."
 else echo "  tooling self-test FAILED."; fi
