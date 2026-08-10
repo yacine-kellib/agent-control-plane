@@ -284,7 +284,9 @@ def run_tests() -> int:
 
 
 def run_mutants() -> int:
-    src = open("acp_audit.py").read()
+    _HERE = os.path.dirname(os.path.abspath(__file__))
+    SRC_DIR = os.path.join(_HERE, os.pardir, "src")
+    src = open(os.path.join(SRC_DIR, "acp_audit.py")).read()
     print("=" * 74)
     print("AUDIT MUTATION — each new check must be load-bearing")
     print("=" * 74)
@@ -297,14 +299,19 @@ def run_mutants() -> int:
         with tempfile.TemporaryDirectory() as td:
             open(os.path.join(td, "acp_audit.py"), "w").write(
                 src.replace(old, new))
-            for f in ("acp_executor.py", "conformance.py", "audit_suite.py"):
-                shutil.copy(f, td)
+            shutil.copy(os.path.join(SRC_DIR, "acp_executor.py"), td)
+            for f in ("conformance.py", "audit_suite.py"):
+                shutil.copy(os.path.join(_HERE, f), td)
+            # See mutate_executor.run_mutant: PYTHONPATH must not reach the
+            # mutant, or a failed copy silently tests the real module.
+            env = dict(os.environ)
+            env.pop("PYTHONPATH", None)
             r = subprocess.run(
                 [sys.executable, "-c",
                  f"import audit_suite as A; ok,_ = A.{test}(); "
                  f"h,_ = A.t_honest_release_counts_once(); "
                  f"print(int(ok), int(h))"],
-                capture_output=True, text=True, cwd=td, timeout=60)
+                capture_output=True, text=True, cwd=td, timeout=60, env=env)
             out = (r.stdout.strip().split() + ["?", "?"])[:2]
             attack_blocked, honest_ok = out[0] == "1", out[1] == "1"
             if not attack_blocked and honest_ok:

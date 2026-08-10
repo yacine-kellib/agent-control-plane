@@ -10,7 +10,7 @@
 #   ./sign-release.sh keygen             # once, on the offline host
 #   ./sign-release.sh sign  ~/acp.key  # regenerate manifest + sign
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # tools/ -> repo root; the manifest covers paths from here
 
 # Coverage is three allowlists and no deny-list. Each axis independently
 # refuses to admit something unrecognised:
@@ -24,9 +24,10 @@ cd "$(dirname "$0")"
 # That is how the previous blanket `find .` would have swept private/ and a
 # stray .venv into a public manifest, publishing their filenames and hashes.
 #
-# ROOTS is the CURRENT tree. The polyglot layout replaces it with:
-#   spec dossier reference crates services packages orchestrator sim deploy tools
-ROOTS="artifacts sim"
+# Roots that exist today. As the polyglot layout fills in, add each of
+# crates services packages orchestrator deploy here -- deliberately, one at a
+# time. A root that is not named is not signed, which is the intended default.
+ROOTS="spec dossier reference sim tools"
 EXTS="md py rs ts json cddl dfy toml yml yaml lock txt sh pub"
 NAMED="LICENSE Dockerfile .gitignore"
 

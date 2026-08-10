@@ -18,7 +18,13 @@ vacuous. Either is a finding.
 """
 import importlib, subprocess, sys, tempfile, os, shutil, re
 
-SRC = open("acp_executor.py").read()
+# The implementation lives in reference/src/, the suites in reference/suites/.
+# Mutation testing reads the real source text, deletes one check and re-runs it,
+# so it needs that path explicitly rather than by import.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(_HERE, os.pardir, "src")
+
+SRC = open(os.path.join(SRC_DIR, "acp_executor.py")).read()
 
 # (label, fragment-to-delete OR (old, replacement), attack that must now succeed)
 MUTANTS = [
@@ -153,8 +159,14 @@ print(f"{{int(ok_honest)}},{{int(attack_succeeded)}}")
 def run_mutant(tmpdir, atk):
     script = os.path.join(tmpdir, "_run.py")
     open(script, "w").write(RUNNER.format(d=tmpdir, atk=atk))
+    # PYTHONPATH is stripped deliberately. verify.sh exports reference/src, and
+    # if that leaked in here a failed copy would silently import the REAL
+    # executor: the mutant would report SURVIVE and a load-bearing check would
+    # be recorded as redundant. Absence must break the run, not quieten it.
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
     r = subprocess.run([sys.executable, script], capture_output=True, text=True,
-                       cwd=tmpdir, timeout=60)
+                       cwd=tmpdir, timeout=60, env=env)
     out = r.stdout.strip().splitlines()
     if not out or "," not in out[-1]:
         return None, r.stderr.strip()[:200]
@@ -176,7 +188,7 @@ def main():
         with tempfile.TemporaryDirectory() as td:
             open(os.path.join(td, "acp_executor.py"), "w").write(
                 SRC.replace(old, new))
-            shutil.copy("conformance.py", td)
+            shutil.copy(os.path.join(_HERE, "conformance.py"), td)
             res, err = run_mutant(td, atk)
             if res is None:
                 print(f"  ERROR  {label:<32} {err}")
