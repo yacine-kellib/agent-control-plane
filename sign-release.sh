@@ -12,6 +12,63 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Coverage is three allowlists and no deny-list. Each axis independently
+# refuses to admit something unrecognised:
+#
+#   1. roots     -- only these directories are eligible at all
+#   2. tracked   -- only files git tracks; build outputs are excluded because
+#                   they are gitignored, not because a list names them
+#   3. extension -- only these types, plus explicit filenames
+#
+# A deny-list fails open: the next thing someone adds is covered by default.
+# That is how the previous blanket `find .` would have swept private/ and a
+# stray .venv into a public manifest, publishing their filenames and hashes.
+#
+# ROOTS is the CURRENT tree. The polyglot layout replaces it with:
+#   spec dossier reference crates services packages orchestrator sim deploy tools
+ROOTS="artifacts sim"
+EXTS="md py rs ts json cddl dfy toml yml yaml lock txt sh pub"
+NAMED="LICENSE Dockerfile .gitignore"
+
+covered_files() {
+  # Universe: every tracked file at the repository root, plus every tracked
+  # file under a signed root directory. Enumerating root files by name was
+  # tried and rejected -- it silently dropped the eleven numbered dossier
+  # documents and both tools. Depth-1 plus an extension allowlist keeps the
+  # fail-safe property without a list that rots every time a document is added.
+  { git ls-files | grep -v '/'
+    for r in $ROOTS; do
+      if [ -d "$r" ]; then git ls-files -- "$r"; fi
+    done
+  } | grep -vE '^MANIFEST\.sha256(\.sig)?$' | sort -u
+}
+
+# Halt if any covered file has a type we do not recognise. A new file type must
+# stop the release, not be silently signed and not be silently skipped.
+assert_all_recognised() {
+  bad=""
+  for f in $(covered_files); do
+    base=${f##*/}
+    ext=""
+    case "$base" in *.*) ext=${base##*.} ;; esac
+    case " $NAMED " in *" $base "*) continue ;; esac
+    case " $EXTS " in *" $ext "*) continue ;; esac
+    bad="$bad $f"
+  done
+  if [ -n "$bad" ]; then
+    echo "unrecognised file type under a signed root:" >&2
+    for f in $bad; do echo "    $f" >&2; done
+    echo "  add its extension to EXTS, or its name to NAMED, or exclude it." >&2
+    exit 4
+  fi
+}
+
+assert_roots_present() {
+  for r in $ROOTS; do
+    [ -d "$r" ] || { echo "missing signed root: $r" >&2; exit 3; }
+  done
+}
+
 case "${1:-}" in
 keygen)
   python3 - <<'PY'
@@ -36,11 +93,19 @@ print("\nPublish that fingerprint out of band -- on the repository README, in\n"
       "package it authenticates proves nothing.")
 PY
   ;;
+list)
+  # What `sign` would cover, without needing the offline key. This is what
+  # makes the coverage model testable at all: selftest.sh runs it, sign does not.
+  assert_roots_present
+  assert_all_recognised
+  covered_files
+  ;;
+
 sign)
   KEY="${2:?usage: ./sign-release.sh sign /path/to/acp-release.key}"
-  find . -type f \( -name '*.md' -o -name '*.py' -o -name '*.dfy' -o -name '*.txt' \
-       -o -name '*.sh' -o -name '*.pub' \) ! -name 'MANIFEST.sha256' \
-       | sort | xargs sha256sum > MANIFEST.sha256
+  assert_roots_present
+  assert_all_recognised
+  covered_files | xargs sha256sum > MANIFEST.sha256
   python3 - "$KEY" <<'PY'
 import sys
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
