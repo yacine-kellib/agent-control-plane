@@ -299,7 +299,9 @@ def run_tests():
 
 
 def run_mutants():
-    src = open("acp_ack.py").read()
+    _HERE = os.path.dirname(os.path.abspath(__file__))
+    SRC_DIR = os.path.join(_HERE, os.pardir, "src")
+    src = open(os.path.join(SRC_DIR, "acp_ack.py")).read()
     print("=" * 74)
     print("ACK MUTATION — each new check must be load-bearing")
     print("=" * 74)
@@ -311,13 +313,18 @@ def run_mutants():
             continue
         with tempfile.TemporaryDirectory() as td:
             open(os.path.join(td, "acp_ack.py"), "w").write(src.replace(old, new))
-            for f in ("acp_executor.py", "conformance.py", "ack_suite.py"):
-                shutil.copy(f, td)
+            shutil.copy(os.path.join(SRC_DIR, "acp_executor.py"), td)
+            for f in ("conformance.py", "ack_suite.py"):
+                shutil.copy(os.path.join(_HERE, f), td)
+            # See mutate_executor.run_mutant: PYTHONPATH must not reach the
+            # mutant, or a failed copy silently tests the real module.
+            env = dict(os.environ)
+            env.pop("PYTHONPATH", None)
             r = subprocess.run(
                 [sys.executable, "-c",
                  f"import ack_suite as A; a,_=A.{test}(); "
                  f"h,_=A.t_honest_signed_ack_releases(); print(int(a),int(h))"],
-                capture_output=True, text=True, cwd=td, timeout=60)
+                capture_output=True, text=True, cwd=td, timeout=60, env=env)
             out = (r.stdout.strip().split() + ["?", "?"])[:2]
             blocked, honest = out[0] == "1", out[1] == "1"
             if not blocked and honest:

@@ -5,7 +5,7 @@
 # sign-release.sh. They are separate files so that a bug in the tooling cannot
 # print a green ACP result.
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # tools/ -> repo root
 FAIL=0
 OUT=""
 ok()  { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
@@ -16,18 +16,24 @@ chk() { if [ "$1" -eq 0 ]; then ok "$2"; else bad "$2"; fi; }
 # person to "fix" it inverts a test silently.
 has()    { if echo "$OUT" | grep -qE "$1"; then ok "$2";  else bad "$2"; fi; }
 hasnot() { if echo "$OUT" | grep -qE "$1"; then bad "$2"; else ok "$2"; fi; }
+# verify.sh colours its result lines, so a bare '^  OK' never matches. Strip
+# the escapes before counting. Getting this wrong reported 0 of 14 lines while
+# every suite was in fact passing.
+strip_ansi() { sed $'s/\033\\[[0-9;]*m//g'; }
 
 printf '\n\033[1m== sign-release.sh list ==\033[0m\n'
 
-OUT=$(./sign-release.sh list 2>&1); rc=$?
+OUT=$(./tools/sign-release.sh list 2>&1); rc=$?
 [ $rc -eq 0 ]; chk $? "list exits 0 (got $rc)"
 
-has '^README\.md$'                 "covers README.md"
-has '^LICENSE$'                    "covers LICENSE (no extension)"
-has '^\.gitignore$'                "covers .gitignore (signer input set derives from it)"
-has '^artifacts/acp_executor\.py$' "covers artifacts/*.py"
-has '^verify\.sh$'                 "covers verify.sh (the tool that checks the claims)"
-has '^06-RESIDUAL-RISK\.md$'       "covers the numbered dossier documents"
+has '^README\.md$'                     "covers README.md"
+has '^LICENSE$'                        "covers LICENSE (no extension)"
+has '^\.gitignore$'                    "covers .gitignore (signer input set derives from it)"
+has '^reference/src/acp_executor\.py$' "covers reference/src"
+has '^reference/suites/conformance\.py$' "covers reference/suites"
+has '^tools/verify\.sh$'               "covers verify.sh (the tool that checks the claims)"
+has '^dossier/06-RESIDUAL-RISK\.md$'   "covers the numbered dossier documents"
+has '^spec/ACP-SPEC-001\.md$'          "covers the normative spec"
 
 hasnot '^docs/'           "does NOT cover docs/ (working documents, not release artifacts)"
 hasnot 'MANIFEST\.sha256' "does NOT cover the manifest or its signature"
@@ -41,22 +47,23 @@ printf '\n\033[1m== signer halt-assertion ==\033[0m\n'
 # (verified), so the signer sees it without anything being committed.
 # Trap covers INT/TERM as well as EXIT: an interrupted self-test must not
 # leave the user's index dirty.
+SCRATCH=reference/src/scratch.bin
 cleanup_scratch() {
-  git rm -q --cached artifacts/scratch.bin 2>/dev/null || true
-  rm -f artifacts/scratch.bin
+  git rm -q --cached "$SCRATCH" 2>/dev/null || true
+  rm -f "$SCRATCH"
 }
 trap cleanup_scratch INT TERM EXIT
-printf 'x' > artifacts/scratch.bin
-git add -N artifacts/scratch.bin
+printf 'x' > "$SCRATCH"
+git add -N "$SCRATCH"
 
-OUT=$(./sign-release.sh list 2>&1); rc=$?
+OUT=$(./tools/sign-release.sh list 2>&1); rc=$?
 [ $rc -eq 4 ]; chk $? "unrecognised extension halts the signer (exit 4, got $rc)"
-has 'artifacts/scratch\.bin' "names the offending file"
+has 'scratch\.bin' "names the offending file"
 
 cleanup_scratch
 trap - INT TERM EXIT
 
-OUT=$(./sign-release.sh list 2>&1); rc=$?
+OUT=$(./tools/sign-release.sh list 2>&1); rc=$?
 [ $rc -eq 0 ]; chk $? "clean tree lists successfully again (got $rc)"
 
 printf '\n\033[1m== sign never destroys a signed manifest ==\033[0m\n'
@@ -67,11 +74,11 @@ printf '\n\033[1m== sign never destroys a signed manifest ==\033[0m\n'
 # leaves a regenerated manifest that only the offline key holder can re-sign.
 before=$(sha256sum MANIFEST.sha256 | awk '{print $1}')
 
-OUT=$(./sign-release.sh sign /nonexistent/key.pem 2>&1); rc=$?
+OUT=$(./tools/sign-release.sh sign /nonexistent/key.pem 2>&1); rc=$?
 [ $rc -eq 5 ]; chk $? "missing key file exits 5 before touching anything (got $rc)"
 
 printf 'not a key' > /tmp/acp_bogus_key.pem
-OUT=$(./sign-release.sh sign /tmp/acp_bogus_key.pem 2>&1); rc=$?
+OUT=$(./tools/sign-release.sh sign /tmp/acp_bogus_key.pem 2>&1); rc=$?
 [ $rc -ne 0 ]; chk $? "unparseable key fails (got $rc)"
 rm -f /tmp/acp_bogus_key.pem
 
@@ -79,6 +86,26 @@ after=$(sha256sum MANIFEST.sha256 | awk '{print $1}')
 [ "$before" = "$after" ]; chk $? "MANIFEST.sha256 is byte-identical after both failures"
 [ ! -f MANIFEST.sha256.tmp ]; chk $? "no .tmp manifest left behind"
 [ ! -f MANIFEST.sha256.sig.tmp ]; chk $? "no .tmp signature left behind"
+
+printf '\n\033[1m== verify.sh --suites ==\033[0m\n'
+
+OUT=$(./tools/verify.sh --suites 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "--suites exits 0 (got $rc)"
+
+hasnot '1\. Integrity'      "--suites skips integrity (no release key needed)"
+hasnot 'Manifest signature' "--suites skips signature"
+has    'Formal proofs'      "--suites still runs the proof step"
+
+# 15 = 1 prerequisites + 1 proofs + 13 suite lines. The prerequisites line at
+# verify.sh:21 is easy to forget; an assertion of 14 fails against a healthy run.
+n=$(echo "$OUT" | strip_ansi | grep -cE '^  (OK|FAIL)')
+[ "$n" -eq 15 ]; chk $? "--suites reports 15 result lines: prereqs + proofs + 13 suites (got $n)"
+
+nf=$(echo "$OUT" | strip_ansi | grep -cE '^  FAIL')
+[ "$nf" -eq 0 ]; chk $? "--suites has no failing line (got $nf)"
+
+OUT=$(./tools/verify.sh --bogus 2>&1); rc=$?
+[ $rc -eq 2 ]; chk $? "unknown flag exits 2 with usage (got $rc)"
 
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then echo "  tooling self-test passed."
