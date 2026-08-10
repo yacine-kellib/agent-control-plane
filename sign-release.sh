@@ -103,16 +103,27 @@ list)
 
 sign)
   KEY="${2:?usage: ./sign-release.sh sign /path/to/acp-release.key}"
+  [ -f "$KEY" ] || { echo "no such key file: $KEY" >&2; exit 5; }
   assert_roots_present
   assert_all_recognised
-  covered_files | xargs sha256sum > MANIFEST.sha256
+  # Build and sign into temporaries, then move into place only once the
+  # signature exists. Writing MANIFEST.sha256 first -- as this script used to --
+  # meant a mistyped key path destroyed the only manifest whose signature still
+  # verified, and nobody but the offline key holder could rebuild it. Failing
+  # here must leave the previous release intact.
+  trap 'rm -f MANIFEST.sha256.tmp MANIFEST.sha256.sig.tmp' EXIT
+  covered_files | xargs sha256sum > MANIFEST.sha256.tmp
   python3 - "$KEY" <<'PY'
 import sys
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 sk = load_pem_private_key(open(sys.argv[1], "rb").read(), password=None)
-open("MANIFEST.sha256.sig", "wb").write(sk.sign(open("MANIFEST.sha256", "rb").read()))
-print("signed -> MANIFEST.sha256.sig")
+open("MANIFEST.sha256.sig.tmp", "wb").write(
+    sk.sign(open("MANIFEST.sha256.tmp", "rb").read()))
 PY
+  mv MANIFEST.sha256.tmp MANIFEST.sha256
+  mv MANIFEST.sha256.sig.tmp MANIFEST.sha256.sig
+  trap - EXIT
+  echo "signed -> MANIFEST.sha256.sig"
   echo "files covered: $(wc -l < MANIFEST.sha256)"
   ;;
 *)
