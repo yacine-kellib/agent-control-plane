@@ -1,0 +1,23 @@
+# The control plane as running processes — one command, seven services.
+#
+# Scaffold: no service is implemented yet (build order step 6), so no image
+# builds here and `docker compose up` is deliberately not wired. The file exists
+# to fix the topology and the trust boundaries while they are still cheap to
+# argue about.
+#
+# The boundaries this must preserve when it is filled in:
+#
+#   - the agent holds NO key material. It proposes; it is never a principal.
+#   - policy and executor derive the signed bundle INDEPENDENTLY. Neither is
+#     handed a bundle by a peer (RAD-4) — a service given a bundle over a pipe
+#     is trusting the peer that sent it.
+#   - anchor runs outside the trust domain of what it anchors. An anchor an
+#     attacker can also compromise is a log.
+#   - notifier and approval share nothing above the wire format (DR-2).
+#
+# The Python simulation already demonstrates all four across seven real OS
+# processes: `python3 -m sim.supervise --checks`.
+
+name: acp
+
+services: {}

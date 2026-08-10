@@ -1,3 +1,15 @@
 *.key
 __pycache__/
 .DS_Store
+
+# Build outputs. These are also what keeps them out of the signed manifest:
+# tools/sign-release.sh takes its file set from `git ls-files`, so anything
+# ignored here is excluded from coverage by construction rather than by a
+# deny-list in the signer. That is why this file is itself signed.
+target/
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Private working material, never signed, never published.
+private/

@@ -1,0 +1,9 @@
+packages:
+  - 'packages/*'
+  - 'services/notifier'
+  - 'services/approval'
+  - 'orchestrator'
+
+# services/executor, policy, ledger and anchor are Rust and live in the Cargo
+# workspace at ./Cargo.toml. services/ is deliberately mixed-language: the
+# boundary that matters is the service, not the toolchain.
