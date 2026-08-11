@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + all 13 suites — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (27 assertions)
+./tools/selftest.sh                # tests the tooling itself (29 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 
 # individual suites — run from reference/suites/, they use flat imports

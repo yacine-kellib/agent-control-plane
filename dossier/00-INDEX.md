@@ -18,10 +18,10 @@ This dossier is built to be **attacked**, not merely read. If a claim looks doub
 | 01 | Executive summary | CISO, leadership | 10 min |
 | 02 | Threat model and MITRE ATLAS / ATT&CK mapping | Analyst, auditor | 20 min |
 | 02b | Field-and-relation classification table (**regenerated v1.3.11**) | Auditor | 20 min |
-| 03 | Full normative specification | Architect, implementer | 3 h |
+| 03 | Full normative specification — now `spec/ACP-SPEC-001.md` | Architect, implementer | 3 h |
 | 04 | Formal verification | Formal reviewer | 45 min |
 | 04b | Prior adversarial review (partial independence) | Auditor | 30 min |
-| 05 | Test evidence (suites 1–7) | Auditor, assessor | 30 min |
+| 05 | Test evidence (suites 1–10) | Auditor, assessor | 30 min |
 | 06 | Residual risk and limits | CISO, risk management | 15 min |
 | 07 | Reproduction | Any verifying party | — |
 
@@ -47,4 +47,6 @@ The manifest itself is signed. `MANIFEST.sha256.sig` is an Ed25519 detached sign
 
 ## Version
 
-v1.3.11. Changes from v1.3.10 are in `RELEASE.md`: AC-5/AU-6/AU-7/AU-8 implemented and tested, Suite 5 given the tests it always claimed, residual identifiers disambiguated (RR-n), and three defects disclosed from building the new machinery.
+v1.3.13, the polyglot restructure. Full notes in `RELEASE.md`. A structural release: no rule changed, and every number that replayed in v1.3.12 replays here. The repository was reorganised from a Python-only dossier into a polyglot monorepo so a second implementation surface (Rust, TypeScript) can be held to the same evidence — `spec/` is now the only normative source, `reference/` the permanent Python implementation.
+
+Two consequences a reader should know before verifying. The gate is **split**: `./tools/verify.sh --suites` runs the proofs and all 13 suites without the release key and is green at every commit, while full `verify.sh` adds integrity and signature and is green only at a tagged release — sections 1–2 red between releases is a property of offline signing, not a finding. And **Rust and TypeScript are scaffold**: the services exit non-zero so they cannot be mistaken for a running control plane, and `spec/vectors/` — the shared corpus that would make "44/44" mean the same in both languages — is not yet extracted. Five new residuals (RES-P1..P5) are disclosed in §06; the load-bearing one is that splitting the notifier and approval codebases does **not** close T-32.

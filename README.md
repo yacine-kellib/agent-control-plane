@@ -1,6 +1,12 @@
-![Agent Control Panel](assets/banner.png)
+![Agent Control Plane](assets/banner.png)
 
 # ACP — Agent Control Plane
+
+**A structured-input control plane that decides whether an AI agent's action is authorised — outside the model, where prompt injection cannot reach.**
+
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Spec](https://img.shields.io/badge/spec-ACP--SPEC--001%20v1.3.13-informational)](spec/ACP-SPEC-001.md)
+[![Status](https://img.shields.io/badge/status-evaluate%2C%20not%20deploy-orange)](#wanted-an-adversarial-reviewer)
 
 Most agent deployments give the model a credential and call that authorisation. It isn't. It means anyone who can influence the model can act with the agent's rights: a poisoned document, a hostile support ticket, a comment in a dependency README. No break-in required.
 
@@ -18,24 +24,67 @@ agent  ──proposes──▶  policy engine  ──▶  executor  ──▶  a
 
 A compromised model can request a €40,000 synthesis order as often as it likes and never cause one. The risk level is recomputed from signed policy the model never sees, and the order needs human signatures bound to that exact request.
 
-**ACP-SPEC-001 v1.3.13** · specification, mechanised proofs, reference implementation, and the evidence for every claim.
+---
 
-### Reproduce every claim in ninety seconds
+## Contents
+
+- [Quick start](#quick-start) — reproduce every claim in ninety seconds
+- [See it happen](#see-it-happen) — the injection demo
+- [Where this bites](#where-this-bites) — eight deployment settings
+- [How it works: two doors](#how-it-works-two-doors) — the architecture in one idea
+- [The one claim](#the-one-claim) — INV-1-HIGH
+- [What this does **not** claim](#what-this-does-not-claim) — read this before the positive claims
+- [Threat model and framework mapping](#threat-model-and-framework-mapping) — MITRE ATLAS, ATT&CK, OWASP LLM Top 10
+- [Documentation](#documentation) — the full dossier
+- [Repository layout](#repository-layout) — what is real and what is scaffold
+- [Wanted: an adversarial reviewer](#wanted-an-adversarial-reviewer) — the most important gap
+- [Integrity and releases](#integrity-and-releases)
+- [Licence and authorship](#licence-and-authorship)
+
+---
+
+## Quick start
 
 ```bash
 python3 -m pip install --break-system-packages cryptography dilithium-py
 ./tools/verify.sh
 ```
 
+Abridged output. A complete run prints 17 result lines across five numbered sections:
+
 ```
-OK  111 files match MANIFEST.sha256         OK  73/73 attacks fail closed
-OK  Ed25519 signature verifies              OK  29/29 mutation controls kill
-OK  36 verified, 0 errors  (Dafny/Z3)       OK  9 test suites, all green
+== 1. Integrity ==
+  OK   111 files match MANIFEST.sha256
+
+== 2. Manifest signature (Ed25519, offline release key) ==
+  OK   detached signature verifies against release-key.pub
+
+== 3. Formal proofs ==
+  OK   Dafny program verifier finished with 36 verified, 0 errors
+
+== 4. Test suites ==
+  OK   ALL attacks (consolidated registry) — RESULT: 73/73
+  OK   Suite 1  conformance — RESULT: 44/44 — CONFORMANT
+  OK   Suite 2  executor mutation — RESULT: 19/19 killed
+  ...
 ```
+
+Thirteen suite lines in all, spanning 9 numbered suites, and 29 mutation controls across three of them.
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
-The mutation results are the ones worth reading. Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous.
+**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 29 of them: 19 executor, 6 acknowledgement, 4 audit.
+
+Two gates, and the difference matters:
+
+| Command | Checks | Needs the release key? |
+|---|---|---|
+| `./tools/verify.sh --suites` | proofs + 13 suites | No — green at every commit |
+| `./tools/verify.sh` | the above + integrity + signature | Yes — green only at a tagged release |
+
+Sections 1–2 can only be made green by the key holder, because regenerating the manifest requires the offline Ed25519 key. **Red integrity between releases is offline signing working as designed, not a defect** — see [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md).
+
+Dafny is optional; the proof step is skipped if it isn't installed.
 
 ### See it happen
 
@@ -43,9 +92,15 @@ The mutation results are the ones worth reading. Each security check is deleted 
 python3 reference/suites/demo_flow.py
 ```
 
+> **Note:** this starts a local web server and opens a browser tab. It runs until you stop it with Ctrl-C — it is a presentation, not a test. For the test path use `./tools/verify.sh`. Presenter's guide: [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md).
+
 A supplier report arrives with an instruction hidden in white text. The model reads it and complies. The demo runs that same output down two paths side by side: without a control plane the data leaves the company, with ACP nothing irreversible happens.
 
-### Where this bites
+The model is shown complying **fully**. Simulating a refusal would misrepresent the claim — the architecture's guarantee does not depend on injection failing.
+
+---
+
+## Where this bites
 
 In each case an agent proposes something consequential and nothing between the model and the effect can refuse.
 
@@ -53,7 +108,7 @@ In each case an agent proposes something consequential and nothing between the m
 |---|---|---|---|
 | **Cloud / infrastructure ops** | Modify a firewall rule, rotate a key, terminate instances, apply IaC | A poisoned ticket or log line becomes a production change. The agent had the credential, so the change is "authorised". | Risk floor comes from signed policy, not the request. Firewall-on-prod-DB is HIGH → two bound attestations or it does not run. |
 | **Finance / payments** | Release a payment, change payee details, approve an invoice | Invoice-fraud text in a PDF the agent summarises redirects a transfer. No human ever saw the change. | Irreversible ⇒ DR-9: silence is not consent. Positive acknowledgement from a non-operator, signed and bound to that exact payment. |
-| **Pharma / research automation** | Order a synthesis, book instrument time, release a dataset to a partner | Cross-program disclosure to a competitor. Cannot be recalled — the business damage is instant and permanent. | `release_to_partner` is HIGH and IRREVERSIBLE by policy. Quorum required; the model's request is only ever a proposal. (Worked example: Annex D.) |
+| **Pharma / research automation** | Order a synthesis, book instrument time, release a dataset to a partner | Cross-program disclosure to a competitor. Cannot be recalled — the business damage is instant and permanent. | `release_to_partner` is HIGH and IRREVERSIBLE by policy. Quorum required; the model's request is only ever a proposal. (Worked example: [Annex D](dossier/annexes/D-research-pipeline.md).) |
 | **Customer support / CRM** | Issue a refund, delete an account, export a customer list | A customer message containing instructions gets treated as an instruction. Mass action at machine speed. | Accumulators count **executions**, not decisions (AC-5), and capability is re-queried at execution time (T-10). |
 | **Software delivery / CI-CD** | Merge, deploy, publish a package, rotate a secret | A comment in a dependency README triggers a release. Supply chain, one step removed. | Executor recomputes risk and rehashes the artifact; approval covers the exact bytes deployed, not a similar request (B-1a). |
 | **Healthcare / clinical** | Amend a record, submit to a regulator, release trial data | Regulated data integrity failure; audit trail rewritten after the fact. | Audit chain anchored **before** release (AU-7); post-anchor rewrite is detectable, not silent. Attestation maps onto e-signature requirements. |
@@ -62,7 +117,9 @@ In each case an agent proposes something consequential and nothing between the m
 
 The model isn't the problem in any of these. The authorisation is. When the credential is the authorisation, a manipulated agent is an authorised agent.
 
-### How it works: two doors
+---
+
+## How it works: two doors
 
 **Door B is text.** The model's only channel is text in, text out. No tools, no network, no function calling. It can be injected, jailbroken or simply wrong and nothing happens, because talking has no consequence.
 
@@ -73,8 +130,6 @@ Door B is deliberately unfiltered. Text is unbounded, there is no closed grammar
 Door A is controllable because actions are a closed, enumerable set: a finite list, each with a declared risk and reversibility. Deciding about one is arithmetic over trusted bytes rather than a judgement about meaning.
 
 That asymmetry is why prompt injection is out of scope here rather than defended against. The injection succeeds, on the door where success means nothing. Same move that fixed SQL injection: nobody won by writing better sanitisers, they made it impossible for data to become a statement.
-
-**Covers:** agentic AI security · LLM tool-use authorisation · prompt-injection containment · human-in-the-loop approval · four-eyes / quorum on irreversible actions · capability-based access control for agents · MCP and function-calling boundaries · tamper-evident audit for AI actions · post-quantum signatures (Ed25519 + ML-DSA-65) · formal verification in Dafny · MITRE ATLAS and ATT&CK mapping · OWASP LLM Top 10 (LLM06 Excessive Agency).
 
 > Five rounds of adversarial review found five violations of one rule: a verifier must never accept a derived security value from the party it is verifying. Every one of them was in machinery the previous fix had introduced. Two more turned up inside the proof artifacts. A sixth was found by re-running the classification method against the current version, and is fixed in this release.
 >
@@ -94,13 +149,20 @@ Note the shape: it does not say the system is safe. It says what must be true si
 - That sensitivity or reversibility labels are honest. A-7, conceded unprovable: a production database labelled "sandbox" defeats the design with no attack at all.
 - That any human read a notification (A-8). Authentication is not comprehension.
 - That the notifier's declared independence is verified at run time. T-32, open: the runtime check is a lint, not a control.
-- **That an independent adversarial review has taken place. It has not.** See below.
+- That the Rust and TypeScript services are a running control plane. Most of them are scaffold — see [Repository layout](#repository-layout).
+- **That an independent adversarial review has taken place. It has not.** See [below](#wanted-an-adversarial-reviewer).
 
-## Framework mapping
+Full treatment: [`dossier/06-RESIDUAL-RISK.md`](dossier/06-RESIDUAL-RISK.md), which comes *before* the positive claims in the intended reading order.
 
-Mapped against **MITRE ATLAS content release 2026.07** (verified 2026-08-10 against the machine-readable source at `github.com/mitre-atlas/atlas-data`, not against secondary sources). Three identifiers used in earlier revisions were wrong or stale and are corrected in `dossier/02-THREAT-MODEL-MITRE.md`; the release and date are recorded there, and re-pinning is a release obligation because ATLAS updates monthly.
+---
 
-**ATLAS.** ACP does not defend the model, so the input-side techniques stay open by design and the impact-side ones are constrained.
+## Threat model and framework mapping
+
+Mapped against **MITRE ATLAS content release 2026.07** (verified 2026-08-10 against the machine-readable source at `github.com/mitre-atlas/atlas-data`, not against secondary sources). Three identifiers used in earlier revisions were wrong or stale and are corrected in [`dossier/02-THREAT-MODEL-MITRE.md`](dossier/02-THREAT-MODEL-MITRE.md); the release and date are recorded there, and re-pinning is a release obligation because ATLAS updates monthly.
+
+### MITRE ATLAS
+
+ACP does not defend the model, so the input-side techniques stay open by design and the impact-side ones are constrained.
 
 | Technique | Position |
 |---|---|
@@ -111,7 +173,9 @@ Mapped against **MITRE ATLAS content release 2026.07** (verified 2026-08-10 agai
 
 ACP covers three ATLAS techniques and partly. That is intended: an architecture claiming to cover the whole matrix would be lying. The value sits on Impact and Defense Evasion, where ATT&CK is the relevant mapping.
 
-**ATT&CK Enterprise.** ACP's components are ordinary infrastructure services, so their compromise is ATT&CK's vocabulary.
+### MITRE ATT&CK Enterprise
+
+ACP's components are ordinary infrastructure services, so their compromise is ATT&CK's vocabulary.
 
 | Technique | Internal threat | Constraint |
 |---|---|---|
@@ -124,20 +188,63 @@ ACP covers three ATLAS techniques and partly. That is intended: an architecture 
 | `T1499` Endpoint DoS | Anchor denial leading to approver saturation | Sampling suspended or fail closed during outage |
 | `T1098` Account Manipulation | Accumulator inflation to lock out an operator | Count at release, never at decision |
 
-**Also mapped:** NIST AI RMF and ISO 42001 as the control-side complements, and OWASP LLM Top 10, where **LLM06 Excessive Agency** is the core of the design and LLM01, LLM02, LLM05 and LLM08 are addressed in `dossier/02-THREAT-MODEL-MITRE.md`.
+### Also mapped
+
+**OWASP LLM Top 10** — **LLM06 Excessive Agency** is the core of the design; LLM01, LLM02, LLM05 and LLM08 are addressed in [`dossier/02-THREAT-MODEL-MITRE.md`](dossier/02-THREAT-MODEL-MITRE.md). **NIST AI RMF** and **ISO/IEC 42001** are the control-side complements.
 
 **Threats neither framework covers.** Notification habituation, where a control whose default outcome equals its approved outcome teaches its users to skip it. Label dishonesty, which needs no attacker at all. Both are documented rather than solved.
 
-## Read it
+---
 
-| | | |
+## Documentation
+
+The dossier is the argument; the spec is the normative source. Read `06` before the positive claims — that is the intended order.
+
+| Document | What it is | Time |
 |---|---|---|
-| `dossier/00-INDEX.md` | how to read this | 2 min |
-| `dossier/01-EXECUTIVE-SUMMARY.md` | why the architecture exists | 10 min |
-| `dossier/02-THREAT-MODEL-MITRE.md` | ATLAS 2026.07 + ATT&CK mapping | 20 min |
-| `dossier/02b-CLASSIFICATION-TABLE.md` | every control input classified R/B/T | 20 min |
-| `dossier/06-RESIDUAL-RISK.md` | **what is wrong, before what is right** | 15 min |
-| `dossier/07-REPRODUCTION.md` | the exact command for every claim | — |
+| [`dossier/00-INDEX.md`](dossier/00-INDEX.md) | How to read the dossier | 2 min |
+| [`dossier/01-EXECUTIVE-SUMMARY.md`](dossier/01-EXECUTIVE-SUMMARY.md) | Why the architecture exists | 10 min |
+| [`dossier/02-THREAT-MODEL-MITRE.md`](dossier/02-THREAT-MODEL-MITRE.md) | Threat model, ATLAS 2026.07 + ATT&CK mapping | 20 min |
+| [`dossier/02b-CLASSIFICATION-TABLE.md`](dossier/02b-CLASSIFICATION-TABLE.md) | Every control input classified R (recomputed) / B (bound) / T (trusted) | 20 min |
+| [`dossier/04-FORMAL-VERIFICATION.md`](dossier/04-FORMAL-VERIFICATION.md) | What the Dafny model covers, and its boundary | 45 min |
+| [`dossier/04b-INDEPENDENT-REVIEW.md`](dossier/04b-INDEPENDENT-REVIEW.md) | A **partial**-independence review. It does **not** satisfy conformance suite 11, and is not the independent review named below as the largest gap | 30 min |
+| [`dossier/05-TEST-EVIDENCE.md`](dossier/05-TEST-EVIDENCE.md) | The test criterion and what each suite proves | 30 min |
+| [`dossier/06-RESIDUAL-RISK.md`](dossier/06-RESIDUAL-RISK.md) | **What is wrong, before what is right** | 15 min |
+| [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md) | The exact command for every claim | — |
+| [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md) | Running and presenting the demo | — |
+| [`dossier/annexes/D-research-pipeline.md`](dossier/annexes/D-research-pipeline.md) | Annex D — worked example in an agentic research pipeline | — |
+| [`spec/ACP-SPEC-001.md`](spec/ACP-SPEC-001.md) | The full normative specification | 3 h |
+| [`RELEASE.md`](RELEASE.md) | What changed in v1.3.13 | — |
+
+---
+
+## Repository layout
+
+```
+spec/          THE NORMATIVE SOURCE — ACP-SPEC-001.md, schemas/, vectors/
+dossier/       THE ARGUMENT — 00–07, annexes/. Not code.
+reference/     Python. Permanent. src/ suites/ proofs/
+crates/        Rust — acp-core, acp-crypto, acp-conformance
+services/      executor policy ledger anchor (Rust) · notifier approval (TS)
+packages/      TypeScript — acp-types (generated), acp-client
+orchestrator/  TypeScript — advances the clock, decides nothing
+sim/           the business simulation (companion to Annex D)
+deploy/        docker-compose.yml, k8s/
+tools/         verify.sh sign-release.sh selftest.sh
+```
+
+**What is real:** the Python reference implementation in `reference/` and everything that replays from it. That is the artifact the evidence is about.
+
+**What is scaffold:** most of `crates/`, `services/`, `orchestrator/` and `deploy/`. Every service `main()` exits non-zero on purpose, so a scaffold cannot be mistaken for a running control plane. Genuinely implemented on that side: the fail-safe defaults in `acp-core`, and CR-3 hybrid signature composition in `acp-crypto`.
+
+`spec/` is the only normative source — Rust and TypeScript types are *generated* from `spec/schemas`, never hand-written. Two hand-maintained definitions of one object is the encoding-split defect at the source level.
+
+Other languages, if you want to run them:
+
+```bash
+cargo check --workspace && cargo test --workspace   # Rust: 7 tests
+pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
+```
 
 ---
 
@@ -147,9 +254,9 @@ Conformance suite 11 requires review by a party with **no authorship or revision
 
 This repository is therefore **sufficient to evaluate the architecture and not sufficient to deploy it.**
 
-If you can read Dafny proof artifacts and want to break something, `dossier/07-REPRODUCTION.md` names where the return is highest:
+If you can read Dafny proof artifacts and want to break something, [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md) names where the return is highest:
 
-1. `acp_ack.py` and `acp_audit.py`, the newest code. The pattern says the next defect is there.
+1. `reference/src/acp_ack.py` and `reference/src/acp_audit.py`, the newest code. The pattern says the next defect is there.
 2. DR-2 path separation, an architectural property that the model cannot prove.
 3. §§6–7 ingress — never attacked by a third party.
 4. The Dafny model itself — check the theorems are not vacuous; the non-vacuity witnesses are there to be audited.
@@ -158,15 +265,23 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ---
 
-## Integrity
+## Integrity and releases
 
-`MANIFEST.sha256` covers every file and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 111 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
-Release key fingerprint: SHA256:614ea01438122f56f40d2d6b62a480ae
+Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56
 ```
 
-A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value.
+```bash
+sha256sum -c MANIFEST.sha256      # integrity alone
+./tools/verify.sh                 # integrity + signature + proofs + suites
+./tools/selftest.sh               # tests the tooling itself (29 assertions)
+```
+
+A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.
+
+---
 
 ## Licence and authorship
 
