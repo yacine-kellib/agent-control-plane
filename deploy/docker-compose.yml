@@ -20,7 +20,7 @@
 #   - anchor runs outside the trust domain of what it anchors.
 #   - notifier and approval share nothing above the wire format (DR-2).
 #
-# NOT DEPLOYABLE. Primitives are HMAC, the ledger is in-memory, the anchor is a
+# NOT DEPLOYABLE. The ledger is in-memory, the anchor is a
 # list. The entrypoint prints all three and refuses to start without
 # ACP_DEMONSTRATOR=1. See the Dockerfile header.
 
@@ -40,7 +40,7 @@ x-demonstrator: &demonstrator
   network_mode: none
   read_only: true
   # A writable /tmp is REQUIRED, not incidental hardening slack. The three
-  # mutation suites (19 executor + 6 ack + 4 audit = 29 mutants) work by copying
+  # mutation suites (20 executor + 6 ack + 4 audit = 30 mutants) work by copying
   # reference/src into a temp directory, deleting one check from the copy, and
   # running the matching attack against the mutant in a subprocess. On a fully
   # read-only filesystem they cannot write the mutant and the suites report
@@ -94,7 +94,8 @@ services:
   # It overrides network_mode from the anchor above, because a door that cannot
   # be reached is not a door. Everything else about the hardening is kept, and
   # the published port is bound to the host's LOOPBACK: this is a demonstrator
-  # whose primitives are HMAC and whose ledger is a set in memory, so exposing
+  # whose ledger is a set in memory and whose anchor shares its process tree,
+  # so exposing
   # it beyond the machine is a decision an operator makes deliberately by
   # editing this line, not a default they inherit.
   #

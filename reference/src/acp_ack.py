@@ -50,6 +50,7 @@ from __future__ import annotations
 import time
 
 from acp_executor import (h, sign, sig_ok, canon, FailClosed, CriticalAlert,
+                          SigningKey,
                             DeferredReleaseGate)
 
 # ACK-1: CLOSED schema. Exact field set, no more, no less.
@@ -62,7 +63,7 @@ VALID_DECISIONS = ("CONFIRM", "REPUDIATE")
 
 
 def make_ack(bundle, proposal_hash: str, acknowledger: str, decision: str,
-             key: bytes, now: float | None = None, ttl: int = 60,
+             key: SigningKey, now: float | None = None, ttl: int = 60,
              alg: str = "hybrid-ed25519-mldsa65") -> dict:
     """Construct a signed Acknowledgement Object. Used by attester clients."""
     now = time.time() if now is None else now

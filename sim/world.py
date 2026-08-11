@@ -9,10 +9,19 @@ makes the cross-program rule in bundle.py the most important entry in the
 policy table.
 
 Nothing in this module is a control. It is the org chart the controls act on.
+
+KEY MATERIAL. Since v1.3.14 an identity's key is a real hybrid keypair
+(Ed25519 + ML-DSA-65), derived deterministically from a seed so that the seven
+processes of `sim.supervise` agree on who is who. The PRIVATE half lives on the
+Person; only the PUBLIC halves reach `ATTESTER_KEYS` and therefore the signed
+bundle. Seeds are simulation material — a deployment loads keys from a KMS.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+import sim  # noqa: F401  — puts reference/src on the path
+from acp_crypto import HybridKey
 
 # ------------------------------------------------------------------ programs
 # Four contexts sharing one engine. alpha, beta and gamma are commercial
@@ -43,7 +52,8 @@ class Person:
     site: str
     can_attest: bool
     # A key is what makes an identity able to sign. `None` is not an omission.
-    key: bytes | None = None
+    # This is the PRIVATE half; the bundle gets `key.public()` only.
+    key: HybridKey | None = None
 
     def sees(self, program: str) -> bool:
         return "*" in self.programs or program in self.programs
@@ -59,19 +69,19 @@ class Person:
 PEOPLE = {
     "sci-01":   Person("sci-01",   "computational scientist",
                        frozenset({"prog-internal", "prog-alpha"}), "london",
-                       True,  b"k-sci-01"),
+                       True,  HybridKey(b"k-sci-01")),
     "sci-02":   Person("sci-02",   "computational scientist",
                        frozenset({"prog-alpha"}), "london",
-                       True,  b"k-sci-02"),
+                       True,  HybridKey(b"k-sci-02")),
     "sci-03":   Person("sci-03",   "medicinal chemist",
                        frozenset({"prog-internal", "prog-beta"}), "lausanne",
-                       True,  b"k-sci-03"),
+                       True,  HybridKey(b"k-sci-03")),
     "ops-01":   Person("ops-01",   "lab operations",
                        frozenset({"*"}), "boston",
-                       True,  b"k-ops-01"),
+                       True,  HybridKey(b"k-ops-01")),
     "legal-01": Person("legal-01", "contracts",
                        frozenset({"*"}), "london",
-                       True,  b"k-legal-01"),
+                       True,  HybridKey(b"k-legal-01")),
     "agent-01": Person("agent-01", "the AI agent",
                        frozenset(), "—",
                        False, None),
@@ -80,7 +90,7 @@ PEOPLE = {
 #: Keys the signed bundle registers for attestation and acknowledgement.
 #: An identity absent from this map cannot sign anything the Executor accepts —
 #: which is the whole of `agent-01`'s containment, stated as data.
-ATTESTER_KEYS = {p.id: p.key for p in PEOPLE.values() if p.key is not None}
+ATTESTER_KEYS = {p.id: p.key.public() for p in PEOPLE.values() if p.key is not None}
 
 #: `legal-01` is required in the quorum for any disclosure leaving the trust
 #: boundary. Contract exposure is not a judgement a scientist is positioned to

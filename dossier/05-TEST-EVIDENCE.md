@@ -15,7 +15,7 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ---
 
-## Suite 1 — Conformance (44/44)
+## Suite 1 — Conformance (45/45)
 
 `python3 reference/suites/conformance.py`
 
@@ -25,7 +25,7 @@ Eight positive paths, which is why the suite total is 44 and not 36: floor-HIGH 
 
 **Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist.
 
-## Suite 2 — Implementation mutation (19/19 kill)
+## Suite 2 — Implementation mutation (20/20 kill)
 
 `python3 reference/suites/mutate_executor.py`
 
@@ -104,7 +104,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (73/73, 4/4)
+## Suite 10 — consolidated registry and composition (74/74, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

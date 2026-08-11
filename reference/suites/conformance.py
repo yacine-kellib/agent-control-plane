@@ -26,10 +26,28 @@ if _os.path.isdir(_SRC) and _SRC not in sys.path:
 from acp_executor import (Bundle, Executor, Ledger, FailClosed, CriticalAlert,
                             canon, h, sign, evaluate, DeferredReleaseGate,
                             PendingRelease, RenderedSummary, render_from_canonical)
+from acp_crypto import HybridKey
 
 OP, A1, A2 = "op_8842", "op_1121", "op_3307"
-KEYS = {A1: b"k1", A2: b"k2", OP: b"kop"}
-RECEIPT_KEY = b"kms"
+
+# Real asymmetric keys, built ONCE at import. ML-DSA-65 keygen is ~38 ms and a
+# signature ~210 ms in pure Python; this module is the fixture library for seven
+# suites and the subject of 20 mutants, so per-test keygen would dominate the
+# gate. The SIGNING halves stay here, in the fixtures — the fixtures play the
+# KMS and the attesters. Only the PUBLIC halves go into the Bundle the Executor
+# reads, which is the property the swap exists to establish.
+SIGNERS = {A1: HybridKey(b"k1"), A2: HybridKey(b"k2"), OP: HybridKey(b"kop")}
+KEYS = {who: k.public() for who, k in SIGNERS.items()}
+RECEIPT_SIGNER = HybridKey(b"kms")
+RECEIPT_KEY = RECEIPT_SIGNER.public()
+
+# An attacker holding a real, well-formed keypair that the bundle does not
+# register. Under HMAC the equivalent was the byte string b"wrong-key", which
+# tested only that a wrong secret produces a wrong MAC. This is the stronger
+# statement the asymmetric swap makes available: the forgery is cryptographically
+# perfect and is refused for the only reason that should matter — the key is not
+# in the signed bundle.
+FORGER = HybridKey(b"forger")
 
 
 def make_bundle():
@@ -70,7 +88,7 @@ def att_obj(b, phash, expires, operator=OP, alg="hybrid-ed25519-mldsa65"):
 
 def entry(obj, attester, kind="approval"):
     return {"obj": obj, "kind": kind, "attester": attester,
-            "sig": sign(KEYS[attester], h(obj), obj["alg"])}
+            "sig": sign(SIGNERS[attester], h(obj), obj["alg"])}
 
 
 def receipt(b, p, *, now=1000.0, atts=None, nonce="nonce-1", **over):
@@ -79,8 +97,8 @@ def receipt(b, p, *, now=1000.0, atts=None, nonce="nonce-1", **over):
          "nonce": nonce, "tenant_id": "t1", "operator": OP,
          "attestations": atts or [], "_now": now}
     r.update(over)
-    r["sig"] = sign(RECEIPT_KEY, canon({k: v for k, v in r.items()
-                                        if k != "sig"}).decode(), r["alg"])
+    r["sig"] = sign(RECEIPT_SIGNER, canon({k: v for k, v in r.items()
+                                           if k != "sig"}).decode(), r["alg"])
     return r
 
 
@@ -185,7 +203,7 @@ def a_Z4_optional_field():
     atts = quorum(b, p)
     obj = dict(atts[0]["obj"]); obj["extension"] = None
     atts[0] = {"obj": obj, "kind": "approval", "attester": A1,
-               "sig": sign(KEYS[A1], h(obj))}
+               "sig": sign(SIGNERS[A1], h(obj))}
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -582,6 +600,39 @@ def a_CR1_unknown_suite():
     ex.execute(r, p)
 
 
+def a_PBKEY_swapped_attester_registry():
+    """
+    PB-KEY: a bundle whose only difference is WHICH KEYS IT TRUSTS must be a
+    different bundle.
+
+    Scope, stated precisely, because the honest version of this claim is
+    narrower than it first looks -- and narrower than an earlier draft of this
+    docstring said. EVERY SIGNATURE BELOW IS GENUINE. Nothing forged is accepted
+    and this is not a quorum bypass: an Executor verifies attestations against
+    its OWN registry, so swapping one Executor's registry does not push a forged
+    quorum through another. What the missing coverage broke is IDENTITY, and
+    therefore AUDIT. Two bundles authorising DIFFERENT approvers hashed the
+    same, so `policy_bundle_hash` did not determine who was allowed to approve:
+    every audit record emitted under either bundle is identical in the field
+    that is supposed to name the policy in force, and P-3 -- "Decisions are
+    replayable bit-for-bit from audit" -- does not hold. Spec §8.2 already put
+    `attesters/` inside the signed bundle tree; the reference simply did not
+    hash it.
+
+    What the test asserts is exactly that and no more: two bundles differing
+    only in their key registry must be different bundles, so a receipt issued
+    under one is refused by an Executor holding the other (9.3-4).
+    """
+    b, ex = fresh()
+    p = proposal()
+    # Same policy in every respect except the key registry: `A1`'s slot now
+    # holds a key the honest bundle never registered.
+    tampered = make_bundle()
+    tampered.attester_keys = dict(KEYS, **{A1: FORGER.public()})
+    r = receipt(tampered, p, atts=quorum(tampered, p))
+    ex.execute(r, p)                     # ex trusts `b`, not `tampered`
+
+
 ATTACKS = [
     ("Y1  attestation misbinding",      a_Y1_misbinding,        "9.3-7b-ii"),
     ("Y1b garbage attestation_id",      a_Y1b_garbage_id,       "Y1b"),
@@ -619,6 +670,7 @@ ATTACKS = [
     ("CR-3 extra undeclared primitive",  a_CR3_extra_primitive,        "9.3-1"),
     ("CR-2 legacy scalar signature",     a_CR2_legacy_scalar_signature, "9.3-1"),
     ("CR-1 unknown suite",               a_CR1_unknown_suite,          "CR-4"),
+    ("PB-KEY swapped attester registry", a_PBKEY_swapped_attester_registry, "9.3-4"),
 ]
 
 POSITIVE = [("honest floor-HIGH", t_honest_high),

@@ -261,7 +261,7 @@ def cmd_compose():
     def honest_on_quorum():
         b, g, pr, _ = build()
         g.confirm(pr.proposal_hash, make_ack(b, pr.proposal_hash, "op_1121",
-                                             "CONFIRM", C.KEYS["op_1121"], now=NOW),
+                                             "CONFIRM", C.SIGNERS["op_1121"], now=NOW),
                   now=NOW + 1)
         out = g.release(pr.proposal_hash, NOW + 61)
         return out["executed"], "acknowledgement consumed on a 5-replica ledger"
@@ -269,7 +269,7 @@ def cmd_compose():
     def replay_on_quorum():
         b, g, pr, _ = build()
         a = make_ack(b, pr.proposal_hash, "op_1121", "CONFIRM",
-                     C.KEYS["op_1121"], now=NOW)
+                     C.SIGNERS["op_1121"], now=NOW)
         g.confirm(pr.proposal_hash, a, now=NOW + 1)
         try:
             g.confirm(pr.proposal_hash, a, now=NOW + 2)
@@ -284,7 +284,7 @@ def cmd_compose():
         b, g, pr, led = build()
         led.set_partition({0, 1})                      # minority
         a = make_ack(b, pr.proposal_hash, "op_1121", "CONFIRM",
-                     C.KEYS["op_1121"], now=NOW)
+                     C.SIGNERS["op_1121"], now=NOW)
         try:
             g.confirm(pr.proposal_hash, a, now=NOW + 1)
             return False, "ACCEPTED an acknowledgement it could not record"
@@ -294,7 +294,7 @@ def cmd_compose():
     def heal_does_not_resurrect():
         b, g, pr, led = build()
         a = make_ack(b, pr.proposal_hash, "op_1121", "CONFIRM",
-                     C.KEYS["op_1121"], now=NOW)
+                     C.SIGNERS["op_1121"], now=NOW)
         g.confirm(pr.proposal_hash, a, now=NOW + 1)
         led.set_partition({0, 1, 2}); led.set_partition(None)   # partition + heal
         try:

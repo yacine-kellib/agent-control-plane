@@ -8,11 +8,12 @@ floor-HIGH actions, and releases them. It cannot manufacture any of the things
 it checks, which is the entire point of it being a separate process from
 `policy_svc` (which signs receipts) and `approval_svc` (where humans sign).
 
-CRYPTO-SWAP, stated plainly: signature primitives in this build are HMAC, so the
-"verification keys" this process holds are symmetric and could in principle sign.
-With real Ed25519/ML-DSA it would hold public keys only, and this caveat
-disappears. The control FLOW — who checks what, against which bytes — is
-unaffected, and that is what the simulation exercises.
+SIGNATURES ARE REAL as of v1.3.14 (Ed25519 + ML-DSA-65, asymmetric), and the
+sentence above is now literally true rather than a statement about control flow.
+Until then the "verification keys" this process held were HMAC secrets: it could
+in principle have signed everything it verified, so "holds no signing key" was a
+claim about how the code was written, not about what the key material allowed.
+The bundle now carries public keys only.
 
 It parents three children of its own — ledger, anchor, notifier — because those
 are the components it consults rather than trusts.

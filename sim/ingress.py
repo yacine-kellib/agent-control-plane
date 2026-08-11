@@ -350,13 +350,14 @@ def main() -> int:
     ap.add_argument("--port", type=int, default=8848)
     args = ap.parse_args()
 
-    # Binding beyond loopback exposes a control plane whose primitives are HMAC
-    # and whose ledger is a set in memory. The refusal is the same guard the
-    # container entrypoint uses, for the same reason.
+    # Binding beyond loopback exposes a control plane whose ledger is a set in
+    # memory and whose anchor shares a process tree with what it anchors. The
+    # refusal is the same guard the container entrypoint uses, for the same
+    # reason.
     if args.host not in ("127.0.0.1", "localhost") \
             and os.environ.get("ACP_DEMONSTRATOR") != "1":
-        print(f"REFUSING to bind {args.host}: this is a demonstrator — HMAC "
-              f"primitives, in-memory ledger, in-process anchor.\n"
+        print(f"REFUSING to bind {args.host}: this is a demonstrator — "
+              f"in-memory ledger, in-process anchor.\n"
               f"Set ACP_DEMONSTRATOR=1 if you have read those limits.",
               file=sys.stderr)
         return 3

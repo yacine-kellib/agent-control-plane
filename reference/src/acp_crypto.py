@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib, io, time
 from typing import Any
 
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, Ed25519PublicKey)
 from cryptography.exceptions import InvalidSignature
@@ -170,12 +171,26 @@ def h_cbor(obj: Any) -> str:
 
 # ============================================================ hybrid signatures
 class HybridKey:
-    """One identity, one key per primitive. Private halves stay together."""
+    """
+    One identity, one key per primitive. Private halves stay together.
+
+    DERIVED FROM THE SEED, both legs. Through v1.3.13 the ML-DSA half came from
+    an unseeded `ML_DSA_65.keygen()`, which was invisible while only one process
+    ever used a key: `sim.supervise` runs seven real OS processes, each importing
+    `sim.world`, and each would have minted a DIFFERENT post-quantum keypair for
+    the same identity — the classical leg would verify and the PQ leg would not,
+    so every hybrid signature would fail closed across a process boundary. FIPS
+    204 specifies KeyGen_internal(xi) over a 32-byte seed for exactly this.
+
+    A seed is test-and-simulation key material. A deployment loads keys from a
+    KMS or an HSM; nothing here should be read as endorsing derived keys.
+    """
     def __init__(self, seed: bytes):
         self.ed_sk = Ed25519PrivateKey.from_private_bytes(
             hashlib.sha256(seed + b"ed").digest())
         self.ed_pk = self.ed_sk.public_key()
-        self.ml_pk, self.ml_sk = ML_DSA_65.keygen()
+        self.ml_pk, self.ml_sk = ML_DSA_65.key_derive(
+            hashlib.sha256(seed + b"mldsa").digest())
 
     def public(self) -> "HybridPub":
         return HybridPub(self.ed_pk, self.ml_pk)
@@ -185,8 +200,67 @@ class HybridPub:
     def __init__(self, ed_pk: Ed25519PublicKey, ml_pk: bytes):
         self.ed_pk, self.ml_pk = ed_pk, ml_pk
 
+    def fingerprint(self) -> str:
+        """
+        A name for this public identity, over BOTH halves.
+
+        Used to bring the key registry inside `Bundle.hash()` (spec §8.2: the
+        SIGNATURE is over the canonical bundle tree, and `attesters/` is in that
+        tree). Covering both primitives is the point — a fingerprint over the
+        classical half alone would let an ML-DSA key be swapped without moving
+        the bundle hash, which is the conjunctive CR-3 guarantee undone at the
+        registry instead of at the verifier.
+        """
+        raw = self.ed_pk.public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+        return "sha256:" + hashlib.sha256(raw + self.ml_pk).hexdigest()
+
 
 PRIMS = {"classical", "pq"}
+
+
+# ------------------------------------------------- per-primitive sign / verify
+#
+# The Executor owns SUITES, SUITE_RANK and the conjunctive composition (CR-3);
+# this module owns the primitives. Keeping that split is deliberate: a mutation
+# of the composition (`all` -> `any`) still has something real to break, and the
+# CR-4 suite floor stays protocol logic rather than a property of a crypto
+# library.
+
+
+def sign_prim(key: HybridKey, msg: bytes, prim: str) -> bytes:
+    if prim == "classical":
+        return key.ed_sk.sign(msg)
+    if prim == "pq":
+        return ML_DSA_65.sign(key.ml_sk, msg)
+    raise CanonError(f"no primitive {prim!r}")
+
+
+def verify_prim(pub: HybridPub, msg: bytes, sig_hex: Any, prim: str) -> bool:
+    """
+    Never raises. A malformed signature is a verification FAILURE, not an
+    exception for some caller further up to catch — a raise here would travel a
+    different path from a false, and the two must be indistinguishable to the
+    Executor's fail-closed contract.
+    """
+    if not isinstance(sig_hex, str):
+        return False
+    try:
+        raw = bytes.fromhex(sig_hex)
+    except ValueError:
+        return False
+    if prim == "classical":
+        try:
+            pub.ed_pk.verify(raw, msg)
+            return True
+        except Exception:
+            return False
+    if prim == "pq":
+        try:
+            return bool(ML_DSA_65.verify(pub.ml_pk, msg, raw))
+        except Exception:
+            return False
+    return False
 
 
 def sign_hybrid(key: HybridKey, msg: bytes, alg: str) -> dict:

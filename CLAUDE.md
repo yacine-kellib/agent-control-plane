@@ -15,14 +15,14 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + all 13 suites — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (29 assertions)
+./tools/selftest.sh                # tests the tooling itself (34 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
-PYTHONPATH=../src python3 conformance.py          # 44/44
-PYTHONPATH=../src python3 attack_registry.py      # 73/73  (--compose → 4/4)
-PYTHONPATH=../src python3 mutate_executor.py      # 19/19  deletes each check, asserts the attack succeeds
+PYTHONPATH=../src python3 conformance.py          # 45/45
+PYTHONPATH=../src python3 attack_registry.py      # 74/74  (--compose → 4/4)
+PYTHONPATH=../src python3 mutate_executor.py      # 20/20  deletes each check, asserts the attack succeeds
 PYTHONPATH=../src python3 ack_suite.py            # 14/14  (--mutate → 6/6)
 PYTHONPATH=../src python3 audit_suite.py          # 11/11  (--mutate → 4/4)
 PYTHONPATH=../src python3 partition_suite.py      # 9/9
@@ -42,7 +42,9 @@ cargo check --workspace && cargo test --workspace   # Rust: 7 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
-Dependencies: `cryptography` and `dilithium-py` for signature checks. `sim/` is standard library only. Dafny is optional — the proof step is skipped if absent.
+Dependencies: `cryptography` and `dilithium-py`. Since v1.3.14 **`sim/` needs them too** — it signs with real hybrid keys, so the old "standard library only" claim is dead. Dafny is optional — the proof step is skipped if absent.
+
+**The gate now takes ~2 minutes, not seconds.** Pure-Python ML-DSA-65 signs in ~210 ms. That is the measured cost of real post-quantum signatures and is not a regression to optimise away.
 
 ## The two gates
 
@@ -83,7 +85,7 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 
 **Never fork `reference/src/*.py`. Import them.** Those modules carry mutation-test markers in comments — `# AU-7-anchor-before-release (mutation target)`, `# AC-5-anchor-release (do not move)`, `# AU-6-suspend-sampling`. `mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by reading the source text and deleting them, then assert the matching attack succeeds. A copied-and-edited executor silently voids the repository's own evidence. When new domain behaviour is needed, subclass and extend (see `sim/release.py:ResearchGate`).
 
-**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 19 + 6 + 4 = **29 mutants** must keep being killed.
+**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 20 + 6 + 4 = **30 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
 
 **`MANIFEST.sha256` is signed with an offline Ed25519 key.** Coverage is three allowlists and no deny-list: **roots** (the ten directories in `ROOTS`), **git-tracked** (`git ls-files`, so build outputs are excluded because they are gitignored), and **extension** (plus `LICENSE` and `Dockerfile` by name). The signer **halts on an unrecognised file type** rather than silently signing or silently skipping it. `.gitignore` is itself signed, because the signer derives its file set from it. Editing *any* covered file invalidates the manifest — this has already happened once to `README.md` via editor auto-format.
 
@@ -103,9 +105,13 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 
 **Do not add model-side defences.** No filtering, scoring or judging of model output anywhere. The architecture assumes the model is manipulable and its guarantees do not depend on injection failing; adding a content filter and relaxing a Door A control on its strength is an explicit conformance failure (§5.1a). In demos the model must be shown complying fully — simulating a refusal misrepresents the claim.
 
-**Crypto is modelled in Python, real in Rust.** Python signature primitives are HMAC-SHA256 over canonical bytes; sites needing real Ed25519/ML-DSA/COSE are marked `CRYPTO-SWAP`. The *hybrid composition* (CR-1..CR-5, conjunctive — verification requires **every** primitive, never any) is modelled faithfully in both, because composition is protocol logic and the downgrade attack it prevents is a control-flow property the suites can test.
+**Crypto is real in both languages, and the Bundle holds public keys only (v1.3.14).** `classical` → Ed25519, `pq` → ML-DSA-65, via `reference/src/acp_crypto.py`. The *hybrid composition* (CR-1..CR-5, conjunctive — verification requires **every** primitive, never any) lives in `acp_executor`, not in the crypto module, so a mutation of `all` → `any` still has something real to break.
 
-**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Python signs with modelled HMAC and Rust with real primitives, so a vector carrying a signature is not portable between them. And passing the corpus is a **partial** claim: vectors express input → verdict, not the 29 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
+The reason this stopped being a modelling detail is worth keeping: HMAC is symmetric, so the verifier held the signing keys and a compromised Executor could mint its own quorum — INV-1-HIGH did not hold, and no protocol test could have shown it, because the defect was key **custody**. **Never reintroduce a symmetric primitive "just for tests".** The remaining gaps are named in `acp_executor`'s CRYPTO DISCLOSURE: COSE_Sign1 is not the carrier, and `slhdsa128s` is declared but not implemented (its own primitive name `pq-slh`, fails closed — do not alias it to `pq`).
+
+`HybridKey` derives **both** halves from its seed. It must stay that way: `sim.supervise` is seven OS processes, and an unseeded ML-DSA keygen gives each process a different key for the same identity. That was a real defect, found by this rule not existing.
+
+**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 30 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
 
 ## Writing style for this repository
 
@@ -117,7 +123,7 @@ The prose is deliberately self-critical and states limits before strengths — `
 
 ## Testing the tooling
 
-Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, and that `--suites` prints 15 result lines with no failures. Three real defects have been found by writing those assertions.
+Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, that `--suites` prints 15 result lines with no failures, that a mutation suite whose mutants cannot import reports ERROR rather than KILL, and that every file count published in prose equals the number the signer actually covers. Three real defects have been found by writing those assertions.
 
 ## Current state
 
