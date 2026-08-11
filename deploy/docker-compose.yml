@@ -33,10 +33,11 @@ x-demonstrator: &demonstrator
   image: acp-demonstrator:local
   environment:
     ACP_DEMONSTRATOR: "1"
-  # Binds nothing and needs nothing. The demonstrator has no ingress: the agent
-  # is driven by sim/timeline.json, not by an external model. Wiring a real LLM
-  # in is the next step and is the point at which network exposure starts to
-  # matter.
+  # Binds nothing and needs nothing. Two services override this: `ingress`,
+  # which must accept a socket to be a door at all, and `agent`, which reaches
+  # the model API. Note which way round that is — the component with network
+  # access is the UNTRUSTED one, and the services holding keys and making
+  # decisions still get `none`.
   network_mode: none
   read_only: true
   # A writable /tmp is REQUIRED, not incidental hardening slack. The three
@@ -108,6 +109,30 @@ services:
     network_mode: ""
     ports:
       - "127.0.0.1:8848:8848"
+
+  # A real model, really injected, proposing over HTTP to the door above.
+  #
+  #     export ANTHROPIC_API_KEY=sk-ant-...
+  #     docker compose -f deploy/docker-compose.yml up -d ingress
+  #     docker compose -f deploy/docker-compose.yml run --rm agent
+  #
+  # The key is passed to THIS service and to nothing else. `ingress`, `policy`,
+  # `executor` and `approval` never receive it and could not use it — the whole
+  # claim of the HTTP door is that the caller is untrusted, and a caller whose
+  # credential the callee holds is not a caller, it is a subroutine.
+  #
+  # This is the only service with outbound internet, and it is the one the
+  # architecture assumes is compromised. That is not an oversight to tighten
+  # later; it is the shape of the argument.
+  agent:
+    <<: *demonstrator
+    command: ["agent"]
+    network_mode: ""
+    depends_on: [ingress]
+    environment:
+      ACP_DEMONSTRATOR: "1"
+      ACP_INGRESS: "http://ingress:8848"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
 
   # The door, attacked over the wire it actually serves: 9/9.
   ingress-suite:
