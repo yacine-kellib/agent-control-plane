@@ -85,3 +85,30 @@ services:
   verify:
     <<: *demonstrator
     command: ["verify"]
+
+  # The door an external agent proposes through. THE ONLY SERVICE WITH A SOCKET.
+  #
+  #   docker compose -f deploy/docker-compose.yml up ingress
+  #   curl -s localhost:8848/actions
+  #
+  # It overrides network_mode from the anchor above, because a door that cannot
+  # be reached is not a door. Everything else about the hardening is kept, and
+  # the published port is bound to the host's LOOPBACK: this is a demonstrator
+  # whose primitives are HMAC and whose ledger is a set in memory, so exposing
+  # it beyond the machine is a decision an operator makes deliberately by
+  # editing this line, not a default they inherit.
+  #
+  # The process behind this socket holds no key, signs nothing and decides
+  # nothing. Compromise it entirely and the guarantees are unchanged — which is
+  # the only reason it is allowed to face a network at all.
+  ingress:
+    <<: *demonstrator
+    command: ["ingress"]
+    network_mode: ""
+    ports:
+      - "127.0.0.1:8848:8848"
+
+  # The door, attacked over the wire it actually serves: 9/9.
+  ingress-suite:
+    <<: *demonstrator
+    command: ["ingress-suite"]
