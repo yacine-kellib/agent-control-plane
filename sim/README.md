@@ -19,7 +19,7 @@ python3 -m sim.acceptance         # the twelve criteria       11 pass, 1 partial
 python3 -m sim.attacks.document   # what the reader saw vs what the model read
 ```
 
-No dependencies beyond the standard library. `run_day` and `supervise` execute identical logic; the first is for iterating, the second is for believing.
+Needs `cryptography` and `dilithium-py` — since v1.3.14 the simulation signs with real hybrid keypairs (Ed25519 + ML-DSA-65), so the earlier "standard library only" claim no longer holds. That is also why a day takes tens of seconds rather than one: pure-Python ML-DSA-65 signs in ~210 ms. `run_day` and `supervise` execute identical logic; the first is for iterating, the second is for believing.
 
 ---
 

@@ -107,6 +107,53 @@ nf=$(echo "$OUT" | strip_ansi | grep -cE '^  FAIL')
 OUT=$(./tools/verify.sh --bogus 2>&1); rc=$?
 [ $rc -eq 2 ]; chk $? "unknown flag exits 2 with usage (got $rc)"
 
+printf '\n\033[1m== a mutant that cannot import is ERROR, never KILL ==\033[0m\n'
+
+# Since v1.3.14 acp_executor hard-imports acp_crypto, so every mutation suite
+# must copy BOTH into its temp dir. The failure mode this guards against is the
+# one that reads as green: if the copy were forgotten, every mutant would die at
+# import, and a harness that scored an import failure as a kill would print
+# "20/20 killed" while testing nothing at all. Same shape as the tmpfs trap in
+# deploy/docker-compose.yml — infrastructure breakage wearing a passing badge.
+#
+# Asserted by breaking it on purpose: run mutate_executor.py against a stubbed
+# acp_crypto that raises on import, and require the run to FAIL, to say ERROR,
+# and never to say KILL.
+#
+# The fixture mirrors the real reference/{src,suites} layout, because
+# mutate_executor.py resolves SRC_DIR relative to its OWN file. A flat temp dir
+# would make the suite fail for the wrong reason — no acp_executor.py to read —
+# and a test that passes for the wrong reason is the thing this file exists to
+# prevent.
+tmp=$(mktemp -d)
+mkdir -p "$tmp/reference/src" "$tmp/reference/suites"
+cp reference/src/acp_executor.py "$tmp/reference/src/"
+cp reference/suites/mutate_executor.py reference/suites/conformance.py \
+   "$tmp/reference/suites/"
+printf 'raise ImportError("selftest: deliberately broken acp_crypto")\n' \
+    > "$tmp/reference/src/acp_crypto.py"
+OUT=$(cd "$tmp" && PYTHONPATH= python3 reference/suites/mutate_executor.py 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "a broken acp_crypto makes the mutation suite FAIL (rc=$rc)"
+echo "$OUT" | strip_ansi | grep -q 'ERROR'
+chk $? "it reports ERROR on the unrunnable mutants"
+if echo "$OUT" | strip_ansi | grep -q 'KILL'; then false; else true; fi
+chk $? "and never reports KILL for a mutant that never ran"
+rm -rf "$tmp"
+
+printf '\n\033[1m== published file count matches what the signer covers ==\033[0m\n'
+
+# Found stale in v1.3.14: README said 111 files while the signer covered 115.
+# Harmless on its own, and exactly the shape of the v1.3.13 fingerprint defect —
+# a number in the prose that stopped matching a number the tooling prints, left
+# for a human to notice. Humans do not notice three-digit numbers. So it is
+# asserted, and asserted non-vacuously: deleting the sentence fails the check
+# rather than quietly satisfying it.
+covered=$(./tools/sign-release.sh list | wc -l | tr -d ' ')
+claimed=$(grep -ohE 'covers [0-9]+ files' README.md RELEASE.md | grep -ohE '[0-9]+' | sort -u)
+[ -n "$claimed" ]; chk $? "at least one tracked .md publishes a covered-file count"
+[ "$claimed" = "$covered" ]
+chk $? "every published file count equals the signer's ($claimed vs $covered)"
+
 printf '\n\033[1m== published fingerprint matches the shipped key ==\033[0m\n'
 
 # v1.3.13 shipped a README whose release-key fingerprint came from a superseded

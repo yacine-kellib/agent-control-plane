@@ -1,6 +1,7 @@
 //! Hybrid signature composition (CR-1..CR-5).
 //!
-//! The Python reference models signatures with HMAC-SHA256 (`CRYPTO-SWAP`).
+//! Since v1.3.14 the Python reference uses the same real primitives this crate
+//! does (Ed25519 + ML-DSA-65); it no longer models them with HMAC-SHA256.
 //! This crate is where real Ed25519 and ML-DSA-65 land. Neither primitive is
 //! implemented yet.
 //!

@@ -6,19 +6,18 @@
 # sits outside what it anchors, and the notifier and approval render paths are
 # distinct (DR-2). `--checks` asserts all four.
 #
-# WHAT THIS IS NOT. A deployable control plane. Three things are modelled rather
+# WHAT THIS IS NOT. A deployable control plane. Two things are modelled rather
 # than real, and each is named on startup by tools/demonstrator-banner.sh:
 #
-#   1. Signature PRIMITIVES are HMAC-SHA256 (acp_executor.py:80). HMAC is
-#      symmetric, so a verifier must hold the signing key. INV-1-HIGH -- "no
-#      single compromised component" -- does NOT hold here: a compromised
-#      executor can mint its own quorum. The hybrid COMPOSITION (CR-1..CR-5) is
-#      faithful, because that is protocol logic; the primitives are not.
-#   2. The ledger is in-memory (acp_executor.py:221). CL-2/CL-3 single-use and
+#   1. The ledger is in-memory (acp_executor.py:221). CL-2/CL-3 single-use and
 #      the RAD-3 epoch high-water mark do not survive a restart, and replay
 #      protection that forgets on restart is not replay protection.
-#   3. The anchor is an in-process list (acp_audit.py:70), while AU-4 requires
+#   2. The anchor is an in-process list (acp_audit.py:70), while AU-4 requires
 #      it to live outside the trust domain of what it anchors.
+#
+# Signatures were a third entry here until v1.3.14 and are now real: Ed25519 +
+# ML-DSA-65, asymmetric, bundle carries public keys only. COSE_Sign1 is still
+# not the carrier and SLH-DSA is declared without an implementation.
 #
 # The container refuses to start without ACP_DEMONSTRATOR=1 so that it cannot
 # quietly become somebody's production control plane -- the same reason every
@@ -26,8 +25,9 @@
 
 FROM python:3.12-slim
 
-# cryptography and dilithium-py are needed by tools/verify.sh, not by sim/ --
-# the simulation is standard library only. They are installed so the image can
+# cryptography and dilithium-py are needed by tools/verify.sh AND, since
+# v1.3.14, by sim/ itself, which signs with real hybrid keys. They are installed
+# so the image can
 # reproduce the repository's own claims, not merely run the day.
 RUN pip install --no-cache-dir cryptography dilithium-py
 
@@ -43,7 +43,7 @@ COPY tools/ ./tools/
 COPY MANIFEST.sha256 release-key.pub ./
 
 # sim/ imports the reference modules rather than forking them, which is what
-# lets the demonstrator inherit the 44/44 conformance result and the 29 mutants
+# lets the demonstrator inherit the 45/45 conformance result and the 30 mutants
 # instead of being a second implementation with no evidence behind it.
 ENV PYTHONPATH=/acp/reference/src
 ENV PYTHONUNBUFFERED=1

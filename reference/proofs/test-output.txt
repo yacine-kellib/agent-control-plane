@@ -1,4 +1,4 @@
-# Generated against ACP-SPEC-001 v1.3.11 — reproduce with ./verify.sh
+# Generated against ACP-SPEC-001 v1.3.14 — reproduce with ./tools/verify.sh
 
 ==========================================================================
 ACP-SPEC-001 v1.3.5 — CONFORMANCE SUITE vs REFERENCE EXECUTOR
@@ -53,9 +53,10 @@ ACP-SPEC-001 v1.3.5 — CONFORMANCE SUITE vs REFERENCE EXECUTOR
   PASS  CR-3 extra undeclared primitive    critical [9.3-1]
   PASS  CR-2 legacy scalar signature       critical [9.3-1]
   PASS  CR-1 unknown suite                 critical [CR-4]
+  PASS  PB-KEY swapped attester registry   critical [9.3-4]
 
 ==========================================================================
-RESULT: 44/44 — CONFORMANT
+RESULT: 45/45 — CONFORMANT
 Honest path executes; every historical finding fails closed.
 
 ==========================================================================
@@ -80,8 +81,9 @@ EXECUTOR MUTATION TESTING — each check must be load-bearing
   KILL   hybrid AND composition [CR-3]    attack succeeds without it (honest path still works)
   KILL   suite completeness [CR-3]        attack succeeds without it (honest path still works)
   KILL   suite floor [CR-4]               attack succeeds without it (honest path still works)
+  KILL   key registry in bundle hash [PB-KEY] attack succeeds without it (honest path still works)
 ==========================================================================
-RESULT: 19/19 killed — every check is load-bearing and every test is non-vacuous
+RESULT: 20/20 killed — every check is load-bearing and every test is non-vacuous
 
 ==========================================================================
 CONSUMPTION LEDGER — PARTITION AND FAULT INJECTION (N=5, majority=3)
@@ -101,7 +103,7 @@ RESULT: 9/9 — CL-6 HOLDS
 ==========================================================================
 EXECUTOR × DISTRIBUTED LEDGER — INTEGRATION UNDER FAULT INJECTION
 ==========================================================================
-  PASS  full attack suite on quorum ledger       36 vectors held
+  PASS  full attack suite on quorum ledger       37 vectors held
   PASS  honest floor-HIGH on quorum ledger       floor-HIGH executes against a 5-replica ledger
   PASS  minority partition blocks at step 6      blocked at nonce claim [CL-6]
   PASS  partition mid-checklist burns nonce      nonce stays burned after heal [CL-2]
@@ -150,16 +152,3 @@ AUDIT MUTATION — each new check must be load-bearing
   KILL   AU-6 sampling suspension deleted         attack succeeds without it (honest path still works)
 ==========================================================================
 RESULT: 4/4 killed — every new check is load-bearing
-
-canonical CBOR payload: 132 bytes
-
-ed25519                    sig=   64 B  sign=0.041 ms  verify=0.125 ms  p99=0.162 ms
-hybrid-ed25519-mldsa65     sig= 3373 B  sign=61.418 ms  verify=11.701 ms  p99=14.096 ms
-
-Per floor-HIGH receipt (4 signatures: 1 receipt + 3 attestations, quorum k=3):
-  ed25519                       256 B on the wire, verify p99 0.6 ms
-  hybrid-ed25519-mldsa65      13492 B on the wire, verify p99 56.4 ms
-
-  size factor  : 52.7x (256 B -> 13492 B)  [algorithm-bound]
-  latency factor: 87x [implementation-bound: pure-Python ML-DSA]
-

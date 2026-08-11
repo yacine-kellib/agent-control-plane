@@ -17,8 +17,9 @@ WHAT IT IS NOT -- read this before showing it to anyone.
     the approval path to be genuinely separate services with no shared code.
     This demo LABELS the separation; it does not implement it. A demo cannot
     evidence DR-2, A-8 or T-26. Those need real deployment and real humans.
-  * Signatures use the reference stand-in, not Ed25519/ML-DSA (see §8.4:
-    forbidden in production). Suite 5 and acp_crypto.py cover real crypto.
+  * Signatures are real since v1.3.14 -- Ed25519 + ML-DSA-65 -- but this is a
+    Python reference implementation, forbidden in production by §8.4. What is
+    still modelled: the carrier is canonical JSON, not COSE_Sign1.
   * Therefore: this DEMONSTRATES the architecture. It does not EVIDENCE it.
     The evidence is ./verify.sh, and the review that closes RR-1 has not
     happened.
@@ -446,7 +447,8 @@ refresh();
 NOTE = ("All components run in one process. DR-2 requires genuinely separate "
         "notification and approval services with no shared rendering code — "
         "this demo labels that separation, it does not implement it. "
-        "Signatures use the reference stand-in, not Ed25519/ML-DSA. "
+        "Signatures are real (Ed25519 + ML-DSA-65) but the carrier is not "
+        "COSE_Sign1, and a Python implementation is forbidden in production. "
         "A-8, T-26 and A-7 cannot be evidenced by any demo. "
         "The evidence is ./verify.sh; the independent review (RR-1) has not "
         "happened.")

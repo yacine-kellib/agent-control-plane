@@ -300,6 +300,10 @@ def run_mutants() -> int:
             open(os.path.join(td, "acp_audit.py"), "w").write(
                 src.replace(old, new))
             shutil.copy(os.path.join(SRC_DIR, "acp_executor.py"), td)
+            # acp_crypto is a hard import of acp_executor since v1.3.14.
+            # Absent, the mutant dies at import and is reported ERROR,
+            # never KILL — an unrun mutant is not a caught one.
+            shutil.copy(os.path.join(SRC_DIR, "acp_crypto.py"), td)
             for f in ("conformance.py", "audit_suite.py"):
                 shutil.copy(os.path.join(_HERE, f), td)
             # See mutate_executor.run_mutant: PYTHONPATH must not reach the

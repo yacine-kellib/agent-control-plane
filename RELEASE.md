@@ -1,8 +1,16 @@
-# ACP-SPEC-001 — release v1.3.13
+# ACP-SPEC-001 — package release v1.3.14
+
+**Specification version: unchanged at ACP-SPEC-001 v1.3.13.** This release
+changes the reference *implementation*, not the normative document. Nothing in
+`spec/ACP-SPEC-001.md` moved: PB-KEY below is the reference finally doing what
+§8.2 already required. Under the specification's own release rule (X5) a version
+string maps to exactly one document, so re-stamping an unchanged document would
+be its own collision — the package version and the spec version are therefore
+allowed to differ, and are.
 
 **Date:** August 2026
 **Package:** `spec/` + `dossier/` + `reference/` + `crates/` + `services/` + `packages/` + `orchestrator/` + `sim/` + `deploy/` + `tools/`
-**Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig` (111 files)
+**Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig`
 **Release key fingerprint:** `SHA256:c6334fda510760d9125e94ce8c900e56` *(verify out of band)*
 
 Reproduce everything in one command:
@@ -11,6 +19,77 @@ Reproduce everything in one command:
 ./tools/verify.sh            # integrity + signature + proofs + all 13 suites
 ./tools/verify.sh --suites   # proofs + suites only, no release key needed
 ```
+
+---
+
+## What changed in v1.3.14 — the reference Executor uses real asymmetric signatures
+
+Through v1.3.13 the Python reference modelled signature primitives with
+HMAC-SHA256, on a stated and — for almost everything — correct ground:
+substituting real COSE changes no control flow, so the protocol properties the
+suites test are unaffected by which primitive signs the bytes.
+
+**That ground did not cover the headline claim.** HMAC is symmetric. Verifying a
+signature means holding the key that produced it, so `Bundle.attester_keys` and
+`Bundle.receipt_key` were *signing* keys, and the Executor held all of them. An
+Executor that could verify a quorum could mint one. **INV-1-HIGH — no floor-HIGH
+action executes without k independent human attestations — did not hold against a
+compromised Executor**, which is one of the adversaries it names. No amount of
+protocol testing could have found this, because the defect was key **custody**,
+not control flow: all 44 conformance cases passed throughout, and were right to.
+
+What changed:
+
+- **Real primitives.** `classical` → Ed25519 (RFC 8032), `pq` → ML-DSA-65
+  (FIPS 204), through `reference/src/acp_crypto.py`, which already implemented
+  both. Composition is untouched: CR-1..CR-5 stay conjunctive.
+- **The Bundle carries public keys only** (`HybridPub`). No signing key is
+  reachable from the verifier, and the type now says so.
+- **Deterministic key derivation.** `HybridKey` derived its Ed25519 half from
+  its seed but took its ML-DSA half from an *unseeded* `keygen()`. Harmless
+  while a key never left one process; fatal across the seven OS processes of
+  `sim.supervise`, where each would have minted a different post-quantum key for
+  the same identity and every hybrid signature would have failed closed at the
+  process boundary. Both halves now derive from the seed (FIPS 204
+  `KeyGen_internal`). Seeds are simulation material; a deployment loads keys
+  from a KMS.
+- **Cost, measured rather than assumed.** `--suites` goes from seconds to
+  minutes: pure-Python ML-DSA-65 signs in ~210 ms and verifies in ~34 ms against
+  microseconds for HMAC. The gate is a release artifact, not a dev loop, and the
+  number is itself the point — `reference/src/acp_crypto.py` prints it.
+
+**Still open, named so it is not mistaken for done:** the carrier is canonical
+JSON via `canon()`, not COSE_Sign1 — canonical CBOR is implemented and tested in
+`acp_crypto` but is not yet the envelope. And `slhdsa128s` (SLH-DSA, FIPS 205)
+is **declared in `SUITES` and not implemented**; it now has its own primitive
+name so it cannot be silently satisfied by an ML-DSA key, and it fails closed.
+
+### A correction worth recording — the bundle hash did not cover the key registry
+
+Making the keys asymmetric moved the weight of the design onto the key registry,
+and exposed that `Bundle.hash()` never covered it. Spec §8.2 puts `attesters/` —
+"approver + confirmer public keys" — inside the bundle tree and signs "SHA-256 of
+canonical bundle tree". The reference hashed the floors, the risk functions, the
+adapters, the schemas, the reversibility table and the suite floor, and not the
+keys.
+
+The honest scope is narrower than it first sounds, and worth stating precisely
+because the temptation is to state it larger. It was **not** a live quorum
+bypass: an Executor verifies attestations against its own registry, so swapping
+one Executor's registry never pushed a forged quorum through another. What broke
+is **identity, and therefore audit**. Two bundles authorising different approvers
+hashed identically, so `policy_bundle_hash` did not determine who was allowed to
+approve — and P-3, "Decisions are replayable bit-for-bit from audit", did not
+hold, because the record did not distinguish them. RES-8 family, again: a claimed
+binding must be verifiable from the signed bytes of both artifacts.
+
+Closed by **PB-KEY**: the registry is hashed, as a fingerprint over *both*
+primitives of each public key — a fingerprint over the classical half alone would
+let an ML-DSA key be swapped without moving the bundle hash, which is the
+conjunctive CR-3 guarantee undone at the registry rather than at the verifier.
+Conformance goes 44 → **45** and the executor mutants 19 → **20**; the new mutant
+deletes the coverage and confirms the attack then succeeds, so the check is
+load-bearing rather than defence in depth.
 
 ---
 
@@ -32,7 +111,7 @@ Nothing was mis-signed, and no signature ever verified against the wrong value. 
 
 Two things are worth noting about how it survived. It was proofread repeatedly without being caught, because a 32-character hex string reads as opaque and correct to a human eye. And it was mechanically derivable from `release-key.pub` the entire time — this repository's own rule is that anything checkable by a command must be checked by a command, and this was not. The rule was right; it had simply never been applied here.
 
-`tools/selftest.sh` now recomputes `sha256(raw pubkey)[:32]` from `release-key.pub` and asserts that **every** `SHA256:` fingerprint in every git-tracked Markdown file matches it, failing also when it finds none, so deleting the line cannot turn the assertion green. The self-test goes from 27 assertions to 29. Reintroducing the stale value was confirmed to fail it.
+`tools/selftest.sh` now recomputes `sha256(raw pubkey)[:32]` from `release-key.pub` and asserts that **every** `SHA256:` fingerprint in every git-tracked Markdown file matches it, failing also when it finds none, so deleting the line cannot turn the assertion green. The self-test went from 27 assertions to 29, and to **34** in v1.3.14 with the mutant-import guard below and a covered-file-count check. Reintroducing the stale value was confirmed to fail it.
 
 ## What changed since v1.3.10
 

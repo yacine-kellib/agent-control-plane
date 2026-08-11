@@ -120,8 +120,8 @@ MUTANTS = [
       "        pass"),
      "a_DR9_operator_confirms_own_action"),
     ("hybrid AND composition [CR-3]",
-     ("    return all(hmac.compare_digest(_prim(key, payload, p), sig[p]) for p in required)",
-      "    return any(hmac.compare_digest(_prim(key, payload, p), sig[p]) for p in required)"),
+     ("    return all(verify_prim(pub, payload.encode(), sig[p], p) for p in required)",
+      "    return any(verify_prim(pub, payload.encode(), sig[p], p) for p in required)"),
      "a_CR3_pq_forged_classical_genuine"),
 
     ("suite completeness [CR-3]",
@@ -133,6 +133,13 @@ MUTANTS = [
      ("        return SUITE_RANK[alg] >= SUITE_RANK[self.min_suite]",
       "        return True"),
      "a_CR4_receipt_suite_downgrade"),
+
+    ("key registry in bundle hash [PB-KEY]",
+     ("""                  "attesters": {who: k.fingerprint()
+                                for who, k in sorted(self.attester_keys.items())},
+                  "receipt_key": self.receipt_key.fingerprint()})""",
+      "                  })"),
+     "a_PBKEY_swapped_attester_registry"),
 ]
 
 RUNNER = """
@@ -188,6 +195,11 @@ def main():
         with tempfile.TemporaryDirectory() as td:
             open(os.path.join(td, "acp_executor.py"), "w").write(
                 SRC.replace(old, new))
+            # acp_crypto is a hard import of the mutant since v1.3.14. If it is
+            # missing the mutant dies at import, stdout is empty, and run_mutant
+            # returns None -> ERROR. It does NOT print KILL: a mutant that never
+            # ran must never be scored as one that was caught.
+            shutil.copy(os.path.join(SRC_DIR, "acp_crypto.py"), td)
             shutil.copy(os.path.join(_HERE, "conformance.py"), td)
             res, err = run_mutant(td, atk)
             if res is None:
