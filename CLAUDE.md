@@ -127,8 +127,8 @@ Anything checkable by a command must be checked by a command, not by inspection 
 
 ## Current state
 
-Work is on branch `step0-gate-and-signing-model`. The restructure and scaffold are committed there; `main` is untouched.
+The restructure, the scaffold, the Docker demonstrator and the HTTP ingress are on `main` (v1.3.13). Work is on branch `crypto-swap` — the real-signature swap, the README/DEMO-HOWTO coverage of the demonstrator, and `sim/llm_agent.py`.
 
-`MANIFEST.sha256` is **stale** — every path changed in the restructure. The next release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 80+ files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 116 files across ten roots.
 
-Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 44 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.
+Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 45 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.

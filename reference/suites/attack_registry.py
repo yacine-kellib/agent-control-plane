@@ -181,7 +181,7 @@ def cmd_run(explain=False):
     print(f"RESULT: {len(reg)-fails}/{len(reg)}"
           f"{' — every attack fails closed, every honest path executes' if not fails else ' — REVIEW REQUIRED'}")
     print("\nMutation controls are separate and equally load-bearing:")
-    print("  python3 mutate_executor.py            19 executor checks")
+    print("  python3 mutate_executor.py            20 executor checks")
     print("  python3 audit_suite.py --mutate        4 audit checks")
     print("  python3 ack_suite.py --mutate          6 acknowledgement checks")
     print("A passing suite proves nothing until you show it can fail.")

@@ -13,7 +13,7 @@ The repository becomes a polyglot monorepo: a Rust control plane, TypeScript app
 
 The discipline does not change. `README.md` still says *"If a claim here does not replay on your machine, don't believe it."* Everything below exists to keep that sentence true when there is more than one implementation.
 
-One consequence is worth stating before the layout, because it is the reason most of the rest is shaped the way it is: **today "44/44 conformance" means one implementation passes its own tests.** That is a weaker claim than it reads as. Language-agnostic vectors make it mean *every implementation passes the same corpus* — but only for the properties a vector can express, which is not all of them (§4.2).
+One consequence is worth stating before the layout, because it is the reason most of the rest is shaped the way it is: **today "45/45 conformance" means one implementation passes its own tests.** That is a weaker claim than it reads as. Language-agnostic vectors make it mean *every implementation passes the same corpus* — but only for the properties a vector can express, which is not all of them (§4.2).
 
 ---
 
@@ -108,7 +108,7 @@ This is the honest limit of the corpus, and it is enumerated rather than glossed
 
 | Property | Why no vector expresses it | Obligation |
 |---|---|---|
-| 29 mutants (19 executor, 6 ack, 4 audit) | Requires deleting a check from *source* and re-running | Each implementation ships its own mutation suite |
+| 30 mutants (20 executor, 6 ack, 4 audit) | Requires deleting a check from *source* and re-running | Each implementation ships its own mutation suite |
 | Ordering (AU-7 anchor-before-release) | A trace property, not an input→output pair | Per-implementation trace assertion |
 | Partition behaviour (CL-1..7) | Stateful and temporal | Per-implementation partition suite |
 | Render-path distinctness (DR-2) | Structural introspection of the running program | Per-implementation, and see §5 |

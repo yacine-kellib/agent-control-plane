@@ -116,6 +116,13 @@ services:
   #     docker compose -f deploy/docker-compose.yml up -d ingress
   #     docker compose -f deploy/docker-compose.yml run --rm agent
   #
+  # To pass flags, name the mode again -- `run` REPLACES this service's command
+  # rather than appending to it, so the first `agent` selects the service and
+  # the second selects the entrypoint mode:
+  #
+  #     docker compose -f deploy/docker-compose.yml run --rm agent agent --help
+  #     docker compose -f deploy/docker-compose.yml run --rm agent agent --invent
+  #
   # The key is passed to THIS service and to nothing else. `ingress`, `policy`,
   # `executor` and `approval` never receive it and could not use it — the whole
   # claim of the HTTP door is that the caller is untrusted, and a caller whose
