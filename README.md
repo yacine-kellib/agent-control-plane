@@ -16,7 +16,7 @@ agent  ──proposes──▶  policy engine  ──▶  executor  ──▶  a
 
 A compromised model can request a €40,000 synthesis order as often as it likes and never cause one. The risk level is recomputed from signed policy the model never sees, and the order needs human signatures bound to that exact request.
 
-**ACP-SPEC-001 v1.3.12** · specification, mechanised proofs, reference implementation, and the evidence for every claim.
+**ACP-SPEC-001 v1.3.13** · specification, mechanised proofs, reference implementation, and the evidence for every claim.
 
 ### Reproduce every claim in ninety seconds
 

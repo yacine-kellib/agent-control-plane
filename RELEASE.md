@@ -1,17 +1,28 @@
-# ACP-SPEC-001 — release v1.3.11
+# ACP-SPEC-001 — release v1.3.13
 
 **Date:** August 2026
-**Package:** dossier (00–07) + `reference/suites/` + `verify.sh`
-**Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig`
-**Release key fingerprint:** *(published out of band — see "Signing" below)*
+**Package:** `spec/` + `dossier/` + `reference/` + `crates/` + `services/` + `packages/` + `orchestrator/` + `sim/` + `deploy/` + `tools/`
+**Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig` (111 files)
+**Release key fingerprint:** `SHA256:c6334fda510760d9125e94ce8c900e56` *(verify out of band)*
 
 Reproduce everything in one command:
 
 ```bash
-./tools/verify.sh
+./tools/verify.sh            # integrity + signature + proofs + all 13 suites
+./tools/verify.sh --suites   # proofs + suites only, no release key needed
 ```
 
 ---
+
+## What changed in v1.3.13 — the polyglot restructure
+
+A structural release: no rule changed, and every number that replayed in v1.3.12 replays here. The repository was reorganised from a Python-only dossier into a polyglot monorepo so a second implementation surface (Rust, TypeScript) can be held to the same evidence.
+
+- **New layout.** `spec/` (the normative source), `dossier/` (the argument), `reference/` (the Python implementation, `src/ suites/ proofs/`), `crates/` and `services/` (Rust), `packages/`, `orchestrator/`, `deploy/`, `tools/`. `docs/` holds working documents and sits deliberately outside the signed roots.
+- **Two gates.** `./tools/verify.sh --suites` runs proofs and all 13 suites without the release key and is the per-commit gate; full `verify.sh` adds integrity and signature and is the release gate. Between releases, sections 1–2 are expected red — a property of offline signing, not a finding. See `dossier/07-REPRODUCTION.md`.
+- **Manifest coverage** is now three allowlists (roots, git-tracked, extension) with the signer **halting on an unrecognised file type**, rather than an extension allowlist that silently skipped `.json`, `.rs`, `.ts` and the poisoned `.html` attack fixture. `.gitignore` is itself signed, because the signer derives its file set from it. `sign` builds into temporaries so a mistyped key path cannot destroy the last valid manifest.
+- **Five new residuals** from the second implementation surface (RES-P1..P5) are disclosed in `dossier/06-RESIDUAL-RISK.md`. The load-bearing one: splitting the notifier and approval codebases improves build-time provenance but does **not** close T-32, which stays open.
+- **Rust and TypeScript are scaffold.** `crates/acp-core` and `acp-crypto` carry the fail-safe defaults and CR-3 hybrid composition with tests; the services exit non-zero so a scaffold cannot be mistaken for a running control plane. `spec/vectors/` — the shared conformance corpus that makes "44/44" mean the same in both languages — is not yet extracted.
 
 ## What changed since v1.3.10
 

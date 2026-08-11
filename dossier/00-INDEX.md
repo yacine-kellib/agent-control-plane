@@ -1,7 +1,7 @@
 # ACP — Agent Control Plane
 **Security dossier**
 **Structured-input control plane for AI agent actions**
-**Specification version:** ACP-SPEC-001 v1.3.12
+**Specification version:** ACP-SPEC-001 v1.3.13
 **Date:** August 2026
 **Classification:** internal / shareable under NDA
 

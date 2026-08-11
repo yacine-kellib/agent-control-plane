@@ -2,10 +2,10 @@
 ## Technical Architecture Specification
 
 **Document ID:** ACP-SPEC-001
-**Version:** 1.3.10
+**Version:** 1.3.13
 **Status:** Draft — all closable items closed. Remaining open: A-7 (conceded unprovable) and independent confirmation (§14 suite 11, structurally unavailable to the authoring parties); hybrid post-quantum signature suites (CR-1..CR-7) per ANSSI hybridation doctrine; deferred release (DR-1..DR-12) with reversibility-keyed confirmation (RV-1..RV-4), mitigating the A-8 presentation residual; all prior findings dispositioned; DS-6f/AT-8b/DR-* unconfirmed
 **Date:** August 2026
-**Supersedes:** v1.3.4, v1.3.3, v1.3.2, v1.3.1, v1.3.0, v1.2.0 (2026-08)
+**Supersedes:** v1.3.12, v1.3.11, v1.3.10, v1.3.4, v1.3.3, v1.3.2, v1.3.1, v1.3.0, v1.2.0 (2026-08)
 **Intended Audience:** Security architects, platform engineers, policy engine implementers, formal-methods practitioners
 
 ---
