@@ -52,11 +52,11 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ./tools/verify.sh
 ```
 
-Abridged output. A complete run prints 17 result lines across five numbered sections:
+Abridged output. A complete run prints 18 result lines across five numbered sections:
 
 ```
 == 1. Integrity ==
-  OK   116 files match MANIFEST.sha256
+  OK   118 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -71,7 +71,7 @@ Abridged output. A complete run prints 17 result lines across five numbered sect
   ...
 ```
 
-Thirteen suite lines in all, spanning 9 numbered suites, and 30 mutation controls across three of them.
+Fourteen suite lines in all, spanning 10 numbered suites, and 30 mutation controls across three of them.
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
@@ -81,7 +81,7 @@ Two gates, and the difference matters:
 
 | Command | Checks | Needs the release key? |
 |---|---|---|
-| `./tools/verify.sh --suites` | proofs + 13 suites | No — green at every commit |
+| `./tools/verify.sh --suites` | proofs + 14 suites | No — green at every commit |
 | `./tools/verify.sh` | the above + integrity + signature | Yes — green only at a tagged release |
 
 Sections 1–2 can only be made green by the key holder, because regenerating the manifest requires the offline Ed25519 key. **Red integrity between releases is offline signing working as designed, not a defect** — see [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md).
@@ -140,9 +140,13 @@ That key is read in *that* process and sent to Anthropic. It never reaches ACP, 
 
 It runs two phases, and the second is the load-bearing one.
 
-**1. A live model on the poisoned document.** It may comply and it may decline — Claude Sonnet 5 declined on this file's first run, and that is printed as the result rather than retried away. A demo that needs the model to misbehave is measuring the model, not the control plane.
+**1. A live model on a triage batch.** It reads two documents: an assay memo with genuine work in it, and a supplier report with an instruction buried in it. The injected report is ordered last, the position most likely to be obeyed. The two have **different sources on purpose** — so you can see whether text planted in document 2 produces actions the model attributes to document 1.
 
-**2. The agent process compromised, no model in the loop** — the two actions the document asked for, proposed directly. This is the adversary Door B actually names: a caller is compromised by editing its code, not only by talking its model round.
+Whatever it chooses goes to the door unaltered. It may comply, it may decline, it may propose nothing at all — Claude Sonnet 5 declined outright on this file's first run, back when the batch was a single document — and whatever happens is printed rather than retried away. **This phase is not reproducible and is not meant to be.** It is a fact about a model on a prompt, it varies by model and by run, and it is not evidence about the control plane; see RES-L2 in [§06](dossier/06-RESIDUAL-RISK.md). A demo that needs the model to misbehave is measuring the model.
+
+One thing is constrained: the reply's **encoding**. The client sends a JSON schema with the request, because on identical input the same model returned a JSON array on one run and tool-call syntax on the next, and roughly one run in three parsed. It fixes the shape of the answer and never its content — the model stays free to propose the injected actions, to propose nothing, or to invent an action that does not exist, and every one of those still reaches the door and is graded there. Nothing here scores, filters or judges what the model chose, and it is not a retry loop: re-asking until the answer is convenient is a filter wearing a reliability costume. Disclosed as RES-L1, and pinned by a suite check that fails if the schema ever grows a list of permitted actions.
+
+**2. The agent process compromised, no model in the loop** — the two actions the document asked for, proposed directly. This is the adversary Door B actually names: a caller is compromised by editing its code, not only by talking its model round. Unlike phase 1, this one is deterministic:
 
 ```
 release_to_partner   REFUSED  XPROG-1  dataset has no registered owning program — refused, not assumed
@@ -409,7 +413,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 116 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 118 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56

@@ -1,0 +1,193 @@
+{
+  "_comment": [
+    "Model replies as data, for reference/suites/llm_agent_suite.py.",
+    "",
+    "These are ANTHROPIC MESSAGES API response envelopes, and they are",
+    "deliberately NOT in spec/vectors/. That corpus is defined over ACP",
+    "canonical bytes and declared mutations -- the door's input and its",
+    "verdict. A vendor's response shape is not part of ACP-SPEC-001 and the",
+    "door never sees one; filing it there would imply a conformant",
+    "implementation must reproduce Anthropic's wire format, which is false.",
+    "",
+    "Cases here cover only what is expressible as input -> output. The",
+    "properties that are NOT -- phase attribution, the poisoned document",
+    "staying byte-identical, the reply schema never growing an enum -- stay in",
+    "the suite as code, because no vector can express them. They are examples",
+    "for OBLIGATIONS.md (ACP-3).",
+    "",
+    "expect.actions is the exact list parse_model_reply must return.",
+    "expect.stdout_contains / stdout_excludes assert what the operator is told;",
+    "telling three different silences apart is the point of several cases."
+  ],
+
+  "cases": [
+    {
+      "name": "a structured-output reply decodes to one action",
+      "pins": "the ordinary path: actions[] with params as a JSON string",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"actions\": [{\"task_type\": \"read_literature\", \"target\": \"literature-store\", \"params\": \"{\\\"query\\\": \\\"cand-7781 prior art\\\"}\", \"why\": \"no prior art search\"}]}"}]
+      },
+      "expect": {
+        "actions": [{"task_type": "read_literature", "target": "literature-store", "params": {"query": "cand-7781 prior art"}, "why": "no prior art search"}]
+      }
+    },
+
+    {
+      "name": "several actions in one reply keep their order",
+      "pins": "order is preserved; the door grades them in the order proposed",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"actions\": [{\"task_type\": \"read_literature\", \"target\": \"literature-store\", \"params\": \"{\\\"query\\\": \\\"a\\\"}\", \"why\": \"1\"}, {\"task_type\": \"schedule_assay\", \"target\": \"assay-queue\", \"params\": \"{\\\"candidate\\\": \\\"cand-7781\\\", \\\"assay_type\\\": \\\"confirmatory\\\"}\", \"why\": \"2\"}]}"}]
+      },
+      "expect": {
+        "actions": [
+          {"task_type": "read_literature", "target": "literature-store", "params": {"query": "a"}, "why": "1"},
+          {"task_type": "schedule_assay", "target": "assay-queue", "params": {"candidate": "cand-7781", "assay_type": "confirmatory"}, "why": "2"}
+        ]
+      }
+    },
+
+    {
+      "name": "an undecodable params is forwarded, never repaired or dropped",
+      "pins": "V-1 refuses it AT THE DOOR. A client that silently dropped it would be deciding on the model's behalf; one that repaired it would be inventing a proposal the model never made.",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"actions\": [{\"task_type\": \"read_literature\", \"target\": \"literature-store\", \"params\": \"{not json at all\", \"why\": \"malformed on purpose\"}]}"}]
+      },
+      "expect": {
+        "actions": [{"task_type": "read_literature", "target": "literature-store", "params": "{not json at all", "why": "malformed on purpose"}]
+      }
+    },
+
+    {
+      "name": "params already decoded as an object is left alone",
+      "pins": "the decode step is conditional on it being a string, and must not double-decode",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"actions\": [{\"task_type\": \"run_simulation\", \"target\": \"compute-cluster\", \"params\": {\"candidate\": \"cand-7781\", \"cycles\": 500}, \"why\": \"model predates the force field\"}]}"}]
+      },
+      "expect": {
+        "actions": [{"task_type": "run_simulation", "target": "compute-cluster", "params": {"candidate": "cand-7781", "cycles": 500}, "why": "model predates the force field"}]
+      }
+    },
+
+    {
+      "name": "a bare JSON array is accepted, not only the actions wrapper",
+      "pins": "structured outputs give the wrapper, but the plain array the prompt asks for must still work -- this is the shape the model returned before output_config existed",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "[{\"task_type\": \"predict_structure\", \"target\": \"compute-cluster\", \"params\": \"{\\\"candidate\\\": \\\"cand-7781\\\"}\", \"why\": \"bare array\"}]"}]
+      },
+      "expect": {
+        "actions": [{"task_type": "predict_structure", "target": "compute-cluster", "params": {"candidate": "cand-7781"}, "why": "bare array"}]
+      }
+    },
+
+    {
+      "name": "a code-fenced reply is unwrapped",
+      "pins": "the prompt forbids fences and the model emits them anyway; stripping them is an ENCODING repair, never a content one",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "```json\n{\"actions\": [{\"task_type\": \"read_literature\", \"target\": \"literature-store\", \"params\": \"{\\\"query\\\": \\\"fenced\\\"}\", \"why\": \"fenced\"}]}\n```"}]
+      },
+      "expect": {
+        "actions": [{"task_type": "read_literature", "target": "literature-store", "params": {"query": "fenced"}, "why": "fenced"}]
+      }
+    },
+
+    {
+      "name": "an actions value that is not a list is wrapped into one",
+      "pins": "a single object under actions must not be iterated character by character",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"actions\": {\"task_type\": \"read_literature\", \"target\": \"literature-store\", \"params\": \"{\\\"query\\\": \\\"solo\\\"}\", \"why\": \"not in a list\"}}"}]
+      },
+      "expect": {
+        "actions": [{"task_type": "read_literature", "target": "literature-store", "params": {"query": "solo"}, "why": "not in a list"}]
+      }
+    },
+
+    {
+      "name": "SILENCE 1 of 3 — the model deliberated and proposed nothing",
+      "pins": "a real outcome, and the one a correct model reaches when a document asks only for actions it should decline. It must stay distinguishable from the two failures below.",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"actions\": []}"}]
+      },
+      "expect": {
+        "actions": [],
+        "stdout_excludes": ["did not return JSON", "declined this request"]
+      }
+    },
+
+    {
+      "name": "SILENCE 2 of 3 — the provider's classifier declined the request",
+      "pins": "HTTP 200, stop_reason refusal, EMPTY content. Before this was handled it fell into the parse-failure branch and printed 'the model did not return JSON' -- announcing an Anthropic policy block as a defect in our own file.",
+      "reply": {
+        "stop_reason": "refusal",
+        "content": [],
+        "stop_details": {"category": "cyber"}
+      },
+      "expect": {
+        "actions": [],
+        "stdout_contains": ["declined this request", "refusal", "cyber"],
+        "stdout_excludes": ["did not return JSON"]
+      }
+    },
+
+    {
+      "name": "SILENCE 3 of 3 — the model answered unparseably",
+      "pins": "must print the verbatim text AND the stop_reason. Without stop_reason the failure is not diagnosable, which is exactly what let silence 2 masquerade as this for a release.",
+      "reply": {
+        "stop_reason": "max_tokens",
+        "content": [{"type": "text", "text": "I'll help with that! {oops"}]
+      },
+      "expect": {
+        "actions": [],
+        "stdout_contains": ["did not return JSON", "max_tokens", "oops"],
+        "stdout_excludes": ["declined this request"]
+      }
+    },
+
+    {
+      "name": "an empty content array that is NOT a refusal is a parse failure",
+      "pins": "the refusal branch keys on stop_reason, never on emptiness; an empty body with an ordinary stop_reason must not be misreported as a policy block",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": []
+      },
+      "expect": {
+        "actions": [],
+        "stdout_contains": ["did not return JSON", "end_turn"],
+        "stdout_excludes": ["declined this request"]
+      }
+    },
+
+    {
+      "name": "a refusal with no stop_details still reports cleanly",
+      "pins": "the category is optional in the response and must not raise",
+      "reply": {
+        "stop_reason": "refusal",
+        "content": []
+      },
+      "expect": {
+        "actions": [],
+        "stdout_contains": ["declined this request"],
+        "stdout_excludes": ["did not return JSON"]
+      }
+    },
+
+    {
+      "name": "tool-call syntax is NOT silently accepted as a proposal",
+      "pins": "the shape that made the demo parse one run in three. It parses as JSON but carries no actions, so it must yield nothing rather than a half-understood action -- guessing the model's intent from a shape it did not promise is inventing a proposal.",
+      "reply": {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "{\"name\": \"read_literature\", \"arguments\": {\"query\": \"x\"}}"}]
+      },
+      "expect": {
+        "actions": []
+      }
+    }
+  ]
+}

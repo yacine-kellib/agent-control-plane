@@ -96,10 +96,10 @@ hasnot '1\. Integrity'      "--suites skips integrity (no release key needed)"
 hasnot 'Manifest signature' "--suites skips signature"
 has    'Formal proofs'      "--suites still runs the proof step"
 
-# 15 = 1 prerequisites + 1 proofs + 13 suite lines. The prerequisites line at
+# 15 = 1 prerequisites + 1 proofs + 14 suite lines. The prerequisites line at
 # verify.sh:21 is easy to forget; an assertion of 14 fails against a healthy run.
 n=$(echo "$OUT" | strip_ansi | grep -cE '^  (OK|FAIL)')
-[ "$n" -eq 15 ]; chk $? "--suites reports 15 result lines: prereqs + proofs + 13 suites (got $n)"
+[ "$n" -eq 16 ]; chk $? "--suites reports 16 result lines: prereqs + proofs + 14 suites (got $n)"
 
 nf=$(echo "$OUT" | strip_ansi | grep -cE '^  FAIL')
 [ "$nf" -eq 0 ]; chk $? "--suites has no failing line (got $nf)"

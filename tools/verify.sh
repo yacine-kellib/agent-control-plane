@@ -95,6 +95,7 @@ run ack_suite.py            "14/14"      "Suite 9  signed acknowledgement"
 run ack_suite.py            "6/6"        "Suite 9  ack mutation" --mutate
 run audit_suite.py          "11/11"      "Suite 7  audit/anchor/accumulator"
 run audit_suite.py          "4/4"        "Suite 7  audit mutation" --mutate
+run llm_agent_suite.py      "44/44"      "Suite 10 live-agent client"
 o=$(python3 diff_prose.py 2>&1 | grep -c "disagreements")
 [ "$o" -ge 1 ]; chk $? "Suite 6  prose differential — Z1 divergence reproduced"
 cd ..
