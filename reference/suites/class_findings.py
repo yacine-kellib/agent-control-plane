@@ -21,6 +21,12 @@ T-32 remains OPEN and is reproduced against the current code.
     python3 class_findings.py
 """
 import sys, time
+# Run-from-anywhere: see the note in conformance.py. isdir guard keeps it inert
+# in mutation temp dirs so a mutant is never shadowed by the real module.
+import os as _os
+_SRC = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir, "src")
+if _os.path.isdir(_SRC) and _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
 from acp_executor import (DeferredReleaseGate, PendingRelease,
                             render_from_canonical, CriticalAlert, FailClosed)

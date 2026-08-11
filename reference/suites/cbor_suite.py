@@ -8,6 +8,12 @@ any input that is not byte-identical to the canonical encoding of its value —
 a permissive decoder silently normalises and reopens Z4.
 """
 import sys
+# Run-from-anywhere: see the note in conformance.py. isdir guard keeps it inert
+# in mutation temp dirs so a mutant is never shadowed by the real module.
+import os as _os
+_SRC = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir, "src")
+if _os.path.isdir(_SRC) and _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 from acp_crypto import canon_cbor, decode_canonical, CanonError
 
 
