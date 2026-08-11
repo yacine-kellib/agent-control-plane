@@ -30,6 +30,7 @@ A compromised model can request a €40,000 synthesis order as often as it likes
 
 - [Quick start](#quick-start) — reproduce every claim in ninety seconds
 - [See it happen](#see-it-happen) — the injection demo
+- [Point your own agent at it](#point-your-own-agent-at-it) — Docker, HTTP, your LLM
 - [Where this bites](#where-this-bites) — eight deployment settings
 - [See it run: a business day](#see-it-run-a-business-day) — 179 actions, measured
 - [How it works: two doors](#how-it-works-two-doors) — the architecture in one idea
@@ -98,6 +99,30 @@ python3 reference/suites/demo_flow.py
 A supplier report arrives with an instruction hidden in white text. The model reads it and complies. The demo runs that same output down two paths side by side: without a control plane the data leaves the company, with ACP nothing irreversible happens.
 
 The model is shown complying **fully**. Simulating a refusal would misrepresent the claim — the architecture's guarantee does not depend on injection failing.
+
+**With a real model.** Paste an Anthropic API key into the page and the agent becomes a live model reading the actual poisoned document, rather than a recorded response. The key is held in memory for the process lifetime, used only for that call, and never written to disk. With no key the demo runs offline against the recording — and **the control plane behaves identically either way**, because it never consults the model about anything. That is the point of offering both: if the live and recorded runs diverged, the guarantee would depend on what the model said.
+
+```bash
+python3 reference/suites/demo_flow.py --model claude-sonnet-5
+```
+
+### Point your own agent at it
+
+The demo above is a presentation. This is the control plane as a service you can drive yourself, from your own agent, over HTTP.
+
+```bash
+docker compose -f deploy/docker-compose.yml up ingress
+curl localhost:8848/actions          # the closed set — nothing else can be proposed
+```
+
+Then POST proposals to `localhost:8848/propose`. Your agent supplies whatever model it likes and holds whatever API key that needs — **ACP is the server, not the client, and holds no key of yours**. The door decides on the proposal's canonical bytes and nothing else: an unregistered `task_type` is refused at `8.4-3` before it is ever graded, params outside the schema are refused at `V-1`, and a target outside the capability whitelist is refused at `CW-1`.
+
+```bash
+docker compose -f deploy/docker-compose.yml run --rm ingress-suite   # 9/9, over a real socket
+docker compose -f deploy/docker-compose.yml run --rm checks          # 7 processes, 4 boundaries
+```
+
+`sim/ingress_suite.py` is the evidence: nine wire-level attacks against a real server on a real socket, not against a Python object. The container refuses to start without `ACP_DEMONSTRATOR=1`, and binding beyond loopback refuses for the same reason — see the two named blockers in [`Dockerfile`](Dockerfile). It is a demonstrator, not a deployment.
 
 ---
 

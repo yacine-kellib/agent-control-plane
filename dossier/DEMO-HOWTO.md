@@ -3,12 +3,14 @@
 ## 1. Run it
 
 ```bash
-tar xzf ACP-SPEC-001-v1.3.11.tar.gz
-cd acp/artifacts
-python3 demo.py
+git clone <this repository> && cd acp
+python3 -m pip install cryptography dilithium-py
+cd reference/suites && python3 demo.py
 ```
 
-A browser opens on `http://localhost:8000`. No `pip install`, no Docker, no internet — the demo is one file and uses only the Python standard library. Python 3.10+.
+A browser opens on `http://localhost:8000`. No internet is needed once the two packages are installed. Python 3.10+.
+
+*Paths corrected in v1.3.14.* This section described a `v1.3.11` tarball unpacking to `acp/artifacts/`, which the polyglot restructure removed — the instructions had not run as written since v1.3.13. The two `pip install` lines are new too: signatures became real in v1.3.14, so `demo.py` is no longer standard-library only.
 
 Options:
 
@@ -17,6 +19,8 @@ python3 demo.py --bundle infra    # infrastructure domain instead of research
 python3 demo.py --port 9000       # if 8000 is taken
 python3 demo.py --no-browser      # don't auto-open (screen sharing, VMs)
 ```
+
+**Two other things you can show, both newer than this guide.** `python3 reference/suites/demo_flow.py` is the side-by-side injection demo and takes an Anthropic API key in the page for a live model. `docker compose -f deploy/docker-compose.yml up ingress` puts the control plane behind HTTP on port 8848 so a prospect can point their *own* agent at it — see the README's "Point your own agent at it".
 
 **Before presenting:** run it once on the machine you'll actually use, on the network you'll actually be on. `localhost` behaves differently inside some corporate VPNs and remote-desktop setups.
 
