@@ -96,6 +96,17 @@ case "${1:-day}" in
     echo "== 13 suites + 29 mutants (proofs SKIPPED: no Dafny in this image) =="
     exec ./tools/verify.sh --suites
     ;;
+  ingress)
+    # The only mode that opens a socket. Binds 0.0.0.0 INSIDE the container so
+    # compose can publish it to the host's loopback; the compose port mapping is
+    # 127.0.0.1:8848 and widening that is the operator's decision, not ours.
+    echo "== external agents may propose here =="
+    exec python3 -m sim.ingress --host 0.0.0.0 --port 8848
+    ;;
+  ingress-suite)
+    echo "== the door, attacked over the wire =="
+    exec python3 -m sim.ingress_suite
+    ;;
   shell)
     exec /bin/bash
     ;;
