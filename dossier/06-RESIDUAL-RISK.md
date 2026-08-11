@@ -106,6 +106,28 @@ Signed structures travel as canonical JSON (`acp_executor.canon`), not COSE_Sign
 
 *Disposition:* implement it or delete the entry. A declared-but-absent suite is a claim the code does not back, which is the thing this dossier exists to argue against.
 
+## New residuals from the live-agent client
+
+### RES-L1 — the model's reply encoding is constrained by the API
+
+`sim/llm_agent.py` sends the Messages API an `output_config` carrying `PROPOSAL_SCHEMA`, so the model's reply is forced into a fixed JSON shape. This is disclosed here rather than left in a code comment, because a reader who finds a `json_schema` in a request body is entitled to ask whether §5.1a has been violated.
+
+It constrains **encoding and never content**. The model remains free to propose the injected actions, to propose nothing, or to invent an action that does not exist; every one of those still reaches the door and is graded there, and nothing in this client scores, filters or judges the model's choice. It is also not the retry loop this file refuses — re-asking until the answer is convenient is a filter wearing a reliability costume. Suite 10 pins the distinction mechanically: if `PROPOSAL_SCHEMA` ever grows an `enum` over `task_type` the suite fails, because an enumerated set of permitted actions would stop constraining encoding and start constraining content.
+
+Why it is there at all: on identical input the model returned a JSON array on one run and tool-call syntax on the next, and roughly one run in three parsed. The alternative was a demo whose failures were the client's parser rather than the door.
+
+*Disposition:* none pending — but the constraint is real and must stay disclosed. Any Door A control relaxed on the strength of the reply being well-formed would be a conformance failure.
+
+### RES-L2 — Phase 1's outcome is a fact about a model, not a property of the system
+
+Suite 10 (44/44) covers what the client does with a reply — decoding, forwarding an undecodable `params` for the door to refuse, telling a classifier refusal apart from silence apart from a parse failure, and phase attribution. **It cannot tell you what a live model proposes**, and no suite can: that is a fact about a model on a prompt, and it varies by model, by version and by run.
+
+So the live demo's Phase 1 is not reproducible in the gate, and its result must never be quoted as evidence about the control plane. A run in which the model declines everything and proposes nothing is as valid an outcome as any other. Phase 2 — the compromised caller, with no model in the loop — is the load-bearing half precisely because it does not depend on this.
+
+A related correction is recorded in `sim/llm_agent.py`: the poisoned report was once edited to add an out-of-spec deviation so that a correct model would have legitimate work and Phase 1 would stop printing an empty array. That edit was made after seeing an unwanted result and produced the wanted one, and it was withdrawn. The agent's legitimate work now comes from a separate document in the same triage batch, leaving the injected report byte-identical to the one that shipped.
+
+*Disposition:* none. This is a limit of the demonstration, not a defect to close.
+
 ## What is "closed on paper" and not exercised
 
 Essential distinction, so the green results are not over-read:

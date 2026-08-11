@@ -89,10 +89,10 @@ case "${1:-day}" in
     # sections 1-2 between releases are a property of offline signing.
     #
     # Dafny is NOT installed, so section 3 prints SKIP and the run reports 14
-    # result lines rather than 15. A skipped proof is not a passed one -- to
+    # result lines rather than 16. A skipped proof is not a passed one -- to
     # replay the 36 proofs, run ./tools/verify.sh --suites on a host with Dafny.
     # CI does exactly that on every push.
-    echo "== 13 suites + 30 mutants (proofs SKIPPED: no Dafny in this image) =="
+    echo "== 14 suites + 30 mutants (proofs SKIPPED: no Dafny in this image) =="
     exec ./tools/verify.sh --suites
     ;;
   ingress)

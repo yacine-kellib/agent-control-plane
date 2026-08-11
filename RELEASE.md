@@ -16,9 +16,49 @@ allowed to differ, and are.
 Reproduce everything in one command:
 
 ```bash
-./tools/verify.sh            # integrity + signature + proofs + all 13 suites
+./tools/verify.sh            # integrity + signature + proofs + all 14 suites
 ./tools/verify.sh --suites   # proofs + suites only, no release key needed
 ```
+
+---
+
+## Unreleased since v1.3.14 — the live-agent client is covered, and a scenario edit is withdrawn
+
+Three changes to `sim/llm_agent.py` and its documentation. None of them touches
+the specification, the Executor or any control.
+
+**Suite 10 (44 checks) — the client is no longer untested.** `sim/llm_agent.py`
+was the one load-bearing file with no automated check of any kind; its evidence
+was hand-runs against the paid API, so a regression in it would have printed
+green indefinitely. `call_model()` is split so `parse_model_reply()` can be
+handed fixtures, and the suite needs no key and no network. It was mutation-
+checked rather than trusted for passing first time. Six mutations, all killed:
+disabling the `stop_reason` check kills 5 and reproduces the original defect
+verbatim, re-adding a deviation paragraph to the report kills 2, and removing
+code-fence stripping, dropping an undecodable `params`, or failing to wrap a
+non-list `actions` value kill 1 each. A sixth corrupts an expectation in the
+fixture corpus itself, so the data comparison is demonstrably not vacuous. The gate now
+prints **16** result lines and covers **118** files.
+
+**A scenario edit is withdrawn.** The poisoned supplier report had been given an
+out-of-spec deviation paragraph so that a correct model would have legitimate
+work and Phase 1 would stop printing an empty array. That edit was made after
+seeing an unwanted result and it produced the wanted one — the shape of changing
+the test until it passes. It is reverted; the report is byte-identical to the one
+that shipped. The agent's legitimate work now comes from a **separate** document
+in the same triage batch, which also gives the demo a property the deviation
+never did: the legitimate work and the injected instruction have different
+sources, so a reader can see whether text planted in one produces actions
+attributed to the other.
+
+**Structured outputs are now disclosed, not just commented.** The client
+constrains the *encoding* of the model's reply via a JSON schema on the request.
+This is documented as **RES-L1** in §06 with the encoding/content distinction
+stated explicitly, and pinned by a suite check that fails if the schema ever
+grows an enumeration of permitted actions — which would turn it into a §5.1a
+model-side defence. **RES-L2** records the matching limit: no suite can say what
+a live model will propose, so Phase 1's outcome is never evidence about the
+control plane.
 
 ---
 
