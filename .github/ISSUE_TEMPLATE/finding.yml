@@ -1,0 +1,105 @@
+name: Security finding
+description: A defect in the design, the reference implementation, the tooling or the proofs
+title: "[finding] "
+labels: ["finding"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for attacking this rather than reading it.
+
+        Findings are **published with attribution** — see [SECURITY.md](https://github.com/yacine-kellib/agent-control-plane/blob/main/.github/SECURITY.md). A finding that shows a check is *decorative* (deleting it kills no attack) is as welcome as one that shows a check is missing.
+
+  - type: textarea
+    id: claim
+    attributes:
+      label: The claim you are contradicting
+      description: Quote it, with the file and line. A finding is strongest when it names the sentence it falsifies.
+      placeholder: |
+        README.md:87 — "no single compromised component can cause a high-impact action to execute without..."
+        or  dossier/06-RESIDUAL-RISK.md:__ — "..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong
+      description: State the defect in one or two sentences before explaining it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to see it
+      description: >
+        A command, a patch, a test, or a precise argument. If it is a property no command can
+        show — a structural or architectural defect — say so and argue it. That is a legitimate
+        finding here; DR-2 path independence is exactly such a property.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - spec/ — the normative specification
+        - dossier/ — the argument
+        - reference/src/ — the Python reference implementation
+        - reference/suites/ — a suite is vacuous, or tests the wrong thing
+        - reference/proofs/ — a Dafny theorem is vacuous or unsound
+        - tools/ — the gate prints a false green
+        - sim/ — the simulation misrepresents the control plane
+        - other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: class
+    attributes:
+      label: What kind of defect
+      options:
+        - A control is missing — an attack succeeds that should not
+        - A control is decorative — deleting it kills no attack
+        - A verifier accepts a derived value from the party it verifies (RES-8 class)
+        - A claim in the prose does not match what the code does
+        - A proof is vacuous or does not model what it claims
+        - The tooling reports green when it should not
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: gate
+    attributes:
+      label: Output of ./tools/verify.sh --suites
+      description: >
+        Optional but useful — it tells us whether we are looking at the same tree.
+        Red integrity/signature is expected between releases and is not a defect.
+      render: text
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short HEAD`"
+
+  - type: input
+    id: credit
+    attributes:
+      label: How should we credit you?
+      description: Name or handle for RELEASE.md. Write "anonymous" to decline attribution.
+
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Before submitting
+      options:
+        - label: This is not "prompt injection succeeded" — the architecture assumes it does, and a well-formed proposal is the design working. My finding is that an **action** executes, or something else entirely.
+          required: true
+        - label: I understand this will be discussed and published in public, with credit unless I declined above.
+          required: true
