@@ -31,6 +31,7 @@ A compromised model can request a €40,000 synthesis order as often as it likes
 - [Quick start](#quick-start) — reproduce every claim in ninety seconds
 - [See it happen](#see-it-happen) — the injection demo
 - [Where this bites](#where-this-bites) — eight deployment settings
+- [See it run: a business day](#see-it-run-a-business-day) — 179 actions, measured
 - [How it works: two doors](#how-it-works-two-doors) — the architecture in one idea
 - [The one claim](#the-one-claim) — INV-1-HIGH
 - [What this does **not** claim](#what-this-does-not-claim) — read this before the positive claims
@@ -116,6 +117,38 @@ In each case an agent proposes something consequential and nothing between the m
 | **Any MCP / tool-calling deployment** | Whatever the server exposes | The model's output *is* the control signal. Tool poisoning or context poisoning becomes execution. | B-2: the model gets no tools at all. Every action is a typed proposal through one door. |
 
 The model isn't the problem in any of these. The authorisation is. When the credential is the authorisation, a manipulated agent is an authorised agent.
+
+---
+
+## See it run: a business day
+
+The table above is where this matters. [`sim/`](sim/) is what one of those settings actually looks like across a working day — an agentic research pipeline with four program contexts, three sites, six people, one agent, and 179 proposed actions. Standard library only, no dependencies.
+
+```bash
+python3 -m sim.scoreboard     # the deliverable
+python3 -m sim.acceptance     # 12 criteria — 11 pass, 1 partial, 0 fail
+python3 -m sim.supervise      # the same day as seven real OS processes
+```
+
+| Measured across one day | |
+|---|---|
+| Actions proposed | **179** |
+| Executed having touched no notifier, approver, anchor or hold | **146 — 81.6%** |
+| Held for a human | 32 — of those 19 released, 13 failed closed |
+| Refused at policy evaluation | 1 |
+| Attack proposals that were **well-formed** | **14 / 14** |
+| Attack proposals that **executed** | **0** |
+| Counterfactual, had there been no control plane | **EUR 520,000** committed spend and one unrecallable cross-program disclosure |
+
+**The ratio is the argument.** 81.6% of the day executes having touched no control at all. If that number were small the design would be arguing against itself: a control plane that taxes the routine gets routed around, and a control that is routed around provides nothing.
+
+**14/14 well-formed is the claim, not a failure.** Both attacks arrive inside ordinary business content and neither is detected, filtered or judged. They fail because the actions they request are not authorised — which is the entire thesis, stated as a measurement.
+
+**The €520,000 is derived, not asserted.** Acceptance criterion 12 perturbs one logged cost and requires the counterfactual to move by exactly that amount, so the number cannot drift from the log it claims to summarise.
+
+The simulation also reports the figure nobody has: how often a held action released on *silence* — the measurable rate at which a human control decays into a rubber stamp. It is deliberately **not** quoted here as a fixed number, because it is sampled per run and no single value would replay. It is reported as debt, not as success.
+
+> **Illustrative.** `sim/` models a company *shaped like* an AI-driven drug design firm, built from public information. It describes no organisation's internal systems and claims no knowledge of any. Every number, tier and threshold is a placeholder a real deployment must re-derive with its own risk owners. The narrative companion is [Annex D](dossier/annexes/D-research-pipeline.md).
 
 ---
 
