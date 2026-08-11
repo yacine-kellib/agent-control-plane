@@ -12,11 +12,11 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ## The two gates
 
 ```bash
-./tools/verify.sh --suites   # proofs + all 13 suites. No release key needed.
+./tools/verify.sh --suites   # proofs + all 14 suites. No release key needed.
 ./tools/verify.sh            # the above, plus integrity and signature.
 ```
 
-`--suites` is the gate every commit is measured against. A clean run prints **15** result lines — 1 prerequisites, 1 proofs, 13 suites — and no failures. It is not a reduced gate: it runs every suite the full command runs.
+`--suites` is the gate every commit is measured against. A clean run prints **16** result lines — 1 prerequisites, 1 proofs, 14 suites — and no failures. It is not a reduced gate: it runs every suite the full command runs.
 
 The full command additionally proves the bytes on your disk are the signed release bytes.
 
@@ -74,9 +74,34 @@ python3 reference/suites/ack_suite.py             # expected: 14/14 T-31 CLOSED
 python3 reference/suites/ack_suite.py --mutate    # expected: 6/6 killed
 python3 reference/suites/audit_suite.py           # expected: 11/11 AC-5/AU-6/AU-7/AU-8 HOLD
 python3 reference/suites/audit_suite.py --mutate  # expected: 4/4 killed
+python3 reference/suites/llm_agent_suite.py       # expected: 44/44 client checks
 python3 reference/src/acp_crypto.py          # performance measurement
 python3 reference/suites/diff_prose.py            # expected: Z1 divergences detected
 ```
+
+## Replay the live-agent demo
+
+This is the only command here that needs a key and a network, and the only one
+whose output is **not** fixed. It runs a real model against a running door.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...          # yours; it never reaches ACP
+docker compose -f deploy/docker-compose.yml up -d ingress
+python3 -m sim.llm_agent                     # add --invent for an unregistered action
+docker compose -f deploy/docker-compose.yml down
+```
+
+What to expect, and what not to. **Phase 2 is deterministic** — the compromised
+caller proposes the injected actions directly with no model in the loop, and
+`release_to_partner` is refused at `XPROG-1`, `order_synthesis` held at
+`8.4-11`, and (with `--invent`) `exfiltrate_dataset` refused at `8.4-3` without
+ever being graded. **Phase 1 is not deterministic and is not meant to be**: it
+prints whatever a live model chose, which may include proposing nothing at all.
+See RES-L2 in §06 — that outcome is a fact about a model, not evidence about
+the control plane, and it must not be quoted as though it were.
+
+The client's own behaviour — everything it does with whatever reply comes back
+— is covered offline by `llm_agent_suite.py` above, which needs no key.
 
 ## Replay the performance measurement
 
