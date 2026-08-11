@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Read the limits first
+    url: https://github.com/yacine-kellib/agent-control-plane/blob/main/dossier/06-RESIDUAL-RISK.md
+    about: What is already known to be wrong, stated before the positive claims. If your finding is here but worse than stated, that is still a finding — open one.
+  - name: Reproduce a claim
+    url: https://github.com/yacine-kellib/agent-control-plane/blob/main/dossier/07-REPRODUCTION.md
+    about: The exact command behind every number, and where attacking has the highest return.
+  - name: Security policy
+    url: https://github.com/yacine-kellib/agent-control-plane/blob/main/.github/SECURITY.md
+    about: Findings are public by default and published with attribution. Here is why, and the one exception.
+  - name: Report privately instead
+    url: https://github.com/yacine-kellib/agent-control-plane/security/advisories/new
+    about: Only if you believe a real deployment is at risk. Nothing here is deployed, so public is the default.
