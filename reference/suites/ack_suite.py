@@ -51,7 +51,7 @@ def held(rev="IRREVERSIBLE", ph="sha256:p"):
 
 
 def ack(b, ph, who="op_1121", decision="CONFIRM", key=None, **over):
-    a = make_ack(b, ph, who, decision, key or C.KEYS[who], now=NOW)
+    a = make_ack(b, ph, who, decision, key or C.SIGNERS[who], now=NOW)
     a["obj"].update(over)
     if "resign" in over:
         pass
@@ -61,7 +61,7 @@ def ack(b, ph, who="op_1121", decision="CONFIRM", key=None, **over):
 def resign(b, a, who="op_1121"):
     """Re-sign after mutating the object, so the test isolates the intended
     check rather than being caught by the signature."""
-    a["sig"] = sign(C.KEYS[who], h(a["obj"]), a["obj"]["alg"])
+    a["sig"] = sign(C.SIGNERS[who], h(a["obj"]), a["obj"]["alg"])
     return a
 
 
@@ -99,7 +99,7 @@ def t_T31_bare_string_refused():
 def t_T31_unregistered_identity_refused():
     """An identity with no key in the signed bundle cannot acknowledge."""
     b, g, pr = held()
-    a = make_ack(b, pr.proposal_hash, "mallory", "CONFIRM", b"attacker-key",
+    a = make_ack(b, pr.proposal_hash, "mallory", "CONFIRM", C.FORGER,
                  now=NOW)
     try:
         g.confirm(pr.proposal_hash, a, now=NOW + 1)
@@ -111,7 +111,7 @@ def t_T31_unregistered_identity_refused():
 def t_T31_forged_signature_refused():
     """Right identity, wrong key."""
     b, g, pr = held()
-    a = make_ack(b, pr.proposal_hash, "op_1121", "CONFIRM", b"wrong-key",
+    a = make_ack(b, pr.proposal_hash, "op_1121", "CONFIRM", C.FORGER,
                  now=NOW)
     try:
         g.confirm(pr.proposal_hash, a, now=NOW + 1)
@@ -138,7 +138,7 @@ def t_T31_identity_swap_refused():
 def t_T31_operator_cannot_self_confirm():
     """AT-2 restated on a signature-covered identity."""
     b, g, pr = held()
-    a = make_ack(b, pr.proposal_hash, OP, "CONFIRM", C.KEYS[OP], now=NOW) \
+    a = make_ack(b, pr.proposal_hash, OP, "CONFIRM", C.SIGNERS[OP], now=NOW) \
         if OP in C.KEYS else None
     if a is None:
         return True, "operator holds no attester key — cannot acknowledge at all"
@@ -314,6 +314,10 @@ def run_mutants():
         with tempfile.TemporaryDirectory() as td:
             open(os.path.join(td, "acp_ack.py"), "w").write(src.replace(old, new))
             shutil.copy(os.path.join(SRC_DIR, "acp_executor.py"), td)
+            # acp_crypto is a hard import of acp_executor since v1.3.14.
+            # Absent, the mutant dies at import and is reported ERROR,
+            # never KILL — an unrun mutant is not a caught one.
+            shutil.copy(os.path.join(SRC_DIR, "acp_crypto.py"), td)
             for f in ("conformance.py", "ack_suite.py"):
                 shutil.copy(os.path.join(_HERE, f), td)
             # See mutate_executor.run_mutant: PYTHONPATH must not reach the

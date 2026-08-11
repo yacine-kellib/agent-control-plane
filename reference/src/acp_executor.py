@@ -8,22 +8,38 @@ Consumption Ledger (CL-1..CL-6, plus the DS-6f origin binding), the EL-1
 expression evaluator, TR-8 risk recomputation, and AT-8/AT-8a/AT-8b
 attestation object verification.
 
-CRYPTO DISCLOSURE. Signature PRIMITIVES are modelled with HMAC-SHA256 over
-canonical bytes, not Ed25519/ML-DSA/COSE. The HYBRID COMPOSITION (CR-1..CR-5)
-is however modelled faithfully -- two independent signatures, both required --
-because composition is protocol logic, not cryptography, and the downgrade
-attack it prevents is a control-flow property this suite can actually test. Per A-3 the specification's proofs assume
-collision-free hashing and unforgeable signatures as primitives; this module
-exercises the PROTOCOL, and substituting real COSE changes no control flow.
-Every place a real deployment must swap in real crypto is marked CRYPTO-SWAP.
+CRYPTO DISCLOSURE. Signature primitives are REAL and ASYMMETRIC: Ed25519
+(RFC 8032) for the classical leg, ML-DSA-65 (FIPS 204) for the post-quantum
+leg, via `acp_crypto`. The HYBRID COMPOSITION (CR-1..CR-5) is conjunctive --
+two independent signatures, both required -- because composition is protocol
+logic and the downgrade attack it prevents is a control-flow property this
+suite can test.
+
+WHY THIS STOPPED BEING A MODELLING DETAIL (v1.3.14). Through v1.3.13 the
+primitives were HMAC-SHA256, on the stated ground that substituting real COSE
+changes no control flow. That ground was sound for every property except one.
+HMAC is symmetric, so verifying a signature requires holding the key that made
+it: the Executor held `Bundle.receipt_key` and every entry of
+`Bundle.attester_keys`, and a compromised Executor could therefore mint its own
+quorum. INV-1-HIGH -- no floor-HIGH action without k independent attestations --
+did not hold against the very adversary it names, and no amount of protocol
+testing could have found it, because the defect was key CUSTODY, not control
+flow. The Bundle now carries PUBLIC keys only (`HybridPub`); no signing key is
+reachable from the verifier. Remaining gaps: COSE_Sign1 envelope encoding
+(structures here are canonical JSON via `canon`, canonical CBOR is implemented
+and tested in `acp_crypto` but not yet the carrier), and SLH-DSA (FIPS 205),
+declared in SUITES but not implemented -- see `_PRIMS_IMPLEMENTED`.
 
 FAIL-CLOSED CONTRACT. Every check raises FailClosed. There is no path that
 logs-and-continues. `execute()` returns only when every check passed.
 """
 from __future__ import annotations
-import hashlib, hmac, json, time
+import hashlib, json, time
 from dataclasses import dataclass, field
 from typing import Any
+
+from acp_crypto import (HybridKey as SigningKey, HybridPub as VerifyingKey,
+                        sign_prim, verify_prim)
 
 RISK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 RANK = {v: k for k, v in RISK.items()}
@@ -40,10 +56,18 @@ AT1_FIELDS = ("proposal_hash", "policy_bundle_hash", "bundle_epoch",
 SUITES = {
     "ed25519":            ("classical",),                  # legacy, pre-2027
     "hybrid-ed25519-mldsa65": ("classical", "pq"),          # ANSSI hybridation
-    "slhdsa128s":         ("pq",),                          # hash-based, no
+    "slhdsa128s":         ("pq-slh",),                      # hash-based, no
                                                             # hybridation needed
 }
 SUITE_RANK = {"ed25519": 0, "slhdsa128s": 1, "hybrid-ed25519-mldsa65": 2}
+
+# `pq-slh` (SLH-DSA, FIPS 205) is DECLARED and NOT IMPLEMENTED. It gets its own
+# primitive name rather than sharing `pq` with ML-DSA, because sharing would
+# mean a receipt claiming suite `slhdsa128s` was in fact verified against an
+# ML-DSA key -- the suite label would name one algorithm and the bytes another,
+# which is the encoding-split defect wearing a cryptographic hat. Unimplemented
+# fails CLOSED: `verify_prim` returns False and step 9.3-1 refuses.
+_PRIMS_IMPLEMENTED = {"classical", "pq"}
 
 
 class FailClosed(Exception):
@@ -75,19 +99,24 @@ def h(obj: Any) -> str:
     return "sha256:" + hashlib.sha256(canon(obj)).hexdigest()
 
 
-def _prim(key: bytes, payload: str, prim: str) -> str:     # CRYPTO-SWAP
-    # classical -> Ed25519, pq -> ML-DSA-65 (FIPS 204) or SLH-DSA (FIPS 205)
-    return hmac.new(key + prim.encode(), payload.encode(), hashlib.sha256).hexdigest()
+def _sign_prim(key: SigningKey, payload: str, prim: str) -> str:
+    # classical -> Ed25519 (RFC 8032), pq -> ML-DSA-65 (FIPS 204).
+    # Hex on the wire: signatures travel through JSON (canon, the stdio RPC in
+    # sim/services/_rpc.py, the HTTP ingress), and raw bytes do not.
+    return sign_prim(key, payload.encode(), prim).hex()
 
 
-def sign(key: bytes, payload: str, alg: str = "hybrid-ed25519-mldsa65") -> dict:
+def sign(key: SigningKey, payload: str, alg: str = "hybrid-ed25519-mldsa65") -> dict:
     """CR-2: produce one signature per primitive in the suite."""
     if alg not in SUITES:
         raise FailClosed("CR-1", f"unknown signature suite {alg}")
-    return {p: _prim(key, payload, p) for p in SUITES[alg]}
+    missing = set(SUITES[alg]) - _PRIMS_IMPLEMENTED
+    if missing:
+        raise FailClosed("CR-1", f"suite {alg} needs unimplemented {sorted(missing)}")
+    return {p: _sign_prim(key, payload, p) for p in SUITES[alg]}
 
 
-def sig_ok(key: bytes, payload: str, sig: Any, alg: str) -> bool:
+def sig_ok(pub: VerifyingKey, payload: str, sig: Any, alg: str) -> bool:
     """
     CR-3: EVERY primitive in the declared suite MUST verify. Composition is AND.
 
@@ -95,6 +124,11 @@ def sig_ok(key: bytes, payload: str, sig: Any, alg: str) -> bool:
     than the weaker primitive, since an attacker who breaks one is unconstrained
     by the other. This is the same shape as INV-1-HIGH's quorum: the security
     comes from requiring all of them, not any of them.
+
+    `pub` is a PUBLIC key. That is the whole point of the swap away from HMAC:
+    under a symmetric primitive this argument was the signing key, so an
+    Executor able to verify a quorum was also able to mint one, and INV-1-HIGH
+    reduced to trusting the Executor. See the CRYPTO DISCLOSURE at the top.
     """
     if alg not in SUITES:
         return False
@@ -103,7 +137,7 @@ def sig_ok(key: bytes, payload: str, sig: Any, alg: str) -> bool:
     required = set(SUITES[alg])
     if set(sig.keys()) != required:        # no extra, no missing primitives
         return False
-    return all(hmac.compare_digest(_prim(key, payload, p), sig[p]) for p in required)
+    return all(verify_prim(pub, payload.encode(), sig[p], p) for p in required)
 
 
 # ------------------------------------------------------- EL-1 evaluator
@@ -259,8 +293,12 @@ class Bundle:
     floors: dict[str, str]
     risk_functions: list[dict]
     adapters: dict[str, str]
-    attester_keys: dict[str, bytes]
-    receipt_key: bytes
+    # PUBLIC verification keys. Nothing in this dataclass can sign. That is a
+    # property the type now carries: before v1.3.14 these were HMAC secrets, so
+    # possession of the bundle was possession of the quorum (see the module
+    # CRYPTO DISCLOSURE).
+    attester_keys: dict[str, VerifyingKey]
+    receipt_key: VerifyingKey
     schemas: dict[str, str]
     reversibility: dict[str, str] = field(default_factory=dict)
     min_suite: str = "hybrid-ed25519-mldsa65"      # CR-4: signed floor
@@ -270,7 +308,22 @@ class Bundle:
                   "risk_functions": self.risk_functions,
                   "adapters": self.adapters, "schemas": self.schemas,
                   "reversibility": self.reversibility,
-                  "min_suite": self.min_suite})
+                  "min_suite": self.min_suite,
+                  # PB-KEY (v1.3.14). The key registry is INSIDE the hash.
+                  # Spec §8.2 puts `attesters/` in the signed bundle tree and
+                  # signs "SHA-256 of canonical bundle tree", so this is what
+                  # the specification always required; the reference omitted it.
+                  # It did no visible harm while primitives were symmetric,
+                  # because an Executor holding the signing keys was already
+                  # unconstrained. With asymmetric keys the registry becomes the
+                  # thing every downstream check ultimately rests on, and a
+                  # `policy_bundle_hash` that does not cover it lets two
+                  # Executors trusting DIFFERENT attesters agree that they hold
+                  # the same policy. RES-8 class: a claimed binding must be
+                  # verifiable from the signed bytes of both artifacts.
+                  "attesters": {who: k.fingerprint()
+                                for who, k in sorted(self.attester_keys.items())},
+                  "receipt_key": self.receipt_key.fingerprint()})
 
     def floor_of(self, resource: str) -> str:
         return self.floors.get(resource, "T3")        # RK-1: absent => T3

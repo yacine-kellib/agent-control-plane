@@ -64,9 +64,9 @@ Abridged output. A complete run prints 17 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 73/73
-  OK   Suite 1  conformance — RESULT: 44/44 — CONFORMANT
-  OK   Suite 2  executor mutation — RESULT: 19/19 killed
+  OK   ALL attacks (consolidated registry) — RESULT: 74/74
+  OK   Suite 1  conformance — RESULT: 45/45 — CONFORMANT
+  OK   Suite 2  executor mutation — RESULT: 20/20 killed
   ...
 ```
 
@@ -122,7 +122,7 @@ The model isn't the problem in any of these. The authorisation is. When the cred
 
 ## See it run: a business day
 
-The table above is where this matters. [`sim/`](sim/) is what one of those settings actually looks like across a working day — an agentic research pipeline with four program contexts, three sites, six people, one agent, and 179 proposed actions. Standard library only, no dependencies.
+The table above is where this matters. [`sim/`](sim/) is what one of those settings actually looks like across a working day — an agentic research pipeline with four program contexts, three sites, six people, one agent, and 179 proposed actions. It signs with the same real hybrid keypairs the reference does, so it needs `cryptography` and `dilithium-py` and a day takes tens of seconds rather than one.
 
 ```bash
 python3 -m sim.scoreboard     # the deliverable
@@ -291,7 +291,7 @@ The dossier is the argument; the spec is the normative source. Read `06` before 
 | [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md) | Running and presenting the demo | — |
 | [`dossier/annexes/D-research-pipeline.md`](dossier/annexes/D-research-pipeline.md) | Annex D — worked example in an agentic research pipeline | — |
 | [`spec/ACP-SPEC-001.md`](spec/ACP-SPEC-001.md) | The full normative specification | 3 h |
-| [`RELEASE.md`](RELEASE.md) | What changed in v1.3.13 | — |
+| [`RELEASE.md`](RELEASE.md) | What changed in v1.3.14 | — |
 
 ---
 
@@ -344,7 +344,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 111 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 115 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56
@@ -353,7 +353,7 @@ Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (29 assertions)
+./tools/selftest.sh               # tests the tooling itself (34 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

@@ -72,7 +72,7 @@ The repository now holds a second implementation surface (Rust, TypeScript) alon
 
 ### RES-P1 — passing the shared corpus is a partial claim
 
-Conformance vectors express *input → verdict*. They do not express the 29 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
+Conformance vectors express *input → verdict*. They do not express the 30 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
 
 ### RES-P2 — notifier/approval independence is monorepo-structural
 
@@ -90,7 +90,21 @@ Splitting the gate makes `--suites` achievable per commit, at the cost that a wo
 
 ### RES-P5 — the two implementations are not comparable at the primitive layer
 
-The Python reference models signatures with HMAC-SHA256; the Rust implementation uses real Ed25519 and ML-DSA-65. A vector carrying a signature is therefore not portable between them. Vectors must be defined over canonical bytes and declared mutations. This is a live constraint on the corpus, not merely a disclosure: get it wrong and the shared corpus silently stops being shared.
+Both implementations now use the same real primitives (Ed25519, ML-DSA-65), so the original reason for this residual — Python modelling signatures with HMAC-SHA256 — no longer applies. The constraint survives for two narrower reasons: ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, so two conformant signers produce different bytes over the same message; and a vector carrying a signature must carry key material to be checkable at all. Vectors must therefore still be defined over canonical bytes and declared mutations. This is a live constraint on the corpus, not merely a disclosure: get it wrong and the shared corpus silently stops being shared.
+
+## New residuals from the v1.3.14 crypto swap
+
+### RES-C1 — the signature carrier is not COSE
+
+Signed structures travel as canonical JSON (`acp_executor.canon`), not COSE_Sign1. Canonical CBOR per RFC 8949 §4.2.1 **is** implemented, and its validating decoder is tested by Suite 5 (8/8) — it refuses non-canonical input rather than normalising it — but it is not yet the envelope the primitives sign over. The properties that matter for the protocol (one byte string per object, refusal rather than renormalisation) are exercised; interoperability with a COSE verifier is not, and must not be assumed from these results.
+
+*Disposition:* move the carrier to COSE_Sign1 with the algorithm identifiers registered for Ed25519 and ML-DSA-65. Control flow does not move — this is the same argument that was true of the primitive swap, and it was true there for everything except key custody.
+
+### RES-C2 — SLH-DSA is declared and not implemented
+
+`SUITES` names `slhdsa128s` (SLH-DSA, FIPS 205) and no code implements it. It is given its own primitive name, `pq-slh`, rather than sharing `pq` with ML-DSA: sharing would mean a receipt claiming one algorithm was verified against a key for another, which is the encoding-split defect in cryptographic dress. Signing refuses at CR-1; verification returns false and the Executor refuses at 9.3-1. The failure is closed, but a deployment that reads the suite table as a menu of available options will be wrong.
+
+*Disposition:* implement it or delete the entry. A declared-but-absent suite is a claim the code does not back, which is the thing this dossier exists to argue against.
 
 ## What is "closed on paper" and not exercised
 
@@ -99,9 +113,9 @@ Essential distinction, so the green results are not over-read:
 | Item | Actual status |
 |------|---------------|
 | Bindings, action identity, origin pinning, encoding, release mode, hybrid composition | **Mechanically proven** + mutants + non-vacuity |
-| 44 vectors, partition, integration | **Empirically verified** — covers attacks that were conceived of |
+| 45 vectors, partition, integration | **Empirically verified** — covers attacks that were conceived of |
 | **AC-5, AU-7, AU-8, revised AU-6** | **Implemented and tested in v1.3.11** (`acp_audit.py`, Suite 7: 11/11, 4/4 mutants). T-28/29/30 replayed as live attacks. Newest machinery in the dossier and therefore the most likely site of the next defect; inside RR-1 like everything after DS-6. |
-| Production cryptography | Real Ed25519 and ML-DSA-65, but a Python reference implementation — **forbidden in production** (§8.4) |
+| Production cryptography | Real Ed25519 and ML-DSA-65 in both implementations since v1.3.14, but the Python one is a reference implementation — **forbidden in production** (§8.4). Carrier is not COSE (RES-C1); SLH-DSA is declared and absent (RES-C2). |
 
 ## Deployment constraints derived from measurement
 

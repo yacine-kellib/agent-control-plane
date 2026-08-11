@@ -13,31 +13,30 @@ banner() {
 ================================================================================
   ACP DEMONSTRATOR — NOT A DEPLOYABLE CONTROL PLANE
 ================================================================================
-  This runs the real control FLOW across seven real OS processes. Three things
-  are modelled rather than implemented, and all three are load-bearing:
+  This runs the real control FLOW across seven real OS processes. Two things
+  are modelled rather than implemented, and both are load-bearing:
 
-  1. PRIMITIVES ARE HMAC-SHA256, NOT Ed25519/ML-DSA  (acp_executor.py:80)
-     HMAC is symmetric, so every verifier holds a key that can also sign.
-     INV-1-HIGH — "no single compromised component can cause a high-impact
-     action to execute" — DOES NOT HOLD HERE. A compromised executor mints
-     its own quorum. The hybrid COMPOSITION (CR-1..CR-5) is faithful; the
-     primitives are not.
-
-  2. THE LEDGER IS IN-MEMORY  (acp_executor.py:221)
+  1. THE LEDGER IS IN-MEMORY  (acp_executor.py:221)
      CL-2 nonce single-use, CL-3 attestation single-use and the RAD-3 epoch
      high-water mark are Python sets. They do not survive a restart, and
      replay protection that forgets on restart is not replay protection.
 
-  3. THE ANCHOR IS AN IN-PROCESS LIST  (acp_audit.py:70)
+  2. THE ANCHOR IS AN IN-PROCESS LIST  (acp_audit.py:70)
      AU-4 requires the anchor to sit outside the trust domain of what it
      anchors. Here it shares a process tree with it.
+
+  SIGNATURES ARE REAL as of v1.3.14: Ed25519 + ML-DSA-65, asymmetric, and the
+  bundle carries public keys only. This banner listed a third blocker until
+  then — HMAC primitives, under which a compromised executor could mint its own
+  quorum and INV-1-HIGH did not hold. What is still NOT real: COSE_Sign1 is not
+  the carrier (canonical JSON is), and SLH-DSA is declared in SUITES without an
+  implementation and fails closed.
 
   What this DOES demonstrate: that a fully-injected model's output is only a
   proposal, that risk is recomputed from a signed bundle the model never sees,
   and that irreversible actions do not execute on silence.
 
-  Fixing (1) is days — cryptography and dilithium-py are already dependencies
-  and the swap sites are marked CRYPTO-SWAP. See dossier/06-RESIDUAL-RISK.md.
+  See dossier/06-RESIDUAL-RISK.md.
 ================================================================================
 EOF
 }
@@ -93,7 +92,7 @@ case "${1:-day}" in
     # result lines rather than 15. A skipped proof is not a passed one -- to
     # replay the 36 proofs, run ./tools/verify.sh --suites on a host with Dafny.
     # CI does exactly that on every push.
-    echo "== 13 suites + 29 mutants (proofs SKIPPED: no Dafny in this image) =="
+    echo "== 13 suites + 30 mutants (proofs SKIPPED: no Dafny in this image) =="
     exec ./tools/verify.sh --suites
     ;;
   ingress)

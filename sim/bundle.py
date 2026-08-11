@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 import sim  # noqa: F401  — puts ../reference/src on sys.path
 from acp_executor import Bundle, Executor, Ledger, FailClosed, h
 
+from sim.receipts import RECEIPT_SIGNER
 from sim.world import ATTESTER_KEYS, DISCLOSURE_ROLE, PROGRAMS
 
 # --------------------------------------------------------------- resources
@@ -187,6 +188,13 @@ class ResearchBundle(Bundle):
             "risk_functions": self.risk_functions, "adapters": self.adapters,
             "schemas": self.schemas, "reversibility": self.reversibility,
             "min_suite": self.min_suite,
+            # PB-KEY: the key registry, same reason as the base class — see
+            # acp_executor.Bundle.hash. A subclass that widened the hash with
+            # domain fields but not with the attesters would reintroduce the
+            # gap for exactly the bundle the simulation actually runs.
+            "attesters": {who: k.fingerprint()
+                          for who, k in sorted(self.attester_keys.items())},
+            "receipt_key": self.receipt_key.fingerprint(),
             # the domain fields, signature-covered along with everything else
             "resource_program": self.resource_program,
             "dataset_program": self.dataset_program,
@@ -220,7 +228,7 @@ def make_bundle(epoch: int = 1) -> ResearchBundle:
         risk_functions=[dict(r) for r in RISK_FUNCTIONS],
         adapters=dict(ADAPTERS),
         attester_keys=dict(ATTESTER_KEYS),
-        receipt_key=b"kms-research",
+        receipt_key=RECEIPT_SIGNER.public(),
         schemas={sid: f"sha256:{sid}" for sid in ADAPTERS},
         reversibility=dict(REVERSIBILITY),
         resource_program=dict(RESOURCE_PROGRAM),

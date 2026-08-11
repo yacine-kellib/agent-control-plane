@@ -14,18 +14,26 @@ recomputes rather than reads:
 None of that is defended against here, on purpose. A signing substrate that
 policed itself would be proving the wrong thing.
 
-CRYPTO DISCLOSURE inherited from acp_executor: primitives are HMAC-SHA256 over
-canonical bytes; the hybrid COMPOSITION (CR-1..CR-5, conjunctive) is modelled
-faithfully because composition is protocol logic. Marked CRYPTO-SWAP upstream.
+CRYPTO DISCLOSURE inherited from acp_executor: primitives are real and
+asymmetric (Ed25519 + ML-DSA-65), and the hybrid COMPOSITION (CR-1..CR-5) is
+conjunctive. This module holds SIGNING keys because it plays the KMS and the
+attesters; the Executor it feeds holds none of them.
 """
 from __future__ import annotations
 
 import itertools
 
 import sim  # noqa: F401
+from acp_crypto import HybridKey
 from acp_executor import canon, h, sign
 
 from sim.world import PEOPLE
+
+#: The research KMS keypair. It lives HERE, in the signing substrate, and not in
+#: `sim/bundle.py`: the bundle's defining property since v1.3.14 is that it holds
+#: public keys only, so a private key declared in it would contradict the thing
+#: the module exists to demonstrate. `make_bundle` registers `.public()`.
+RECEIPT_SIGNER = HybridKey(b"kms-research")
 
 ALG = "hybrid-ed25519-mldsa65"          # CR-6: the ANSSI hybridation floor
 _nonce = itertools.count(1)
@@ -119,7 +127,7 @@ def make_receipt(bundle, proposal: dict, *, operator: str, now: float,
          "attestations": atts or [],
          "_now": now}
     r.update(override)
-    r["sig"] = sign(bundle.receipt_key,
+    r["sig"] = sign(RECEIPT_SIGNER,
                     canon({k: v for k, v in r.items() if k != "sig"}).decode(),
                     r["alg"])
     return r
