@@ -26,7 +26,7 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ```
 
 ```
-OK  39 files match MANIFEST.sha256          OK  73/73 attacks fail closed
+OK  111 files match MANIFEST.sha256         OK  73/73 attacks fail closed
 OK  Ed25519 signature verifies              OK  29/29 mutation controls kill
 OK  36 verified, 0 errors  (Dafny/Z3)       OK  9 test suites, all green
 ```

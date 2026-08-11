@@ -14,6 +14,15 @@ below is the actual defect from Annex C, mounted as a single compromised
 component against a running implementation.
 """
 import copy, sys, time
+# Run-from-anywhere: put the sibling reference/src on the path so
+# `python3 reference/suites/<x>.py` works without the caller exporting
+# PYTHONPATH. The isdir guard keeps this inert inside the mutation suites'
+# temp dirs, where no ../src exists and the mutant module must be found flat in
+# the cwd — inserting a real path there would let the true module shadow it.
+import os as _os
+_SRC = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), _os.pardir, "src")
+if _os.path.isdir(_SRC) and _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 from acp_executor import (Bundle, Executor, Ledger, FailClosed, CriticalAlert,
                             canon, h, sign, evaluate, DeferredReleaseGate,
                             PendingRelease, RenderedSummary, render_from_canonical)
