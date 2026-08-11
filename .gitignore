@@ -13,3 +13,10 @@ dist/
 
 # Private working material, never signed, never published.
 private/
+
+# Local agent configuration. NOT discarded -- it is versioned in a separate
+# private repository (tack-run/claude-env, projects/acp/) because this repo is
+# public and .claude/ holds machine settings, hooks and session handoffs.
+# Restore with:  ~/DEV/claude-env/sync.sh push acp
+# Capture changes with:  ~/DEV/claude-env/sync.sh pull acp
+.claude/
