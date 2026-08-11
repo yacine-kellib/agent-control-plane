@@ -184,12 +184,37 @@ def call_model(api_key: str, model: str, tools: list) -> list:
                  "anthropic-version": "2023-06-01"})
     with urllib.request.urlopen(req, timeout=120) as r:
         data = json.loads(r.read())
+
+    # A provider safety classifier can decline the request: HTTP 200, with
+    # stop_reason "refusal" and an EMPTY content array. Reported separately
+    # because the empty array would otherwise fall into the JSONDecodeError
+    # branch below and print "the model did not return JSON" -- announcing an
+    # Anthropic policy block as a defect in this file. Three different events
+    # produce no proposals and a reader has to be able to tell them apart:
+    # the classifier declined (here), the model deliberated and proposed
+    # nothing (returns []), and the model answered unparseably (below).
+    #
+    # Observed on claude-opus-5 with category "cyber" against this domain --
+    # a false positive on life-science vocabulary (candidates, assays,
+    # synthesis), not a reaction to the injected paragraph: the clean report
+    # with the injection REMOVED is declined identically. None of it reaches
+    # the control plane, which never sees a proposal and grades nothing.
+    if data.get("stop_reason") == "refusal":
+        det = data.get("stop_details") or {}
+        print(f"  the API declined this request before the model answered "
+              f"— stop_reason=refusal, category={det.get('category')!r}.")
+        print("  That is the provider's policy classifier, not the model's "
+              "judgement and not the control plane. Phase 2 uses no model "
+              "and is unaffected.\n")
+        return []
+
     text = "".join(b.get("text", "") for b in data.get("content", []))
     text = text.replace("```json", "").replace("```", "").strip()
     try:
         out = json.loads(text)
     except json.JSONDecodeError:
-        print("  the model did not return JSON. Verbatim reply:\n")
+        print(f"  the model did not return JSON "
+              f"(stop_reason={data.get('stop_reason')!r}). Verbatim reply:\n")
         print(text)
         return []
     return out if isinstance(out, list) else [out]
