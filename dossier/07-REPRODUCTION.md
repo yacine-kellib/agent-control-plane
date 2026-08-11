@@ -9,10 +9,28 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 # Dafny 4.9.1: https://github.com/dafny-lang/dafny/releases/tag/v4.9.1
 ```
 
+## The two gates
+
+```bash
+./tools/verify.sh --suites   # proofs + all 13 suites. No release key needed.
+./tools/verify.sh            # the above, plus integrity and signature.
+```
+
+`--suites` is the gate every commit is measured against. A clean run prints **15** result lines — 1 prerequisites, 1 proofs, 13 suites — and no failures. It is not a reduced gate: it runs every suite the full command runs.
+
+The full command additionally proves the bytes on your disk are the signed release bytes.
+
+**Between releases, sections 1 and 2 are expected to be red, and that is not a finding.** The manifest is signed with an offline key held by one person, so only a commit that person has signed can make integrity and signature green. A red integrity line on a working tree, or on any branch that is not a tagged release, is a property of offline signing — not tampering, and not a broken claim. Check integrity against a release tag; check behaviour with `--suites` anywhere.
+
+This distinction is stated here rather than left for a reader to discover, because a security dossier whose first command prints red teaches exactly the wrong reflex: that red is normal and can be clicked past.
+
+**Never repair a red integrity line by regenerating `MANIFEST.sha256`.** A regenerated manifest whose signature no longer verifies is strictly worse than a stale one, and only the key holder can restore it.
+
 ## Verify dossier integrity
 
 ```bash
 sha256sum -c MANIFEST.sha256
+./tools/sign-release.sh list   # what the manifest should cover, no key needed
 ```
 
 ## Replay the formal proofs

@@ -66,6 +66,32 @@ Documented, and a new instance was found (T-30): denying anchoring forces the AT
 
 AU-6 (revised, now implemented) breaks that specific composition by suspending DR-10 sampling during an outage. What it does not break is the **third composition**: on the reversible path the only human control is notification, T-26 says notification degrades through its own use, and A-7 now covers reversibility labels — so an action mislabelled `REVERSIBLE` inherits the weakest control in the system, with no attack required. Disclosed, not closed.
 
+## New residuals from the polyglot restructure
+
+The repository now holds a second implementation surface (Rust, TypeScript) alongside the Python reference. That changes what the green numbers mean, and the changes are disclosed here before the positive claims are made elsewhere.
+
+### RES-P1 — passing the shared corpus is a partial claim
+
+Conformance vectors express *input → verdict*. They do not express the 29 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
+
+### RES-P2 — notifier/approval independence is monorepo-structural
+
+`services/notifier` and `services/approval` are separate codebases with separate dependency trees and separate builds, and may share nothing above the wire format. Separate organisations with separate release keys would be stronger. A monorepo was chosen because separate repositories would break *one clone, one command, every claim replays*, which is what this dossier is for. That is a trade, disclosed as one, not an equivalent.
+
+**This does not close T-32.** Splitting the codebases improves *build-time* provenance, which R12 already credited. At run time the Executor still reads `note.source_path`, `note.from_canonical` and `delivered` from the notifier — the party it is verifying — so those rows remain **T**. Closing T-32 requires the Executor to establish independence from two distinct signed service identities named in the signed bundle: values the notifier does not mint. Recording this is the point; RES-8 has now recurred a sixth time, in the machinery a fix introduced.
+
+### RES-P3 — generated types are a shared dependency of two "independent" services
+
+Both surfaces consume types generated from the signed schemas. The justification is that generated wire types *are* the wire format, not rendering. It remains a shared artifact, and a compromise of the code generator reaches both services at once.
+
+### RES-P4 — integrity is unverified between releases
+
+Splitting the gate makes `--suites` achievable per commit, at the cost that a working tree may diverge from signed bytes for the length of a migration. Behaviour is continuously checked; provenance is checked only at a tagged release.
+
+### RES-P5 — the two implementations are not comparable at the primitive layer
+
+The Python reference models signatures with HMAC-SHA256; the Rust implementation uses real Ed25519 and ML-DSA-65. A vector carrying a signature is therefore not portable between them. Vectors must be defined over canonical bytes and declared mutations. This is a live constraint on the corpus, not merely a disclosure: get it wrong and the shared corpus silently stops being shared.
+
 ## What is "closed on paper" and not exercised
 
 Essential distinction, so the green results are not over-read:
