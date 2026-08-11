@@ -1,3 +1,5 @@
+![Agent Control Panel](assets/banner.png)
+
 # ACP — Agent Control Plane
 
 Most agent deployments give the model a credential and call that authorisation. It isn't. It means anyone who can influence the model can act with the agent's rights: a poisoned document, a hostile support ticket, a comment in a dependency README. No break-in required.
