@@ -1,0 +1,58 @@
+name: A claim did not replay
+description: The gate failed on your machine, or a number in the prose does not match what the code printed
+title: "[replay] "
+labels: ["reproduction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The README says: *"If a claim here does not replay on your machine, don't believe it."*
+        This is where you tell us it didn't. **A number in the prose that no longer matches what
+        the code prints is a defect in this repository**, even when the code is correct.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      render: shell
+      placeholder: ./tools/verify.sh --suites
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: What it printed
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the documents said it would print
+      description: Quote the file and line where the claim is made, if you can find it.
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: OS, Python version, and whether Dafny is installed
+      placeholder: "macOS 15.3, Python 3.12.4, no Dafny"
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short HEAD`"
+
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Before submitting
+      options:
+        - label: "This is not red integrity or signature on sections 1–2 of the full `verify.sh`. Those need the offline release key and are expected red between releases — `--suites` is the gate that should always be green."
+          required: true

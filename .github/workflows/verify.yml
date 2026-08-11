@@ -1,0 +1,102 @@
+# The per-commit gate, run on neutral hardware.
+#
+# WHY THIS EXISTS. The README's central claim is "if a claim here does not replay
+# on your machine, don't believe it". Until now the only evidence that it replays
+# anywhere was that it replayed on the author's laptop — which is precisely the
+# shape of assurance this project refuses to accept from anyone else. This runs
+# the same gate a reader runs, on a machine nobody here controls.
+#
+# WHY ONLY `--suites`. The full `verify.sh` also checks integrity and the Ed25519
+# manifest signature, and those can only be made green by the offline release key.
+# CI does not have it and must never have it. Red integrity between releases is a
+# property of offline signing, not a defect — see dossier/07-REPRODUCTION.md.
+# So CI proves the claims that need no secret, and the signature stays a release
+# gate held by a human.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: proofs + 13 suites + tooling self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the two Python dependencies
+        run: python3 -m pip install cryptography dilithium-py
+
+      # Dafny is optional for a reader: verify.sh prints SKIP and carries on.
+      # It is NOT optional here. Without it the proof step is skipped, the run
+      # prints 14 result lines instead of 15, and selftest.sh's line-count
+      # assertion fails — correctly, because a skipped proof is not a passed one.
+      - name: Install Dafny
+        uses: dafny-lang/setup-dafny-action@v1.7.0
+        with:
+          dafny-version: "4.9.1"
+
+      - name: Versions
+        run: |
+          python3 --version
+          dafny --version
+
+      # The per-commit gate. Expect 15 result lines and zero failures.
+      - name: ./tools/verify.sh --suites
+        run: ./tools/verify.sh --suites
+
+      # Asserts the gate itself cannot print a false green: that the signer halts
+      # on an unrecognised file type, that a bad key leaves MANIFEST.sha256
+      # byte-identical, that --suites reports exactly 15 lines, and that every
+      # release-key fingerprint published in a tracked .md matches release-key.pub.
+      - name: ./tools/selftest.sh
+        run: ./tools/selftest.sh
+
+      # The simulation is standard-library only and is the business-facing
+      # evidence. A criterion regressing here is a real finding.
+      - name: sim acceptance — 11 pass, 1 partial, 0 fail
+        run: python3 -m sim.acceptance
+
+  polyglot:
+    name: Rust and TypeScript compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Most of crates/ and services/ is scaffold whose main() exits non-zero on
+      # purpose. Compiling is therefore the whole claim being made here, and the
+      # 7 tests cover what is genuinely implemented: the fail-safe defaults in
+      # acp-core and CR-3 hybrid composition in acp-crypto.
+      - name: Rust — check and test
+        run: |
+          cargo check --workspace
+          cargo test --workspace
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: TypeScript — typecheck 5 projects
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r typecheck
