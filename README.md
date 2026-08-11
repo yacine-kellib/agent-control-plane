@@ -121,6 +121,50 @@ The model isn't the problem in any of these. The authorisation is. When the cred
 
 ## How it works: two doors
 
+```mermaid
+flowchart LR
+    subgraph B ["DOOR B — text · no consequence"]
+        direction TB
+        INJ["poisoned document<br/>hostile ticket<br/>comment in a dependency README"]
+        LLM["the model<br/>text in, text out<br/>no tools · no network · no function calls"]
+        INJ -- "injection succeeds<br/>assumed, not defended against" --> LLM
+    end
+
+    LLM == "proposes — a typed request,<br/>never a command" ==> P
+
+    subgraph A ["DOOR A — action · the only route to effect"]
+        direction TB
+        P["typed proposal"]
+        POL["policy engine<br/>recomputes risk and reversibility"]
+        Q["quorum<br/>attestations bound to this<br/>action's canonical hash"]
+        EX["executor<br/>re-verifies every binding"]
+        P --> POL
+        POL -- "floor HIGH" --> Q
+        POL -- "floor LOW" --> EX
+        Q --> EX
+    end
+
+    BUNDLE[("signed policy bundle<br/>offline key · monotonic epoch")]
+    BUNDLE -- "risk · reversibility · capability —<br/>the model can neither see nor influence this" --> POL
+
+    EX -- "every check passes" --> ACT["action executes"]
+    EX -. "any check fails" .-> NIL["fail closed<br/>nothing happens"]
+
+    classDef untrusted fill:#ffe9e6,stroke:#c2410c,color:#1b1f23
+    classDef neutral   fill:#f2f4f7,stroke:#57606a,color:#1b1f23
+    classDef authority fill:#dbeafe,stroke:#1d4ed8,color:#1b1f23
+    classDef good      fill:#dcfce7,stroke:#15803d,color:#1b1f23
+    classDef stop      fill:#fee2e2,stroke:#b91c1c,color:#1b1f23
+
+    class INJ,LLM untrusted
+    class P,POL,Q,EX neutral
+    class BUNDLE authority
+    class ACT good
+    class NIL stop
+```
+
+**There is no arrow from the model to the action.** That absence is the whole design. The model's output is a *proposal*; the authority to execute it is recomputed from the signed bundle, which the model never sees. An injection that fully succeeds at Door B produces a well-formed proposal — evaluated exactly like a legitimate one, and refused on exactly the same grounds.
+
 **Door B is text.** The model's only channel is text in, text out. No tools, no network, no function calling. It can be injected, jailbroken or simply wrong and nothing happens, because talking has no consequence.
 
 Door B is deliberately unfiltered. Text is unbounded, there is no closed grammar of safe sentences, and any check over it is statistical. Its safety comes from having no consequence, not from a filter.
