@@ -4,7 +4,7 @@ An end-to-end simulation of an agentic research pipeline: four program contexts,
 
 > **Illustrative.** This models a company *shaped like* an AI-driven drug design firm, built from public information. It describes no organisation's internal systems and claims no knowledge of any. Every number, tier and threshold is a placeholder a real deployment must re-derive with its own scientists and risk owners.
 
-Companion to ACP-SPEC-001 v1.3.12 and Annex D.
+Companion to ACP-SPEC-001 v1.3.13 and Annex D.
 
 ---
 
@@ -31,7 +31,9 @@ Not "an attack is blocked". A business running for a day.
 
 **Two attacks arrive inside ordinary content.** Neither is detected. Both fail because the actions they request are not authorised.
 
-**The scoreboard reports the number nobody has:** how often a held action released on silence — the measurable rate at which a human control is degrading into a rubber stamp. It runs at **93%** here, and it is reported as debt, not as success.
+**The scoreboard reports the number nobody has:** how often a held action released on silence — the measurable rate at which a human control is degrading into a rubber stamp. It is reported as debt, not as success.
+
+No fixed percentage is quoted for it, and that is deliberate. Whether an approver answers inside the hold window is sampled per run, so the rate moves: 73%, 87% and 100% on three consecutive runs here. An earlier revision of this file stated a flat `93%`, which could never have replayed — the defect is not that the number went stale but that no single number can be right. Everything else on the scoreboard is deterministic; run it three times and only this row moves.
 
 ---
 
