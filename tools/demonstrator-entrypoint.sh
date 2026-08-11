@@ -106,6 +106,15 @@ case "${1:-day}" in
     # The untrusted caller. Needs ANTHROPIC_API_KEY in the environment and a
     # reachable ingress; refuses rather than falling back to a recording,
     # because a recorded agent proves nothing this image does not already prove.
+    #
+    # `shift` drops the mode word. Without it $@ still starts with `agent`,
+    # argparse rejects it as an unrecognised argument, and the container exits
+    # 2 -- the SAME code the missing-key path uses, so the service looked like
+    # it was reporting "no API key" while in fact it had never parsed its
+    # arguments at all. This branch is the only one that forwards flags; `*)`
+    # below must keep the unshifted $@, since it is the raw-command escape
+    # hatch (`run --rm agent ls /acp`).
+    shift
     exec python3 -m sim.llm_agent "$@"
     ;;
 

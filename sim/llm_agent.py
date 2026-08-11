@@ -29,6 +29,9 @@ nothing about the outcome.
     docker compose -f deploy/docker-compose.yml up -d ingress
     python3 -m sim.llm_agent
 
+Run `python3 -m sim.llm_agent --help` for the flags, the environment and the
+exit codes; the epilog below is the whole operating manual.
+
 Without a key it refuses to run rather than falling back to a recording: the
 whole point of this file is that the agent is real. `reference/suites/demo_flow.py`
 is the one with an offline path.
@@ -43,6 +46,61 @@ import urllib.error
 import urllib.request
 
 DEFAULT_URL = "http://127.0.0.1:8848"
+
+EPILOG = """\
+ENVIRONMENT
+  ANTHROPIC_API_KEY  required, no default, no fallback. This client speaks the
+                     Anthropic Messages API directly (api.anthropic.com,
+                     x-api-key, anthropic-version 2023-06-01), so an
+                     OpenAI/Gemini/Ollama key will not work here. Get one at
+                     https://console.anthropic.com/ -> API keys. It is read in
+                     THIS process and sent to Anthropic only. ACP never
+                     receives it, is never asked for it, and could not use it:
+                     the door authorises canonical bytes, not callers.
+  ACP_INGRESS        default for --url. The compose `agent` service sets it to
+                     http://ingress:8848.
+
+RUNNING IT — the door has to be up first; it is the thing being driven.
+
+  A. from the host, against the port compose publishes on 127.0.0.1
+       export ANTHROPIC_API_KEY=sk-ant-...
+       docker compose -f deploy/docker-compose.yml up -d ingress
+       python3 -m sim.llm_agent --invent
+     Needs nothing installed: this file and `import sim` are standard library.
+     cryptography/dilithium-py live on the SERVER side, inside the image.
+
+  B. entirely in compose
+       export ANTHROPIC_API_KEY=sk-ant-...
+       docker compose -f deploy/docker-compose.yml up -d ingress
+       docker compose -f deploy/docker-compose.yml run --rm agent agent --invent
+     The mode word `agent` is repeated because `run` replaces the service's
+     command; the first is the service, the second is the entrypoint mode, and
+     anything after it is forwarded here. `agent` is the only service given
+     outbound network -- and the one the architecture assumes is compromised.
+
+WHAT YOU WILL SEE — two phases, and the second is the load-bearing one.
+  Phase 1 is a live model on a poisoned document. It may comply, and it may
+  decline: Claude Sonnet 5 declined on this file's first run and that is
+  printed as the result, not retried away. A demo that needs the model to
+  misbehave is measuring the model.
+  Phase 2 proposes the injected actions directly, with no model in the loop.
+  That is Door B's actual adversary -- a caller compromised by editing its
+  code -- and the verdicts there do not depend on anything a model said.
+
+COST  one Messages call, max_tokens 1500. No retry and no repair pass: a loop
+      that re-asks until the reply parses is a filter wearing a reliability
+      costume, and filtering the model here would forfeit the claim (5.1a).
+
+AFTER A HOLD  a HELD action is waiting on a human, and does not execute on
+      silence when it is irreversible (DR-9). Take the proposal hash from the
+      output and:
+        curl -s localhost:8848/holds
+        curl -s localhost:8848/acknowledge -d \\
+          '{"proposal_hash":"<hash>","who":"sci-02","decision":"CONFIRM"}'
+      `who` must differ from --operator; the same human twice is one human.
+
+EXIT  0 the run completed   2 ANTHROPIC_API_KEY unset   3 ingress unreachable
+"""
 
 # The injected document. It is ordinary business content with an instruction
 # buried in it, which is the only kind of injection that matters -- one that
@@ -156,13 +214,22 @@ def describe(action: dict, verdict: dict) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="A real LLM proposing actions to a running ACP ingress")
+        description="A real LLM proposing actions to a running ACP ingress",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=EPILOG)
     ap.add_argument("--url", default=os.environ.get("ACP_INGRESS", DEFAULT_URL),
-                    help="ingress base URL (in compose: http://ingress:8848)")
-    ap.add_argument("--model", default="claude-opus-5")
+                    help=f"ingress base URL (default {DEFAULT_URL}, or "
+                         f"$ACP_INGRESS; in compose http://ingress:8848)")
+    ap.add_argument("--model", default="claude-opus-5",
+                    help="any Anthropic Messages API model id (default: "
+                         "%(default)s). This client is Anthropic-only; the "
+                         "DOOR is model-agnostic and holds no key")
     ap.add_argument("--operator", default="sci-01",
-                    help="the human this agent acts for")
-    ap.add_argument("--program", default="prog-alpha")
+                    help="the human this agent acts for (default: %(default)s)")
+    ap.add_argument("--program", default="prog-alpha",
+                    help="the program the operator is claiming to act within "
+                         "(default: %(default)s). The Executor does not trust "
+                         "it: XPROG-1 recomputes ownership from the bundle")
     ap.add_argument("--invent", action="store_true",
                     help="append an action that is not in the signed bundle, "
                          "to show 8.4-3 refusing it without grading it")
