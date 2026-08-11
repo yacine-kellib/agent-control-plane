@@ -1,23 +1,87 @@
-# The control plane as running processes — one command, seven services.
+# The control plane as running processes — one command.
 #
-# Scaffold: no service is implemented yet (build order step 6), so no image
-# builds here and `docker compose up` is deliberately not wired. The file exists
-# to fix the topology and the trust boundaries while they are still cheap to
-# argue about.
+# WHY ONE CONTAINER AND NOT SEVEN. The seven services already exist and already
+# run as seven real OS processes (`sim.supervise`), but they talk over
+# line-delimited JSON on stdio pipes (sim/services/_rpc.py), parent-spawns-child.
+# Pipes do not cross container boundaries. Splitting this into seven containers
+# means replacing that transport with network RPC first — real work, not
+# packaging, and a change to the thing the isolation tests are about.
 #
-# The boundaries this must preserve when it is filled in:
+# So: one container, seven processes inside it, boundaries intact and asserted
+# by `--checks`. The process separation is genuine; the container count is not
+# what makes it genuine.
+#
+# The boundaries this preserves, all four asserted at run time by
+# `docker compose run --rm checks`:
 #
 #   - the agent holds NO key material. It proposes; it is never a principal.
-#   - policy and executor derive the signed bundle INDEPENDENTLY. Neither is
-#     handed a bundle by a peer (RAD-4) — a service given a bundle over a pipe
-#     is trusting the peer that sent it.
-#   - anchor runs outside the trust domain of what it anchors. An anchor an
-#     attacker can also compromise is a log.
+#   - policy and executor derive the signed bundle INDEPENDENTLY (RAD-4) — a
+#     service handed a bundle over a pipe is trusting the peer that sent it.
+#   - anchor runs outside the trust domain of what it anchors.
 #   - notifier and approval share nothing above the wire format (DR-2).
 #
-# The Python simulation already demonstrates all four across seven real OS
-# processes: `python3 -m sim.supervise --checks`.
+# NOT DEPLOYABLE. Primitives are HMAC, the ledger is in-memory, the anchor is a
+# list. The entrypoint prints all three and refuses to start without
+# ACP_DEMONSTRATOR=1. See the Dockerfile header.
 
 name: acp
 
-services: {}
+x-demonstrator: &demonstrator
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: acp-demonstrator:local
+  environment:
+    ACP_DEMONSTRATOR: "1"
+  # Binds nothing and needs nothing. The demonstrator has no ingress: the agent
+  # is driven by sim/timeline.json, not by an external model. Wiring a real LLM
+  # in is the next step and is the point at which network exposure starts to
+  # matter.
+  network_mode: none
+  read_only: true
+  # A writable /tmp is REQUIRED, not incidental hardening slack. The three
+  # mutation suites (19 executor + 6 ack + 4 audit = 29 mutants) work by copying
+  # reference/src into a temp directory, deleting one check from the copy, and
+  # running the matching attack against the mutant in a subprocess. On a fully
+  # read-only filesystem they cannot write the mutant and the suites report
+  # "no RESULT line" — which is exactly how this was found, by running
+  # `docker compose run --rm verify` and watching three suites fail.
+  # tmpfs keeps the root filesystem read-only while giving them somewhere to
+  # build. The mutants never touch the image.
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  # The day, across seven real OS processes. This is the default.
+  day:
+    <<: *demonstrator
+    command: ["day"]
+
+  # The four process-isolation properties, asserted. Fastest way to see that
+  # the boundaries are real rather than drawn.
+  checks:
+    <<: *demonstrator
+    command: ["checks"]
+
+  # The business-facing numbers: 179 actions, 146 untouched, 14/14 attacks
+  # well-formed, 0 executed, EUR 520,000 counterfactual.
+  scoreboard:
+    <<: *demonstrator
+    command: ["scoreboard"]
+
+  # 11 pass, 1 partial, 0 fail. The partial is reported rather than rounded up.
+  acceptance:
+    <<: *demonstrator
+    command: ["acceptance"]
+
+  # The repository's own gate, run inside the image: proofs + 13 suites.
+  # Integrity and signature are deliberately NOT checked here — regenerating the
+  # manifest requires the offline release key, which must never be in a
+  # container image.
+  verify:
+    <<: *demonstrator
+    command: ["verify"]
