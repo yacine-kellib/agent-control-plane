@@ -24,6 +24,16 @@ A structural release: no rule changed, and every number that replayed in v1.3.12
 - **Five new residuals** from the second implementation surface (RES-P1..P5) are disclosed in `dossier/06-RESIDUAL-RISK.md`. The load-bearing one: splitting the notifier and approval codebases improves build-time provenance but does **not** close T-32, which stays open.
 - **Rust and TypeScript are scaffold.** `crates/acp-core` and `acp-crypto` carry the fail-safe defaults and CR-3 hybrid composition with tests; the services exit non-zero so a scaffold cannot be mistaken for a running control plane. `spec/vectors/` — the shared conformance corpus that makes "44/44" mean the same in both languages — is not yet extracted.
 
+### A correction worth recording — the published fingerprint was wrong
+
+For the whole v1.3.13 window, `README.md` published the release-key fingerprint `SHA256:614ea014…`, which belongs to a **superseded key**. `RELEASE.md`, `release-key.pub` and `MANIFEST.sha256.sig` were correct and consistent throughout: the true fingerprint is `SHA256:c6334fda510760d9125e94ce8c900e56`.
+
+Nothing was mis-signed, and no signature ever verified against the wrong value. The damage is narrower and more embarrassing: a reader who performed the out-of-band check the README itself instructs them to perform would have got a **mismatch on an authentic package** — precisely the failure an out-of-band anchor exists to prevent. The document told its most careful readers to distrust it.
+
+Two things are worth noting about how it survived. It was proofread repeatedly without being caught, because a 32-character hex string reads as opaque and correct to a human eye. And it was mechanically derivable from `release-key.pub` the entire time — this repository's own rule is that anything checkable by a command must be checked by a command, and this was not. The rule was right; it had simply never been applied here.
+
+`tools/selftest.sh` now recomputes `sha256(raw pubkey)[:32]` from `release-key.pub` and asserts that **every** `SHA256:` fingerprint in every git-tracked Markdown file matches it, failing also when it finds none, so deleting the line cannot turn the assertion green. The self-test goes from 27 assertions to 29. Reintroducing the stale value was confirmed to fail it.
+
 ## What changed since v1.3.10
 
 ### 1. AC-5, AU-6 (revised), AU-7, AU-8 — implemented
