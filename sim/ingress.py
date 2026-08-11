@@ -43,8 +43,9 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from sim.bundle import REVERSIBILITY, RISK_FUNCTIONS
+from sim.bundle import PERMITTED_TARGETS, REVERSIBILITY, RISK_FUNCTIONS
 from sim.bundle import proposal as canonical_proposal
+from sim.policy import PARAM_FIELDS
 from sim.release import ack_latency_seconds
 from sim.services._rpc import RemoteFailure, Service
 from sim.world import attesters_for, site_of
@@ -252,7 +253,19 @@ class Handler(BaseHTTPRequestHandler):
                         "at 8.4-3 — not graded, not treated as low risk.",
                 "bundle_hash": self.plane.bundle_hash,
                 "actions": [{"task_type": t,
-                             "reversibility": REVERSIBILITY.get(t, "IRREVERSIBLE")}
+                             "reversibility": REVERSIBILITY.get(t, "IRREVERSIBLE"),
+                             # The SHAPE, published deliberately. A door that
+                             # names nine actions but not what each one takes
+                             # forces every caller to guess, and each guess is
+                             # then refused at V-1 or CW-1 for a reason that has
+                             # nothing to do with whether the action was
+                             # allowed. Publishing it weakens nothing: the
+                             # bundle is policy, not a secret, and the security
+                             # is in the enforcement, never in the caller's
+                             # ignorance of the schema. Kerckhoffs, applied to
+                             # an authorisation surface.
+                             "targets": sorted(PERMITTED_TARGETS.get(t, [])),
+                             "params": sorted(PARAM_FIELDS.get(t, []))}
                             for t in REGISTERED]})
         if self.path == "/holds":
             with self.plane.lock:

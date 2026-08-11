@@ -102,6 +102,13 @@ case "${1:-day}" in
     echo "== external agents may propose here =="
     exec python3 -m sim.ingress --host 0.0.0.0 --port 8848
     ;;
+  agent)
+    # The untrusted caller. Needs ANTHROPIC_API_KEY in the environment and a
+    # reachable ingress; refuses rather than falling back to a recording,
+    # because a recorded agent proves nothing this image does not already prove.
+    exec python3 -m sim.llm_agent "$@"
+    ;;
+
   ingress-suite)
     echo "== the door, attacked over the wire =="
     exec python3 -m sim.ingress_suite
