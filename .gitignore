@@ -13,9 +13,3 @@ dist/
 
 # Private working material, never signed, never published.
 private/
-
-# Local agent tooling: settings, hooks, skills, session handoffs. These are one
-# contributor's machine configuration, not part of the release, and they are
-# excluded from the signed manifest by construction because the signer takes
-# its file set from `git ls-files`.
-.claude/
