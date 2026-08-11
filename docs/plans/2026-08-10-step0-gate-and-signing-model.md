@@ -1,6 +1,6 @@
 # ACP Step 0 — Gate Split and Signing Model Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: executed.** Kept as the record of *why* the tooling works the way it does. Each task ends in an independently testable deliverable and its own commit; steps use checkbox (`- [ ]`) syntax so progress is trackable when the plan is worked through task by task.
 
 **Goal:** Make `verify.sh --suites` an achievable green gate that needs no release key, and replace the signer's fail-open extension allowlist with a three-axis coverage model that halts on anything it does not recognise.
 
