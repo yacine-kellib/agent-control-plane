@@ -87,9 +87,12 @@ jobs:
           cargo check --workspace
           cargo test --workspace
 
+      # No `version:` here on purpose. package.json declares
+      # "packageManager": "pnpm@10.12.1", and pnpm/action-setup errors out when
+      # a version is given in both places rather than picking one. Letting the
+      # action read packageManager keeps CI on exactly the pnpm the repository
+      # pins, so the two cannot drift apart.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
