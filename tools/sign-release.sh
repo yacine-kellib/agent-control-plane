@@ -28,7 +28,12 @@ cd "$(dirname "$0")/.."   # tools/ -> repo root; the manifest covers paths from 
 # not named here is not signed, which is the intended default. assert_roots_
 # present fails loudly if one is missing, so a typo cannot silently sign less.
 ROOTS="spec dossier reference crates services packages orchestrator sim deploy tools"
-EXTS="md py rs ts json cddl dfy toml yml yaml lock txt sh pub"
+# html is here for sim/attacks/supplier_qc_report.html -- the poisoned supplier
+# report whose payload is white-on-white hidden text. Its exact bytes ARE the
+# evidence, so it is one of the files most in need of a signature. The previous
+# extension allowlist would have skipped it silently while the manifest still
+# looked complete; the halt-assertion is what surfaced it.
+EXTS="md py rs ts json cddl dfy toml yml yaml lock txt sh pub html"
 NAMED="LICENSE Dockerfile .gitignore"
 
 covered_files() {
