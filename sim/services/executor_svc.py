@@ -149,7 +149,7 @@ def stats() -> dict:
             "pending": sorted(_gate.pending),
             "chain_len": _chain.seq,
             "render_paths": _render_paths,
-            "reconcile": _chain.reconcile(),
+            "reconcile": _chain.reconcile(_anchor),
             "reconcile_accumulators": _gate.reconcile_accumulators(),
             "accumulator_threshold": _acc.threshold,
             "pids": {"ledger": _ledger_svc.pid, "anchor": _anchor_svc.pid,

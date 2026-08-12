@@ -85,6 +85,49 @@ class AnchorService:
 
 
 # ================================================================= audit chain
+class PublishOnly:
+    """
+    ANCHOR-SWAP. The AU-4 trust boundary, modelled — the writer is handed the
+    ability to PUBLISH an anchor and nothing else: no read, no rewrite, and no
+    attribute path back to the store.
+
+    Why this exists. AU-7's guarantee is that a compromised writer can rewrite
+    the chain but never an anchor already published. Until this class, the
+    reference handed the writer the AnchorService itself, so `chain.anchor.
+    anchors.clear()` defeated the property the docstring three lines below was
+    asserting. Suite 7 stayed green throughout, because deleting a check is not
+    the same test as reaching around one — the same reason all 44 conformance
+    cases passed while the Executor held every signing key before v1.3.14.
+    Custody, not control flow.
+
+    What this is NOT. Python cannot *enforce* this: a determined caller walks
+    `__self__` or `__closure__` and reaches the store anyway. The enforcement
+    lives in the process split — `services/anchor` is a separate service, and
+    from there "reach into the anchor store" is not expressible. This is a
+    faithful model of that boundary, in exactly the sense the HMAC primitives
+    were a faithful model of signing before v1.3.14, and it carries a swap
+    marker for the same reason.
+
+    Two members, and only two. `publish` is the write path. `up` is
+    REACHABILITY, which AU-6 requires the writer to know — an outage caps new
+    Decisions at ATTEST and suspends DR-10 sampling, so a writer that could not
+    see the outage could not implement the clause. Reachability is not anchor
+    CONTENT: knowing the store is unreachable tells you nothing about what is
+    in it, and lets you rewrite none of it.
+    """
+    __slots__ = ("_anchor",)
+
+    def __init__(self, anchor: AnchorService):
+        self._anchor = anchor
+
+    def publish(self, tenant: str, seq: int, head: str, now: float) -> bool:
+        return self._anchor.publish(tenant, seq, head, now)
+
+    @property
+    def up(self) -> bool:
+        return self._anchor.up
+
+
 class AuditChain:
     """
     Per-tenant hash chain (AU-3), genesis per AU-8.
@@ -93,6 +136,11 @@ class AuditChain:
     The chain lives inside the production trust domain and is therefore
     rewritable by a compromised writer — which is exactly why AU-7 exists:
     what cannot be rewritten is an anchor already published.
+
+    So the chain holds a PublishOnly capability, never the store. Reading
+    anchors is the reconciler's job, and the reconciler is a DIFFERENT
+    principal running outside this trust domain (AU-4) — which is why
+    `reconcile()` takes the store as an argument instead of reaching for one.
     """
     def __init__(self, tenant_id: str, bundle_epoch: int, schema_version: str,
                  anchor: AnchorService, now: float | None = None):
@@ -108,7 +156,11 @@ class AuditChain:
         if not anchor.publish(tenant_id, 0, self.heads[0], now):
             raise CriticalAlert("AU-8", "genesis anchor unreachable — "
                                         "tenant creation fails closed")
-        self.anchor = anchor
+        # The writer gets a publish capability, never the store (AU-4).
+        # Constructed here rather than requested from `anchor`, so anything
+        # that duck-types the service works — including sim's AnchorClient,
+        # which is already a real process boundary.
+        self.anchor = PublishOnly(anchor)
 
     @property
     def seq(self) -> int:
@@ -130,17 +182,22 @@ class AuditChain:
             heads.append(_h({"prev": heads[-1], "record": r}))
         return heads
 
-    def reconcile(self) -> list[str]:
+    def reconcile(self, anchor: AnchorService) -> list[str]:
         """
         Compare recomputed heads against published anchors. A mismatch means
         the chain was rewritten AFTER anchoring — the only rewrite AU-7
         leaves possible, and it is detectable, not silent.
         Also enforces §11.3 (g): every record with outcome=executed at
         floor-HIGH is covered by an anchor dated at or before its release.
+
+        The store is an ARGUMENT, not `self.anchor`. Reconciliation is a
+        different principal from the writer and runs outside the production
+        trust domain; a chain that could read the anchors on its own would be
+        the audited party supplying its own evidence (RES-8).
         """
         findings = []
         heads = self.recompute_heads()
-        for a in self.anchor.anchors:
+        for a in anchor.anchors:
             if a["tenant"] != self.tenant:
                 continue
             if a["seq"] >= len(heads) or heads[a["seq"]] != a["head"]:
@@ -149,7 +206,7 @@ class AuditChain:
         for i, r in enumerate(self.records, start=1):
             if r.get("type") == "release" and r.get("risk") == "HIGH" \
                     and r.get("outcome") == "executed":
-                a = self.anchor.covering(self.tenant, i)
+                a = anchor.covering(self.tenant, i)
                 if a is None or a["at"] > r["at"]:
                     findings.append(
                         f"(g) executed floor-HIGH record seq={i} not covered "
