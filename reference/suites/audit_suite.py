@@ -165,7 +165,7 @@ def t_T29_post_anchor_rewrite_detected():
     for r in chain.records:                        # compromised audit writer
         if r.get("type") == "release":
             r["operator"] = "someone-else"
-    f = chain.reconcile()
+    f = chain.reconcile(anchor)
     return any("rewritten" in x for x in f), f"reconcile: {f[:1]}"
 
 
@@ -210,7 +210,7 @@ def t_reconciliation_clean_on_honest_run():
     pr = pend("sha256:rc")
     g.hold_action(pr, approval(pr.proposal))
     g.release("sha256:rc", NOW + 61)
-    f = chain.reconcile() + g.reconcile_accumulators()
+    f = chain.reconcile(anchor) + g.reconcile_accumulators()
     return not f, "checks (g) and (h) hold"
 
 
