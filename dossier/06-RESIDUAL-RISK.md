@@ -145,6 +145,23 @@ Essential distinction, so the green results are not over-read:
 - **Differentiated EO-2**: 25 ms for LOW/MEDIUM, 250 ms for floor-HIGH. Each deployment **must** publish its own measurement.
 - **Distributed ledger required**, with quorum and fail-closed semantics — a single-node ledger does not satisfy CL-6.
 - **Physical separation** of the notification service and the approval UI (DR-2): two services, two repositories. A monolith with a shared formatting library violates the rule from the first commit.
+- **An external anchor you do not control** — see below. This is the one component the deployment must obtain from someone else, and the requirement is not negotiable: an unanchored chain is tamper-*decorated*, not tamper-*evident*.
+
+## The anchor is not ours to supply — a worked example
+
+Multi-party anchoring (clause AU-3) states requirements, never a product. It gives three alternatives — a **public transparency log with inclusion proofs**, a **threshold signature from ≥3 independent parties**, or **RFC 3161 timestamping** — and forbids WORM storage as the sole anchor. Independent verifiability (clause AU-3a) adds that any party holding the anchor public keys must be able to verify without the deployment's cooperation.
+
+Requirements outlive implementations, so naming a vendor in a conformance target would be a defect of a different kind. But a requirement nobody can picture is not much better than an absent one, and the question a reader actually has is *"concretely, which ones?"* — so one worked combination follows. **It is an example, not a requirement. A deployment satisfying AU-3 by other means is conformant; this one is not privileged.**
+
+| AU-3 category | One concrete option | What it buys |
+|---|---|---|
+| Public transparency log + inclusion proofs | A Sigstore-style append-only log | Anyone verifies, with no relationship to the deployment |
+| RFC 3161 timestamping | A public timestamping authority | A second party on different technology, failing differently |
+| WORM | The deployment's own object store | Durability only — **never** the anchor |
+
+Two independent categories rather than one, so a single provider outage or compromise does not take the record with it. The ≥3-party threshold signature is the hardest of the three and the reason it is listed last: it needs counterparties who agree to sign, which is a commercial relationship, not an integration.
+
+**What this does not resolve.** Anchoring outward means the deployment now depends on parties it does not control, and their availability becomes an availability question for floor-HIGH actions — which is exactly the pressure anchoring-outage behaviour (clause AU-6) exists to absorb, by capping at ATTEST and suspending sampling rather than saturating approvers. Trading a trust dependency for an availability dependency is the correct trade here, but it is a trade, and a deployment that has not sized for it has moved the problem rather than solved it.
 
 ## Honest position
 
