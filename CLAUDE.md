@@ -128,7 +128,9 @@ Anything checkable by a command must be checked by a command, not by inspection 
 
 ## Current state
 
-The restructure, the scaffold, the Docker demonstrator and the HTTP ingress are on `main` (v1.3.13). Work is on branch `crypto-swap` — the real-signature swap, the README/DEMO-HOWTO coverage of the demonstrator, and `sim/llm_agent.py`.
+Everything is on `main` and **no feature branch is open**: the restructure and scaffold, the Docker demonstrator, the HTTP ingress, the real-signature swap, and `sim/llm_agent.py` with its suite and fixture corpus. `RELEASE.md` is stamped v1.3.14 and carries an *Unreleased since v1.3.14* section for the live-agent work — merged, not tagged.
+
+**This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
 `MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 118 files across ten roots.
 
