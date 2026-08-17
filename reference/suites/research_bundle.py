@@ -31,6 +31,7 @@ def make_research_bundle():
     """
     return Bundle(
         epoch=1,
+        quorum_k=2,                       # AT-3: signed, never read from an attestation
         # Resource sensitivity tiers. A-7 applies in full: nothing here proves
         # a resource labelled T0 really is a scratch environment. RK-5
         # two-person control on any downgrade is the only available answer.

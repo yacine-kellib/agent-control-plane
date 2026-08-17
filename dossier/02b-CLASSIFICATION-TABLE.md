@@ -22,6 +22,13 @@
 
 Re-verified against the current reference implementation: **17 inputs, 13 sound (R/B), 2 disclosed-and-bounded T (`decision`, `tenant_id`), 0 undisclosed T.** No row changed class between v1.3.6 and v1.3.11; see the archived v1.3.6 instance for the row-by-row detail.
 
+> **AMENDMENT (post-v1.3.14) — the sentence above was wrong, and wrong in the way that matters.** An eighteenth input existed and had never been enumerated: the **quorum threshold**, which §9.3 step 7b read as `entries[0]["obj"]["required_count"]` — out of the Attestation Object, i.e. out of the artifact under verification. "0 undisclosed T" was true only because the input was never written down. The failure was one of **enumeration, not classification**; the method cannot classify a row nobody listed, and this row sat in the *oldest* surface the document covers, the one §1 declared settled. See **T-33**.
+
+| # | Input | Consumed for | Class | Disposition |
+|---|-------|--------------|-------|-------------|
+| 17b | **Quorum threshold** | AT-3: how many distinct approvals a floor-HIGH action requires | **R** (was an unenumerated **T**) | Recomputed from `Bundle.quorum_k`, which is inside `Bundle.hash()`. Mutation-proven load-bearing (Suite 2, `quorum threshold RECOMPUTATION [AT-3]`). |
+| 17c | `obj.required_count` | *Nothing.* | — | Retained in AT-1 as signature-covered evidence of what the attester was shown (AT-3), but it is no longer an input to any control decision, so it has no class rather than a class of **T**. |
+
 ---
 
 ## 2. Deferred-release gate (§9.6, DR-1..DR-12) — **NEWLY CLASSIFIED**
@@ -79,6 +86,18 @@ This is RES-8 verbatim: *a verifier must never accept a derived security value f
 
 *Disposition:* keep the runtime check (it catches honest misconfiguration), relabel it in §9.6 as a **hygiene check, not a control**, and move the DR-2 assurance claim explicitly onto conformance suite 3, with an attestation of separate build provenance for the two render paths.
 
+### T-33 — the quorum threshold was taken from the attestation *(post-v1.3.14; a working exploit, not a theoretical one)*
+
+**What the system claims.** INV-1-HIGH: no single compromised component can cause execution of a floor-HIGH action without a fresh, single-use, quorum-satisfying set of attestations bound to that action's canonical hash.
+
+**What the implementation did.** §9.3 step 7b computed the threshold as `entries[0]["obj"]["required_count"]`. The holder of **one** registered attester key signs a single object that is genuine in every checked respect — correct `proposal_hash`, correct `policy_bundle_hash`, correct `bundle_epoch`, correct recomputed risk, unexpired, correctly signed — and that says the quorum required is **one**. The action executes. Nothing is forged. INV-1-HIGH does not hold, under exactly the adversary it names.
+
+**Why it survived.** Not because the surrounding code was careless: because it was careful. The line sat four lines below `operators`, which *is* cross-checked, inside a loop that verifies every other field of the object meticulously. Density of nearby checking reads as coverage. And the classification method, which exists precisely to catch this, had recorded §1 as needing no row-by-row re-examination — so the enumeration that would have surfaced it was the step that got skipped.
+
+**Why this is the documented pattern, again.** RES-8 verbatim, and the **sixth** recurrence of the class (C2 → X1 → Y1 → Z3 → W1 → T-33). The five before it were each found in machinery a previous fix had introduced, which supported a comforting reading: the class recurs at the frontier. T-33 does not fit that reading. It was in the receipt-consumption path all along.
+
+*Disposition (fixed):* `Bundle.quorum_k` is a required, un-defaulted field inside `Bundle.hash()`, and the threshold is recomputed from it. `required_count` stays in AT-1 as evidence of what the attester was shown, consumed by nothing. An equality check between the two was considered and **not** added: `quorum_k` is inside the bundle hash and every entry's `policy_bundle_hash` is already checked against it, so each attester's signature covers the enforced threshold transitively and the extra check kills no mutant. A check that kills no mutant is not a control.
+
 ---
 
 ## 5. Relation table (TR-10)
@@ -103,5 +122,7 @@ Against ACP-SPEC-001 v1.3.11 as implemented:
 - **10 of 12** claimed relations verified; R9 partially discharged; R10, R11 and R12 undischarged and disclosed.
 
 **The method's own lesson, restated.** Every classification pass has found something, always in the newest machinery: the v1.3.6 pass found the receipt-path defects, and this pass found the gate-path defects the v1.3.6 pass could not have seen because they did not yet exist. **The classification must be regenerated on every release that adds a control input, not once.** Suite 12 is amended to require it.
+
+**And the lesson that lesson got wrong (post-v1.3.14).** "Always in the newest machinery" was the reassuring half of the finding, and T-33 refutes it: an unenumerated **T** sat in the receipt-consumption path — the oldest surface here, and the one §1 declared settled — through every pass. Regenerating on every release is necessary and is not sufficient. **A regeneration must re-enumerate the inputs of a surface, not re-affirm a previous enumeration of it**; a row that was never listed cannot change class, and the count of undisclosed T's is only ever a count of the ones somebody wrote down.
 
 *End of ACP-CLASS-001 (v1.3.11 regeneration).*

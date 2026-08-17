@@ -113,7 +113,7 @@ printf '\n\033[1m== a mutant that cannot import is ERROR, never KILL ==\033[0m\n
 # must copy BOTH into its temp dir. The failure mode this guards against is the
 # one that reads as green: if the copy were forgotten, every mutant would die at
 # import, and a harness that scored an import failure as a kill would print
-# "20/20 killed" while testing nothing at all. Same shape as the tmpfs trap in
+# "21/21 killed" while testing nothing at all. Same shape as the tmpfs trap in
 # deploy/docker-compose.yml — infrastructure breakage wearing a passing badge.
 #
 # Asserted by breaking it on purpose: run mutate_executor.py against a stubbed

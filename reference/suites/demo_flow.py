@@ -92,6 +92,7 @@ def make_bundle():
     """
     return Bundle(
         epoch=1,
+        quorum_k=2,                       # AT-3: signed, never read from an attestation
         floors={"program-internal": "T0", "assay-queue": "T2",
                 "synthesis-queue": "T3", "partner-beta": "T3",
                 "partner-alpha": "T3"},

@@ -20,9 +20,9 @@ That framing drives most of the rules below. A change that makes a number in the
 
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
-PYTHONPATH=../src python3 conformance.py          # 45/45
-PYTHONPATH=../src python3 attack_registry.py      # 74/74  (--compose → 4/4)
-PYTHONPATH=../src python3 mutate_executor.py      # 20/20  deletes each check, asserts the attack succeeds
+PYTHONPATH=../src python3 conformance.py          # 46/46
+PYTHONPATH=../src python3 attack_registry.py      # 75/75  (--compose → 4/4)
+PYTHONPATH=../src python3 mutate_executor.py      # 21/21  deletes each check, asserts the attack succeeds
 PYTHONPATH=../src python3 ack_suite.py            # 14/14  (--mutate → 6/6)
 PYTHONPATH=../src python3 audit_suite.py          # 11/11  (--mutate → 4/4)
 PYTHONPATH=../src python3 partition_suite.py      # 9/9
@@ -86,7 +86,7 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 
 **Never fork `reference/src/*.py`. Import them.** Those modules carry mutation-test markers in comments — `# AU-7-anchor-before-release (mutation target)`, `# AC-5-anchor-release (do not move)`, `# AU-6-suspend-sampling`. `mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by reading the source text and deleting them, then assert the matching attack succeeds. A copied-and-edited executor silently voids the repository's own evidence. When new domain behaviour is needed, subclass and extend (see `sim/release.py:ResearchGate`).
 
-**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 20 + 6 + 4 = **30 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
+**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 21 + 6 + 4 = **31 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
 
 **`MANIFEST.sha256` is signed with an offline Ed25519 key.** Coverage is three allowlists and no deny-list: **roots** (the ten directories in `ROOTS`), **git-tracked** (`git ls-files`, so build outputs are excluded because they are gitignored), and **extension** (plus `LICENSE` and `Dockerfile` by name). The signer **halts on an unrecognised file type** rather than silently signing or silently skipping it. `.gitignore` is itself signed, because the signer derives its file set from it. Editing *any* covered file invalidates the manifest — this has already happened once to `README.md` via editor auto-format.
 
@@ -112,7 +112,7 @@ The reason this stopped being a modelling detail is worth keeping: HMAC is symme
 
 `HybridKey` derives **both** halves from its seed. It must stay that way: `sim.supervise` is seven OS processes, and an unseeded ML-DSA keygen gives each process a different key for the same identity. That was a real defect, found by this rule not existing.
 
-**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 30 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
+**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 31 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
 
 ## Writing style for this repository
 
@@ -134,4 +134,4 @@ Everything is on `main` and **no feature branch is open**: the restructure and s
 
 `MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 118 files across ten roots.
 
-Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 45 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.
+Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 46 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.

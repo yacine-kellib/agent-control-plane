@@ -57,6 +57,13 @@ MUTANTS = [
       "        risk = receipt.get('risk_level_floor_only') or self.recompute_floor_risk(proposal)"),
      "a_X1_risk_downgrade"),
 
+    # Restores the v1.3.14 line verbatim. If this ever SURVIVEs, the threshold
+    # has stopped being load-bearing somewhere else and a quorum of one is back.
+    ("quorum threshold RECOMPUTATION [AT-3]",
+     ("        need_roles = b.quorum_k",
+      '        need_roles = entries[0]["obj"]["required_count"]'),
+     "a_AT3_quorum_threshold_from_attestation"),
+
     ("operator distinctness [AT-2]",
      '''        if operator in approvals:                       # AT-2 distinctness
             raise CriticalAlert("AT-2", "operator counted toward own quorum")

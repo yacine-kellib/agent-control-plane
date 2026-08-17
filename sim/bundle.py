@@ -188,6 +188,10 @@ class ResearchBundle(Bundle):
             "risk_functions": self.risk_functions, "adapters": self.adapters,
             "schemas": self.schemas, "reversibility": self.reversibility,
             "min_suite": self.min_suite,
+            # AT-3 threshold — same reason as the attesters below. A subclass
+            # that widened the hash but dropped quorum_k would let the
+            # simulation's own bundle run a threshold nothing signed.
+            "quorum_k": self.quorum_k,
             # PB-KEY: the key registry, same reason as the base class — see
             # acp_executor.Bundle.hash. A subclass that widened the hash with
             # domain fields but not with the attesters would reintroduce the
@@ -224,6 +228,7 @@ class ResearchBundle(Bundle):
 def make_bundle(epoch: int = 1) -> ResearchBundle:
     return ResearchBundle(
         epoch=epoch,
+        quorum_k=2,                   # AT-3: signed, never read from an attestation
         floors=dict(FLOORS),
         risk_functions=[dict(r) for r in RISK_FUNCTIONS],
         adapters=dict(ADAPTERS),

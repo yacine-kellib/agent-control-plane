@@ -1,5 +1,5 @@
 //! Runs the shared conformance corpus in `spec/vectors/` against this
-//! implementation, so that "45/45" means the same thing in Rust as in Python.
+//! implementation, so that "46/46" means the same thing in Rust as in Python.
 //!
 //! **Not started.** `spec/vectors/` is empty; extracting it is step 1 and the
 //! classification of which cases are extractable at all is the first task of
@@ -14,7 +14,7 @@
 //!    carrying a signature is not portable between them.
 //!
 //! 2. **Passing the corpus is a partial claim.** Vectors express
-//!    input -> verdict. They do not express the 30 mutants, ordering
+//!    input -> verdict. They do not express the 31 mutants, ordering
 //!    properties such as AU-7 anchor-before-release, partition behaviour, or
 //!    render-path distinctness. Those are per-implementation obligations,
 //!    enumerated in `spec/vectors/OBLIGATIONS.md`. This crate must not report

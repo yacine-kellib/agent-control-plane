@@ -300,6 +300,12 @@ class Bundle:
     attester_keys: dict[str, VerifyingKey]
     receipt_key: VerifyingKey
     schemas: dict[str, str]
+    # AT-3 quorum threshold. SIGNED POLICY, and deliberately NOT defaulted:
+    # a bundle that forgot to say how many approvers a floor-HIGH action needs
+    # must fail to construct, not quietly acquire a number this file chose.
+    # Through v1.3.14 there was no such field at all and the Executor read the
+    # threshold out of the attestation it was verifying — see _verify_quorum.
+    quorum_k: int
     reversibility: dict[str, str] = field(default_factory=dict)
     min_suite: str = "hybrid-ed25519-mldsa65"      # CR-4: signed floor
 
@@ -309,6 +315,15 @@ class Bundle:
                   "adapters": self.adapters, "schemas": self.schemas,
                   "reversibility": self.reversibility,
                   "min_suite": self.min_suite,
+                  # AT-3 threshold, inside the hash for the same reason as the
+                  # key registry below: two Executors running different quorum
+                  # thresholds must not be able to agree that they hold the
+                  # same policy. It also makes every attester's signature cover
+                  # the threshold transitively, since the Attestation Object
+                  # carries policy_bundle_hash — so the quorum an attester was
+                  # shown is the quorum that gets enforced, without the
+                  # Executor reading a count out of the object.
+                  "quorum_k": self.quorum_k,
                   # PB-KEY (v1.3.14). The key registry is INSIDE the hash.
                   # Spec §8.2 puts `attesters/` in the signed bundle tree and
                   # signs "SHA-256 of canonical bundle tree", so this is what
@@ -697,7 +712,32 @@ class Executor:
             raise CriticalAlert("9.3-7b-iii-a", "attestations disagree on operator")
         operator = operators.pop()
 
-        need_roles = entries[0]["obj"]["required_count"]
+        # AT-3: the threshold is RECOMPUTED from the signed bundle. Never read
+        # from the attestation.                    (AT-3-quorum-k mutation target)
+        #
+        # Through v1.3.14 this line was:
+        #     need_roles = entries[0]["obj"]["required_count"]
+        # — the Executor asking the party under verification how many signatures
+        # it should demand. One compromised attester key signed a well-formed,
+        # correctly-bound object carrying `required_count: 1`, and a quorum of
+        # ONE satisfied a floor-HIGH action. INV-1-HIGH did not hold. Sixth
+        # recurrence of the RES-8 class (C2 → X1 → Y1 → Z3 → W1 → this). What
+        # made it survive so long is worth recording: this line sat four lines
+        # below `operators` — a field that IS cross-checked — inside a loop that
+        # verifies every other member of the object meticulously. Density of
+        # nearby checking reads as coverage. It is not.
+        #
+        # `required_count` STAYS in AT1_FIELDS. It is what the attester was
+        # shown (AT-3) and it is signature-covered evidence of that — but it is
+        # no longer an input to a control decision, so by the §14 suite 12
+        # method it has no class at all rather than a class of T.
+        #
+        # An equality check between the two was considered and NOT added. It
+        # would kill no mutant: `quorum_k` is inside `Bundle.hash()`, and every
+        # entry's `policy_bundle_hash` is already checked against it above, so
+        # each attester's signature covers the enforced threshold transitively.
+        # A check that kills no mutant is not a control.
+        need_roles = b.quorum_k
         if len(set(approvals)) < need_roles:
             raise CriticalAlert("AT-3", f"quorum {len(set(approvals))} < {need_roles}")
         if operator in approvals:                       # AT-2 distinctness

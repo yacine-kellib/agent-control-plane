@@ -53,6 +53,7 @@ FORGER = HybridKey(b"forger")
 def make_bundle():
     return Bundle(
         epoch=47,
+        quorum_k=2,                       # AT-3: signed, never read from an attestation
         floors={"prod-db": "T3", "sandbox": "T0"},
         risk_functions=[{
             "applies_to": "modify_firewall_rule", "base": "MEDIUM",
@@ -255,6 +256,30 @@ def a_AT2_self_approval():
     atts = [entry(o, A1), entry(dict(o, att_nonce="s2"), OP),
             entry(dict(o, att_nonce="s3"), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts), p)
+
+
+def a_AT3_quorum_threshold_from_attestation():
+    """
+    ONE COMPROMISED ATTESTER KEY, AND THE QUORUM IS SATISFIED.
+
+    Through v1.3.14 the Executor took the threshold from the object it was
+    verifying — `entries[0]["obj"]["required_count"]`. The holder of a single
+    registered attester key therefore signs one well-formed, correctly-bound,
+    unexpired object that says the quorum required is one, and a floor-HIGH
+    action executes on it. Nothing is forged: the signature is genuine, the
+    binding to the proposal is genuine, the policy hash and epoch are genuine.
+    The Executor asked the party under verification how many signatures to
+    demand and believed the answer.
+
+    That is INV-1-HIGH broken by a single component compromise, which is the
+    one thing the invariant claims cannot happen. The threshold is now
+    recomputed from `Bundle.quorum_k`, so this object is simply one approval
+    against a k of two.
+    """
+    b, ex = fresh()
+    p = proposal()
+    o = att_obj(b, h(p), 1600.0, OP)
+    ex.execute(receipt(b, p, atts=[entry(dict(o, required_count=1), A1)]), p)
 
 
 def a_capability_revoked():
@@ -646,6 +671,7 @@ ATTACKS = [
     ("T13 receipt nonce replay",        a_nonce_replay,         "CL-2"),
     ("T14 attestation replay",          a_T14_attestation_replay, "CL-3"),
     ("AT-2 operator self-approval",     a_AT2_self_approval,    "AT-2"),
+    ("AT-3 quorum k from attestation",  a_AT3_quorum_threshold_from_attestation, "AT-3"),
     ("T10 capability revoked in window", a_capability_revoked,  "9.3-9"),
     ("B-1a proposal tampered post-sign", a_tampered_proposal,   "9.3-3"),
     ("B-1a tamper, floor-LOW (unmasked)", a_tampered_proposal_low, "9.3-3"),
