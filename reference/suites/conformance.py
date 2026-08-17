@@ -590,6 +590,28 @@ def a_CR4_receipt_suite_downgrade():
     ex.execute(r, p)
 
 
+def a_CR4_incomparable_floor():
+    """
+    THE FLOOR IS MET BY AN ALGORITHM IT DOES NOT NAME.
+
+    A deployment sets its signed floor to `slhdsa128s`: hash-based post-quantum,
+    chosen precisely because it rests on no lattice assumption. Nothing is
+    forged and nothing is downgraded in the usual sense — an ordinary
+    `hybrid-ed25519-mldsa65` receipt arrives, and through v1.3.14 it PASSED,
+    because CR-4 compared a rank table (`hybrid` 2, `slhdsa128s` 1) rather than
+    the primitive sets. The suite that satisfied the floor carries no SLH-DSA at
+    all. The deployment asked for one hardness assumption and got another, with
+    the floor check reporting success.
+
+    Suites are sets, not points on a line. CR-4 is containment now.
+    """
+    b = replace(make_bundle(), min_suite="slhdsa128s")
+    ex = Executor(bundle=b, ledger=Ledger(),
+                  context={OP: {"modify_firewall_rule:prod-db"}})
+    p = proposal()
+    ex.execute(receipt(b, p, atts=quorum(b, p)), p)
+
+
 def a_CR4_attestation_suite_downgrade():
     """Attestation objects downgraded to classical-only."""
     b, ex = fresh()
@@ -726,6 +748,7 @@ ATTACKS = [
     ("RV-1 unclassified defaults irrev.", a_RV1_unclassified_action_defaults_irreversible, "DR-9"),
     ("CR-4 receipt suite downgrade",     a_CR4_receipt_suite_downgrade, "CR-4"),
     ("CR-4 attestation suite downgrade", a_CR4_attestation_suite_downgrade, "CR-4"),
+    ("CR-4 incomparable suite floor",    a_CR4_incomparable_floor,     "CR-4"),
     ("CR-3 PQ signature stripped",       a_CR3_pq_signature_stripped,  "9.3-1"),
     ("CR-3 classical sig stripped",      a_CR3_classical_signature_stripped, "9.3-1"),
     ("CR-3 PQ forged, classical genuine", a_CR3_pq_forged_classical_genuine, "9.3-1"),

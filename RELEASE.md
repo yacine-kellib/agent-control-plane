@@ -22,12 +22,14 @@ Reproduce everything in one command:
 
 ---
 
-## Unreleased since v1.3.14 — INV-1-HIGH did not hold, by two separate routes
+## Unreleased since v1.3.14 — INV-1-HIGH did not hold, and CR-4 was ordering the unorderable
 
 **Read this before anything else in this file.** v1.3.14 as tagged and signed
-contains a working exploit. Two of them, and they are the same defect wearing
+contains three defects in released code. Two are the same defect wearing
 different clothes: in both, the holder of **one** attester key satisfies a
-floor-HIGH quorum without forging anything.
+floor-HIGH quorum without forging anything. The third lets a signed
+post-quantum floor be met by a suite that does not implement the algorithm the
+floor names.
 
 **The threshold (ACP-28).** §9.3 step 7b computed the quorum size as
 `entries[0]["obj"]["required_count"]` — out of the Attestation Object, which is
@@ -56,11 +58,32 @@ hybrid signature needed. Both fixed; `acp_bundle`'s pinned Python differential
 constant moved with the hashed shape and was regenerated from Python, not
 adjusted until Rust agreed with itself.
 
-Evidence: conformance 45 → 47, consolidated registry 74 → 76, executor mutants
-20 → 22 (32 across all suites), Rust tests 25 → 31. Both new checks are
-mutation-proven load-bearing. A third check — requiring the attested
+**A third released defect, in CR-4 itself.** The suite floor was compared by a
+rank table — `{ed25519: 0, slhdsa128s: 1, hybrid: 2}` — which is a total order
+over sets of primitives that are not comparable. `hybrid` is `{classical, pq}`
+and contains no `pq-slh`, yet it outranked `slhdsa128s`: a deployment whose
+signed floor said "hash-based post-quantum, no lattice assumption" accepted a
+signature whose post-quantum leg was ML-DSA, and the floor check reported
+satisfaction. Not a stronger suite accepted — a different hardness assumption
+substituted. CR-4 is **containment** now, in both languages: the offered suite
+satisfies the floor iff it carries every primitive the floor names. The rank
+table is deleted, and the Rust test that pinned its values against the Python
+ones is replaced by one pinning the primitive sets. The ranks agreed across both
+implementations and were wrong in both, which is the thing to remember about a
+differential test: agreement is evidence about consistency, never about
+correctness.
+
+Evidence: conformance 45 → 48, consolidated registry 74 → 77, executor mutants
+20 → 23 (33 across all suites), Rust tests 25 → 32. Every new check is
+mutation-proven load-bearing. A further check — requiring the attested
 `required_count` to equal `quorum_k` — was written, found to kill no mutant
 because the bundle hash already binds the threshold transitively, and removed.
+
+The CR-4 mutant is the first in this repository that does not delete anything:
+it swaps the set comparison for a scalar one. Every previous mutant asked "is
+this check load-bearing?" and none could ask "does this check mean the right
+thing?" — which is why a present, load-bearing, wrong CR-4 survived four
+releases. Recorded in `dossier/05-TEST-EVIDENCE.md` as a limit of the method.
 
 **Not done, and it needs the author.** ACP-SPEC-001 §9.3 step 7b and AT-3 do not
 say where the threshold comes from. That ambiguity is what permitted ACP-28, and

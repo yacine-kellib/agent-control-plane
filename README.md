@@ -65,9 +65,9 @@ Abridged output. A complete run prints 18 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 76/76
-  OK   Suite 1  conformance — RESULT: 47/47 — CONFORMANT
-  OK   Suite 2  executor mutation — RESULT: 22/22 killed
+  OK   ALL attacks (consolidated registry) — RESULT: 77/77
+  OK   Suite 1  conformance — RESULT: 48/48 — CONFORMANT
+  OK   Suite 2  executor mutation — RESULT: 23/23 killed
   ...
 ```
 
@@ -75,7 +75,7 @@ Fourteen suite lines in all, spanning 10 numbered suites, and 30 mutation contro
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
-**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 32 of them: 22 executor, 6 acknowledgement, 4 audit.
+**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 33 of them: 23 executor, 6 acknowledgement, 4 audit.
 
 Two gates, and the difference matters:
 

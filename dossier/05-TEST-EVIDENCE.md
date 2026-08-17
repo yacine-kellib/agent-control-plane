@@ -15,19 +15,19 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ---
 
-## Suite 1 — Conformance (47/47)
+## Suite 1 — Conformance (48/48)
 
 `python3 reference/suites/conformance.py`
 
-Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, stripped hybrid signature.
+Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature.
 
-Eight positive paths, which is why the suite total is 47 and not 39: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, and a sampled action is treated as irreversible. **39 attacks must fail closed; 8 honest paths must execute.**
+Eight positive paths, which is why the suite total is 48 and not 40: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, and a sampled action is treated as irreversible. **40 attacks must fail closed; 8 honest paths must execute.**
 
 *(This paragraph said 44 and 36 while the suite printed 45. The drift predates the AT-3 fix below and is corrected here rather than quietly: a number in the prose that no longer matches a number the code prints is a defect in this repository, whichever direction it drifted.)*
 
 **Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist.
 
-## Suite 2 — Implementation mutation (22/22 kill)
+## Suite 2 — Implementation mutation (23/23 kill)
 
 `python3 reference/suites/mutate_executor.py`
 
@@ -38,6 +38,8 @@ For each check: delete it, then require the corresponding attack to succeed **an
 - **X1 "survived"**: the attack was blocked upstream by the absence of attestations, not by the check under test. What is load-bearing is that risk is **recomputed and used**, not that it is compared to the receipt — the comparison is detection, not prevention.
 - **B-1a "survived"**: defense-in-depth masking; the attestation binding caught the tampered proposal before the rehash mattered. Visible only on a **floor-LOW** action where no quorum exists. *Generalisation: the high-risk path is so heavily defended that it hides whether the low-risk path is sound.*
 - **DR-2 "survived"**: the realistic trap is not a notifier proxying the approval UI, but one that renders **honestly** from canonical bytes **through the same formatting library**. It looks independent and is not.
+
+**A fourth lesson, added later, about what this method does not see.** Every mutant above works by *deleting* a check, so the suite answers "is this check load-bearing?" and never "does this check mean the right thing?". CR-4 passed every mutant for four releases while ordering incomparable primitive sets on a single scale — the check was present, was load-bearing, and was wrong. The CR-4 containment mutant is the first here that does not delete anything: it replaces the set comparison with a scalar one, which is the shape the defect actually had. **A suite of deletions cannot catch a check that is present and means something else**, and that is a limit of the method, not of this instance of it.
 
 ## Suite 3 — Ledger partition (9/9)
 
@@ -106,7 +108,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (76/76, 4/4)
+## Suite 10 — consolidated registry and composition (77/77, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

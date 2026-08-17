@@ -144,9 +144,20 @@ MUTANTS = [
      "a_CR3_extra_primitive"),
 
     ("suite floor [CR-4]",
-     ("        return SUITE_RANK[alg] >= SUITE_RANK[self.min_suite]",
+     ("        return set(SUITES[self.min_suite]) <= set(SUITES[alg])",
       "        return True"),
      "a_CR4_receipt_suite_downgrade"),
+
+    # Not "delete the check" but "get it subtly wrong in the way it WAS wrong":
+    # order the suites by a scalar instead of comparing the sets. Any scalar
+    # will do — the released code used a hand-written rank table, this uses the
+    # primitive count — and both let `hybrid` clear an `slhdsa128s` floor while
+    # carrying no SLH-DSA. A mutant that only deletes checks cannot catch a
+    # check that is present and means the wrong thing.
+    ("suite floor is CONTAINMENT not rank [CR-4]",
+     ("        return set(SUITES[self.min_suite]) <= set(SUITES[alg])",
+      "        return len(SUITES[alg]) >= len(SUITES[self.min_suite])"),
+     "a_CR4_incomparable_floor"),
 
     ("key registry in bundle hash [PB-KEY]",
      ("""                  "attesters": {who: k.fingerprint()

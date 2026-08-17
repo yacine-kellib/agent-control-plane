@@ -59,7 +59,15 @@ SUITES = {
     "slhdsa128s":         ("pq-slh",),                      # hash-based, no
                                                             # hybridation needed
 }
-SUITE_RANK = {"ed25519": 0, "slhdsa128s": 1, "hybrid-ed25519-mldsa65": 2}
+# There is deliberately NO suite RANK table any more. Through v1.3.14 CR-4 was
+# `SUITE_RANK[alg] >= SUITE_RANK[min_suite]` with
+# {"ed25519": 0, "slhdsa128s": 1, "hybrid-ed25519-mldsa65": 2} — a TOTAL ORDER
+# over sets of primitives that are not comparable. `hybrid` does not contain
+# `pq-slh`, and it outranked `slhdsa128s` anyway, so a deployment whose signed
+# floor said "hash-based post-quantum, no lattice assumption" silently accepted
+# a signature whose post-quantum leg was ML-DSA. Not a stronger suite accepted:
+# a DIFFERENT hardness assumption substituted, with the floor check reporting
+# satisfaction. CR-4 is containment now — see Bundle.suite_ok.
 
 # `pq-slh` (SLH-DSA, FIPS 205) is DECLARED and NOT IMPLEMENTED. It gets its own
 # primitive name rather than sharing `pq` with ML-DSA, because sharing would
@@ -386,9 +394,22 @@ class Bundle:
         # CR-4: the accepted suite floor lives in the SIGNED bundle, so a
         # compromised issuer cannot negotiate downward. Same shape as RK-1's
         # tier floor: downgrade requires an offline-key policy change.
-        if alg not in SUITE_RANK:
+        #
+        # CONTAINMENT, NOT RANK.        (CR-4-containment mutation target)
+        # A suite is a SET of primitives, and those sets are not totally
+        # ordered — see the note where SUITE_RANK used to be. The offered suite
+        # satisfies the floor iff it carries EVERY primitive the floor names.
+        # Extra primitives are permitted; a missing one never is, whatever else
+        # is offered in its place.
+        #
+        # An unknown floor returns False rather than raising. Nothing an
+        # attacker controls reaches it — `min_suite` comes from the offline
+        # signed bundle — so it carries no mutant and is not claimed as a
+        # control; it is here so a typo fails closed at the check instead of
+        # raising KeyError halfway through a verification.
+        if alg not in SUITES or self.min_suite not in SUITES:
             return False
-        return SUITE_RANK[alg] >= SUITE_RANK[self.min_suite]
+        return set(SUITES[self.min_suite]) <= set(SUITES[alg])
 
     def reversibility_of(self, task_type: str) -> str:
         # RV-1: absent => IRREVERSIBLE. Same fail-safe default as RK-1's T3:
