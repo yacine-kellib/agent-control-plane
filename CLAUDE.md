@@ -30,6 +30,9 @@ PYTHONPATH=../src python3 partition_integration.py # 6/6
 PYTHONPATH=../src python3 cbor_suite.py           # 8/8
 PYTHONPATH=../src python3 research_bundle.py --attacks  # 4/4  Annex D domain attacks
 PYTHONPATH=../src python3 llm_agent_suite.py       # 44/44  the live-agent client — no API key, no network
+PYTHONPATH=../src python3 art_harness.py           # a HARNESS, not a suite: it reports findings and
+                                                   # fails only if it is broken or vacuous. Corpus is
+                                                   # fixtures until load_corpus() is wired to real ART.
 
 # the simulation — run from the repo root, it is a package
 python3 -m sim.bundle --check      # 14/14 grading table asserted
@@ -102,7 +105,9 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 
 **`services/notifier` and `services/approval` share nothing above the wire format.** `@acp/types` is the one permitted common dependency — it *is* the wire format. No shared template engine, formatter, sanitiser, date helper or component library. Each keeps its own `render.ts`; factoring them together is not a refactor, it is the vulnerability (DR-2). If a linter flags the duplication, the linter is wrong.
 
-**Fail-safe defaults are deliberate and must not be "helpfully" relaxed.** Resource absent from `floors.json` ⇒ `T3`. Action absent from `reversibility.json` ⇒ `IRREVERSIBLE`. Action with no risk function ⇒ refused at `8.4-3`, *not* graded HIGH. Unknown is never LOW (P-4).
+**Fail-safe defaults are deliberate and must not be "helpfully" relaxed.** Resource absent from `floors.json` ⇒ `T3`. Action absent from `reversibility.json` ⇒ `IRREVERSIBLE`. Action with no risk function ⇒ refused at `8.4-3`, *not* graded HIGH. IRREVERSIBLE below floor-HIGH with no entry in `notice_targets` ⇒ refused at `DR-13`, because a notice with no addressee is not a detection channel. Unknown is never LOW (P-4).
+
+**A fail-safe default that changes no outcome is documentation, not a control.** RV-1's absent-⇒-`IRREVERSIBLE` rule was reachable only through the floor-HIGH gate for four releases, so below HIGH it set a value nothing read — an unclassified action executed exactly as if it had defaulted to `REVERSIBLE`. DR-13 (v1.3.15) gave it effect on both paths. When adding a default, name the branch that reads it; when reviewing one, check that a branch does.
 
 **Do not add model-side defences.** No filtering, scoring or judging of model output anywhere. The architecture assumes the model is manipulable and its guarantees do not depend on injection failing; adding a content filter and relaxing a Door A control on its strength is an explicit conformance failure (§5.1a). In demos the model must be shown complying fully — simulating a refusal misrepresents the claim.
 
@@ -128,7 +133,9 @@ Anything checkable by a command must be checked by a command, not by inspection 
 
 ## Current state
 
-Everything is on `main` and **no feature branch is open**: the restructure and scaffold, the Docker demonstrator, the HTTP ingress, the real-signature swap, and `sim/llm_agent.py` with its suite and fixture corpus. `RELEASE.md` is stamped v1.3.14 and carries an *Unreleased since v1.3.14* section for the live-agent work — merged, not tagged.
+On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingress, the real-signature swap, and `sim/llm_agent.py` with its suite and fixture corpus. `RELEASE.md` is stamped v1.3.14 and carries *Unreleased since v1.3.14* sections for everything after it.
+
+**`feat/rule-store` is open and unpushed**, 11 commits ahead of `main`: the bundle rule store (schemas, canonical tree hash, `BundleEpoch`, the suite table), six defect fixes — four of them live in released v1.3.14 — the specification moving v1.3.13 → **v1.3.15**, and `reference/suites/art_harness.py`, which runs an external adversarial corpus against Door A and found one of the six on its first run. The spec's §1 alert enumerates them as (a)–(d).
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
