@@ -14,6 +14,7 @@ below is the actual defect from Annex C, mounted as a single compromised
 component against a running implementation.
 """
 import copy, sys, time
+from dataclasses import replace
 # Run-from-anywhere: put the sibling reference/src on the path so
 # `python3 reference/suites/<x>.py` works without the caller exporting
 # PYTHONPATH. The isdir guard keeps this inert inside the mutation suites'
@@ -280,6 +281,40 @@ def a_AT3_quorum_threshold_from_attestation():
     p = proposal()
     o = att_obj(b, h(p), 1600.0, OP)
     ex.execute(receipt(b, p, atts=[entry(dict(o, required_count=1), A1)]), p)
+
+
+def a_PBDISTINCT_one_key_two_identities():
+    """
+    A QUORUM OF TWO NAMES AND ONE KEY HOLDER.
+
+    AT-2 and AT-3 count distinct `attester` strings; the registry maps a string
+    to a key. Register two identities against ONE public key and the holder of
+    that single private key signs two objects with different nonces, labels one
+    `op_1121` and the other `op_3307`, and `len(set(approvals))` reads two. Every
+    signature is genuine. Every binding is genuine. One compromised key executes
+    a floor-HIGH action, which is INV-1-HIGH broken by a single compromise —
+    the same break as reading the threshold out of the attestation, arrived at
+    through the registry instead.
+
+    The bundle is now refused at construction, so this attack never reaches an
+    Executor at all.
+    """
+    b = replace(make_bundle(),
+                attester_keys={A1: KEYS[A1], A2: KEYS[A1], OP: KEYS[OP]})
+    # Only reachable with the check deleted. Everything below is the attacker
+    # holding exactly one private key, SIGNERS[A1].
+    ex = Executor(bundle=b, ledger=Ledger(),
+                  context={OP: {"modify_firewall_rule:prod-db"}})
+    p = proposal()
+    o = att_obj(b, h(p), 1600.0, OP)
+
+    def as_(obj, who):
+        return {"obj": obj, "kind": "approval", "attester": who,
+                "sig": sign(SIGNERS[A1], h(obj), obj["alg"])}
+
+    atts = [as_(o, A1), as_(dict(o, att_nonce="dup2"), A2),
+            entry(dict(o, att_nonce="dup3"), OP, "confirmation")]
+    ex.execute(receipt(b, p, atts=atts), p)
 
 
 def a_capability_revoked():
@@ -672,6 +707,7 @@ ATTACKS = [
     ("T14 attestation replay",          a_T14_attestation_replay, "CL-3"),
     ("AT-2 operator self-approval",     a_AT2_self_approval,    "AT-2"),
     ("AT-3 quorum k from attestation",  a_AT3_quorum_threshold_from_attestation, "AT-3"),
+    ("PB-DISTINCT one key, two names",  a_PBDISTINCT_one_key_two_identities, "PB-DISTINCT"),
     ("T10 capability revoked in window", a_capability_revoked,  "9.3-9"),
     ("B-1a proposal tampered post-sign", a_tampered_proposal,   "9.3-3"),
     ("B-1a tamper, floor-LOW (unmasked)", a_tampered_proposal_low, "9.3-3"),

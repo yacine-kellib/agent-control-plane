@@ -309,6 +309,45 @@ class Bundle:
     reversibility: dict[str, str] = field(default_factory=dict)
     min_suite: str = "hybrid-ed25519-mldsa65"      # CR-4: signed floor
 
+    def __post_init__(self):
+        # PB-DISTINCT: k signatures must come from k KEY HOLDERS, not from k
+        # names.                                (PB-DISTINCT-keys mutation target)
+        #
+        # AT-2 and AT-3 count distinct `attester` strings, and the registry maps
+        # a string to a key. Register two identities against ONE public key and
+        # the holder of that one private key signs two objects with different
+        # nonces, labels them with the two names, and `len(set(approvals))`
+        # reads 2. A floor-HIGH action executes on a single compromised key.
+        # Same break as reading `required_count` from the object, reached
+        # through the registry instead of through the threshold.
+        #
+        # Enforced here rather than in the schema because JSON Schema cannot
+        # express uniqueness across the VALUES of a map — `uniqueItems` applies
+        # to arrays. The schema says so and points here; a normative rule with
+        # no enforcement point is a comment.
+        #
+        # Fail at CONSTRUCTION, not at quorum time: a bundle whose registry
+        # cannot support its own quorum is malformed everywhere it is used, and
+        # a check on the quorum path would leave every other reader of the
+        # bundle believing the registry is sound.
+        #
+        # Over fingerprints, which cover BOTH halves of the hybrid key. A
+        # comparison of the classical halves alone would miss two identities
+        # sharing an ML-DSA key, which is CR-3 undone at the registry.
+        fingerprints = [k.fingerprint() for k in self.attester_keys.values()]
+        if len(set(fingerprints)) != len(fingerprints):
+            raise CriticalAlert("PB-DISTINCT",
+                                "two attester identities share one verification key")
+
+    # A matching bar on `receipt_key` appearing in the registry was considered
+    # and NOT added. At any k >= 2 it removes no compromise: a KMS that also
+    # holds one attester key still needs a second approver, so INV-1-HIGH is not
+    # broken by that component alone, and the attack demonstrating it would need
+    # two compromises to run. The real property — that attesters are humans
+    # reading a rendered proposal (A-8) — is not checkable from key material at
+    # all, and singling out the one machine key we happen to know about would
+    # dress an arbitrary rule as a control.
+
     def hash(self) -> str:
         return h({"epoch": self.epoch, "floors": self.floors,
                   "risk_functions": self.risk_functions,

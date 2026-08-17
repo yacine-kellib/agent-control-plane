@@ -41,7 +41,7 @@ x-demonstrator: &demonstrator
   network_mode: none
   read_only: true
   # A writable /tmp is REQUIRED, not incidental hardening slack. The three
-  # mutation suites (21 executor + 6 ack + 4 audit = 31 mutants) work by copying
+  # mutation suites (22 executor + 6 ack + 4 audit = 32 mutants) work by copying
   # reference/src into a temp directory, deleting one check from the copy, and
   # running the matching attack against the mutant in a subprocess. On a fully
   # read-only filesystem they cannot write the mutant and the suites report

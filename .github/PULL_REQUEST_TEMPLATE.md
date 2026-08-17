@@ -31,7 +31,7 @@ Editing any file under a signed root (`spec dossier reference crates services pa
 
 ## Rules this PR does not break
 
-- [ ] I did not copy `reference/src/*.py`. Those modules carry mutation markers that 31 mutants locate by reading the source text — a fork voids that evidence silently. Subclass and extend instead.
+- [ ] I did not copy `reference/src/*.py`. Those modules carry mutation markers that 32 mutants locate by reading the source text — a fork voids that evidence silently. Subclass and extend instead.
 - [ ] I added no model-side filtering, scoring or judging of model output (§5.1a)
 - [ ] I introduced no shared code between `services/notifier` and `services/approval` above `@acp/types` (DR-2)
 - [ ] I did not relax a fail-safe default — unknown is never LOW (P-4)

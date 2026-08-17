@@ -64,6 +64,13 @@ MUTANTS = [
       '        need_roles = entries[0]["obj"]["required_count"]'),
      "a_AT3_quorum_threshold_from_attestation"),
 
+    ("attester key distinctness [PB-DISTINCT]",
+     ("""        if len(set(fingerprints)) != len(fingerprints):
+            raise CriticalAlert("PB-DISTINCT",
+                                "two attester identities share one verification key")""",
+      "        pass"),
+     "a_PBDISTINCT_one_key_two_identities"),
+
     ("operator distinctness [AT-2]",
      '''        if operator in approvals:                       # AT-2 distinctness
             raise CriticalAlert("AT-2", "operator counted toward own quorum")

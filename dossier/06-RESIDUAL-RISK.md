@@ -72,7 +72,7 @@ The repository now holds a second implementation surface (Rust, TypeScript) alon
 
 ### RES-P1 — passing the shared corpus is a partial claim
 
-Conformance vectors express *input → verdict*. They do not express the 31 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
+Conformance vectors express *input → verdict*. They do not express the 32 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
 
 ### RES-P2 — notifier/approval independence is monorepo-structural
 
@@ -135,7 +135,7 @@ Essential distinction, so the green results are not over-read:
 | Item | Actual status |
 |------|---------------|
 | Bindings, action identity, origin pinning, encoding, release mode, hybrid composition | **Mechanically proven** + mutants + non-vacuity |
-| 46 vectors, partition, integration | **Empirically verified** — covers attacks that were conceived of |
+| 47 vectors, partition, integration | **Empirically verified** — covers attacks that were conceived of |
 | **AC-5, AU-7, AU-8, revised AU-6** | **Implemented and tested in v1.3.11** (`acp_audit.py`, Suite 7: 11/11, 4/4 mutants). T-28/29/30 replayed as live attacks. Newest machinery in the dossier and therefore the most likely site of the next defect; inside RR-1 like everything after DS-6. |
 | Production cryptography | Real Ed25519 and ML-DSA-65 in both implementations since v1.3.14, but the Python one is a reference implementation — **forbidden in production** (§8.4). Carrier is not COSE (RES-C1); SLH-DSA is declared and absent (RES-C2). |
 

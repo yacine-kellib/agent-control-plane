@@ -18,7 +18,7 @@
     },
     "attesters": {
       "type": "object",
-      "description": "attester identity -> hybrid public key. Open map (people are deployment-specific), closed entries.",
+      "description": "attester identity -> hybrid public key. Open map (people are deployment-specific), closed entries.\n\nPB-DISTINCT (NORMATIVE, and NOT EXPRESSIBLE HERE): no two identities may carry the same public key. `quorum_k` counts DISTINCT KEY HOLDERS; a registry mapping two names onto one key lets the holder of that one private key sign two objects with different nonces, label them with the two names, and satisfy a k=2 quorum alone. INV-1-HIGH broken by a single compromise, reached through the registry rather than through the threshold.\n\nJSON Schema cannot state this: `uniqueItems` applies to arrays, and there is no keyword for uniqueness across the VALUES of a map. The rule is therefore enforced by the LOADER, and a loader that does not enforce it is non-conformant however cleanly it validates. Reference implementation: `Bundle.__post_init__` in reference/src/acp_executor.py, which refuses at construction — a bundle whose registry cannot support its own quorum is malformed everywhere it is used, not only on the quorum path. Compare over the full hybrid identity, not the classical half alone; two identities sharing only an ML-DSA key is CR-3 undone at the registry.",
       "propertyNames": {
         "minLength": 1,
         "maxLength": 128

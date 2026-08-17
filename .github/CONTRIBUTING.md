@@ -34,7 +34,7 @@ Those modules carry mutation-test markers in their comments:
 # AU-6-suspend-sampling
 ```
 
-`mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by **reading the source text** and deleting them, then assert the matching attack now succeeds. **31 mutants** must keep being killed: 21 executor, 6 ack, 4 audit.
+`mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by **reading the source text** and deleting them, then assert the matching attack now succeeds. **32 mutants** must keep being killed: 22 executor, 6 ack, 4 audit.
 
 A copied-and-edited executor voids that evidence silently. When you need new behaviour, subclass and extend — `sim/release.py:ResearchGate` is the pattern.
 

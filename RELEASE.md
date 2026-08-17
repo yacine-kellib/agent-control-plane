@@ -22,6 +22,54 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — INV-1-HIGH did not hold, by two separate routes
+
+**Read this before anything else in this file.** v1.3.14 as tagged and signed
+contains a working exploit. Two of them, and they are the same defect wearing
+different clothes: in both, the holder of **one** attester key satisfies a
+floor-HIGH quorum without forging anything.
+
+**The threshold (ACP-28).** §9.3 step 7b computed the quorum size as
+`entries[0]["obj"]["required_count"]` — out of the Attestation Object, which is
+the artifact under verification. One compromised key signs one genuine,
+correctly-bound object saying the quorum required is one, and the action
+executes. Sixth recurrence of the RES-8 class, and the first not found at the
+frontier: it sat in the receipt-consumption path, the oldest surface the
+classification table covers and the one that document had recorded as needing
+no re-examination. Fixed with `Bundle.quorum_k` — required, un-defaulted, inside
+`Bundle.hash()` — recomputed at verification time. `required_count` stays in
+AT-1 as evidence of what the attester was shown, consumed by nothing.
+
+**The registry (PB-DISTINCT).** `quorum_k` counts distinct attester *names*, and
+the registry maps a name to a key. Two names against one key let one holder sign
+two objects with different nonces and satisfy k=2 alone. Refused at bundle
+construction. JSON Schema cannot state it — there is no uniqueness keyword for
+the values of a map — so `attesters.schema.json` states the rule and names the
+loader as the enforcement point.
+
+**Two unshipped defects, in the `feat/rule-store` code, fixed before it lands.**
+The bundle tree hash covered `members` and not `signature.suite`, leaving the
+field that names *which primitives to require* outside the signature it belongs
+to — CR-3 downgrade reintroduced by the code written to prevent it. And
+`verify_hybrid` took no suite, so the caller decided how many primitives a
+hybrid signature needed. Both fixed; `acp_bundle`'s pinned Python differential
+constant moved with the hashed shape and was regenerated from Python, not
+adjusted until Rust agreed with itself.
+
+Evidence: conformance 45 → 47, consolidated registry 74 → 76, executor mutants
+20 → 22 (32 across all suites), Rust tests 25 → 31. Both new checks are
+mutation-proven load-bearing. A third check — requiring the attested
+`required_count` to equal `quorum_k` — was written, found to kill no mutant
+because the bundle hash already binds the threshold transitively, and removed.
+
+**Not done, and it needs the author.** ACP-SPEC-001 §9.3 step 7b and AT-3 do not
+say where the threshold comes from. That ambiguity is what permitted ACP-28, and
+closing it is a normative edit under the X5 release rule, not a reference fix.
+`dossier/05-TEST-EVIDENCE.md` also carried a stale conformance total (44/36
+against a suite printing 45); corrected in the same pass.
+
+---
+
 ## Unreleased since v1.3.14 — the live-agent client is covered, and a scenario edit is withdrawn
 
 Three changes to `sim/llm_agent.py` and its documentation. None of them touches
@@ -38,7 +86,8 @@ verbatim, re-adding a deviation paragraph to the report kills 2, and removing
 code-fence stripping, dropping an undecodable `params`, or failing to wrap a
 non-list `actions` value kill 1 each. A sixth corrupts an expectation in the
 fixture corpus itself, so the data comparison is demonstrably not vacuous. The gate now
-prints **16** result lines and covers **118** files.
+prints **16** result lines. Coverage was **118** files at that point and is
+**128** now, the bundle schemas and `acp-bundle` having landed since.
 
 **A scenario edit is withdrawn.** The poisoned supplier report had been given an
 out-of-spec deviation paragraph so that a correct model would have legitimate
