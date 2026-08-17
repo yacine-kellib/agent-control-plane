@@ -72,7 +72,7 @@ The repository now holds a second implementation surface (Rust, TypeScript) alon
 
 ### RES-P1 — passing the shared corpus is a partial claim
 
-Conformance vectors express *input → verdict*. They do not express the 34 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
+Conformance vectors express *input → verdict*. They do not express the 35 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
 
 ### RES-P2 — notifier/approval independence is monorepo-structural
 
@@ -91,6 +91,16 @@ Splitting the gate makes `--suites` achievable per commit, at the cost that a wo
 ### RES-P5 — the two implementations are not comparable at the primitive layer
 
 Both implementations now use the same real primitives (Ed25519, ML-DSA-65), so the original reason for this residual — Python modelling signatures with HMAC-SHA256 — no longer applies. The constraint survives for two narrower reasons: ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, so two conformant signers produce different bytes over the same message; and a vector carrying a signature must carry key material to be checkable at all. Vectors must therefore still be defined over canonical bytes and declared mutations. This is a live constraint on the corpus, not merely a disclosure: get it wrong and the shared corpus silently stops being shared.
+
+### RES-P6 — a DR-13 notice is committed, not delivered
+
+DR-13 (spec v1.3.15) closes the case where an `IRREVERSIBLE` action is graded below floor-HIGH: it must commit a notice, addressed from the signed bundle, before it executes. What it makes a precondition of execution is the **local durable commit**, not delivery — because EO-2 budgets 25 ms p99 end-to-end for LOW and MEDIUM decisions and a synchronous confirmed delivery does not fit inside it. Two normative requirements that cannot both hold is the DR-6 defect class, so the weakening is chosen and stated rather than discovered.
+
+The residual is the difference between DR-8 and DR-13. DR-8 fails closed on incomplete delivery; DR-13 does not, and cannot see delivery at all. **A notice committed and never delivered leaves an audit record and no human.** An attacker who can silence the delivery channel — without touching the Executor — converts DR-13 from detection into a log line that nobody reads, and the action still runs.
+
+Two things bound it, neither of which closes it. The record is in the Executor's own state rather than a peer's, so it cannot be suppressed by the notifier or by whatever the action enabled; the gap is delivery, not recording. And reconciling committed notices against delivery outcomes, with an alert on the undelivered backlog, is a normative deployment obligation under DR-13 — which relocates the residual onto operations, where §06 already places the honest version of several others, rather than pretending the clause discharges it.
+
+Note also what DR-13 declines to consume: it reads **no** delivery result, so unlike DR-8 it adds no new **T** row to the classification table (§02b rows 27b–27d). The weaker guarantee and the absence of a new trusted input are the same decision seen from two sides.
 
 ## New residuals from the v1.3.14 crypto swap
 

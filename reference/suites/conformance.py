@@ -69,6 +69,11 @@ def make_bundle():
         reversibility={"modify_firewall_rule": "IRREVERSIBLE",
                        "read_metric": "REVERSIBLE",
                        "rotate_cache_key": "REVERSIBLE"},
+        # DR-13. A COMPLIANT deployment: the one irreversible class names who
+        # is told when it runs below floor-HIGH. Omitting it is the attack
+        # a_DR13_no_notice_recipients, which pops this exactly as
+        # a_RV1_unclassified_action_defaults_irreversible pops reversibility.
+        notice_targets={"modify_firewall_rule": ["secops_oncall"]},
         attester_keys=KEYS, receipt_key=RECEIPT_KEY,
         schemas={"fw.v1": "sha256:aaa", "metric.v1": "sha256:bbb",
                  "cache.v1": "sha256:ccc"})
@@ -625,6 +630,48 @@ def a_RV3_receipt_claims_reversible():
                approval_summary=pres.render(p))
 
 
+# ------------------------------- DR-13: below floor-HIGH (found by the harness)
+#
+# The deferred gate is scoped to floor-HIGH (DR-1), so everything above this
+# line tests a path an IRREVERSIBLE action only reaches when its TARGET happens
+# to be floored high. Reversibility is a property of the ACTION and risk is
+# recomputed from the RESOURCE, so the two are orthogonal and the gap between
+# them was empty until v1.3.15. art_harness.py found it on its first run.
+def irreversible_below_high():
+    """MEDIUM + IRREVERSIBLE: `modify_firewall_rule` on the T0 sandbox with a
+    non-`allow` action clears neither raise condition, so it is graded MEDIUM
+    while remaining irreversible. This is `send_email` from a T1 inbox, in this
+    bundle's vocabulary."""
+    return dict(proposal(target="sandbox"),
+                params={"action": "deny", "port": 443})
+
+
+def t_dr13_irreversible_below_high_is_noticed():
+    """DR-13: the action executes -- no acknowledgement is required and the fast
+    path stays fast -- but it is no longer invisible."""
+    b, ex = fresh(context={OP: {"modify_firewall_rule:sandbox"}})
+    p = irreversible_below_high()
+    assert ex.recompute_floor_risk(p) == "MEDIUM"
+    assert ex.recompute_reversibility(p) == "IRREVERSIBLE"
+    out = ex.execute(receipt(b, p), p)
+    assert out["executed"], out
+    notices = ex.ledger.notices()
+    assert len(notices) == 1 and notices[0]["proposal_hash"] == h(p), notices
+    assert notices[0]["recipients"] == ["secops_oncall"], notices
+    return "irreversible action below floor-HIGH executes, and is noticed"
+
+
+def a_DR13_no_notice_recipients():
+    """The gap as released: an IRREVERSIBLE action graded below HIGH with no
+    notice channel named in the signed bundle. Through v1.3.14 this executed
+    silently. A notice with no addressee is not a detection channel, so it now
+    refuses -- the deployment names recipients or floors the class at T2+."""
+    b, ex = fresh(context={OP: {"modify_firewall_rule:sandbox"}})
+    b.notice_targets.pop("modify_firewall_rule")
+    p = irreversible_below_high()
+    ex.execute(receipt(b, p), p)
+
+
 def a_RV1_unclassified_action_defaults_irreversible():
     """RV-1 fail-safe: an action absent from reversibility.json is IRREVERSIBLE,
     so silence cannot release it."""
@@ -803,6 +850,7 @@ ATTACKS = [
     ("DR-10 sampled silent release",     a_DR10_sampled_silent_release, "DR-9"),
     ("RV-3 receipt claims REVERSIBLE",   a_RV3_receipt_claims_reversible, "RV-3"),
     ("RV-1 unclassified defaults irrev.", a_RV1_unclassified_action_defaults_irreversible, "DR-9"),
+    ("DR-13 irreversible, no notice ch.", a_DR13_no_notice_recipients,  "DR-13"),
     ("CR-4 receipt suite downgrade",     a_CR4_receipt_suite_downgrade, "CR-4"),
     ("CR-4 attestation suite downgrade", a_CR4_attestation_suite_downgrade, "CR-4"),
     ("CR-4 incomparable suite floor",    a_CR4_incomparable_floor,     "CR-4"),
@@ -822,7 +870,8 @@ POSITIVE = [("honest floor-HIGH", t_honest_high),
             ("floor-LOW not deferred", t_deferred_low_risk_unaffected),
             ("A-8 lying screen caught", t_lying_screen_is_caught_by_notification),
             ("irreversible needs confirm", t_irreversible_requires_confirmation),
-            ("sampling forces confirm", t_sampling_forces_confirmation)]
+            ("sampling forces confirm", t_sampling_forces_confirmation),
+            ("DR-13 below-HIGH is noticed", t_dr13_irreversible_below_high_is_noticed)]
 
 
 def main():

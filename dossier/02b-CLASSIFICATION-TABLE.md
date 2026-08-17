@@ -31,9 +31,14 @@ Re-verified against the current reference implementation: **17 inputs, 13 sound 
 
 ---
 
-## 2. Deferred-release gate (§9.6, DR-1..DR-12) — **NEWLY CLASSIFIED**
+## 2. Deferred-release gate (§9.6, DR-1..DR-13) — **NEWLY CLASSIFIED**
 
 This surface had never been classified. Both findings are here.
+
+Rows 18–27 are the **deferred path**, which DR-1 scopes to floor-HIGH. Rows 27b–27d
+are DR-13, added in v1.3.15, and cover the case the gate never sees: an
+`IRREVERSIBLE` action graded **below** HIGH. Classifying that case is what
+exposed it as unclassified — every row here presumed the gate had been entered.
 
 | # | Input | Consumed for | Class | Disposition |
 |---|-------|--------------|-------|-------------|
@@ -47,6 +52,9 @@ This surface had never been classified. Both findings are here.
 | 25 | **`note.source_path`** | **DR-2 path independence** | **T** | **FINDING T-32 — see §4.** |
 | 26 | **`delivered` (notifier return)** | **DR-8 delivery completeness** | **T** | **FINDING T-32 — see §4.** |
 | 27 | `ack.obj.acknowledger` (confirm / repudiate) | DR-9 acknowledgement identity, DR-5 recipient membership | **B** (v1.3.12+) | ACK-2/ACK-4: signature verified over the canonical object against the bundle-registered key; identity read from the signed bytes. Was **T** through v1.3.11 (**T-31**). |
+| 27b | `bundle.notice_targets[task_type]` | DR-13: who is told when an `IRREVERSIBLE` action runs below floor-HIGH, and whether it may run at all | **R** (v1.3.15) | Read from the trusted bundle and inside `Bundle.hash()`, exactly as `quorum_k` at row 17b. Deliberately **not** the notifier's own configuration: a service selecting its own audience certifies its own coverage, which is the T-32 shape. Empty ⇒ fail closed. Mutation-proven load-bearing (Suite 2, `notice channel below floor-HIGH [DR-13]`). |
+| 27c | The committed notice | DR-13: the pre-execution record | **R** (v1.3.15) | Written to the Executor's **own** durable ledger before execution, and read back from it. No peer asserts it. Ordering is the property — after the action, the record can be suppressed by whatever the action enabled (AU-7's argument). |
+| 27d | *Delivery outcome* | *Nothing* | **— (not consumed)** | Stated as a row because its absence is the design decision. DR-8 consumes `delivered` and that is row 26, an open **T** under T-32. DR-13 consumes **no** delivery result, so it adds no fourth **T** — and buys a correspondingly weaker guarantee, disclosed as **RES-P6** in §06: a notice committed and never delivered leaves an audit record and no human. Reconciliation is a deployment obligation, not an Executor check. |
 
 ---
 

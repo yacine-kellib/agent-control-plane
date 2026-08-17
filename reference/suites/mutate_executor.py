@@ -151,6 +151,26 @@ MUTANTS = [
       '        return self.reversibility.get(task_type, "REVERSIBLE")'),
      "a_RV1_unclassified_action_defaults_irreversible"),
 
+    # The gap art_harness.py found: everything else in the DR family is on the
+    # floor-HIGH path, so no existing mutant could reach the case where an
+    # IRREVERSIBLE action is graded below HIGH.
+    #
+    # ONE mutant, not two, and the reason is the same one recorded above for
+    # `need_roles = b.quorum_k`. This block has two halves: a branch that
+    # REFUSES when the bundle names no recipients, and a `record_notice` call
+    # that raises nothing. Mutation scoring measures branches that can refuse,
+    # so a mutant deleting only the notice commit would SURVIVE -- not because
+    # the commit is dead code, but because "the attack now succeeds" is the
+    # wrong instrument for it. The commit is covered by
+    # t_dr13_irreversible_below_high_is_noticed, which asserts the record
+    # exists, and is labelled as a positive-path obligation rather than dressed
+    # up as a control.
+    ("notice channel below floor-HIGH [DR-13]",
+     ('''        if risk != "HIGH" and reversibility == "IRREVERSIBLE":
+            # DR-13-notice-before-execute (mutation target)''',
+      "        if False:"),
+     "a_DR13_no_notice_recipients"),
+
     ("operator self-confirm bar [DR-9]",
      ("""        if who == pr.operator:
             # The operator initiated the action; their acknowledgement carries

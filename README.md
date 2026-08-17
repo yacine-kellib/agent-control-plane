@@ -56,7 +56,7 @@ Abridged output. A complete run prints 18 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   128 files match MANIFEST.sha256
+  OK   129 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -65,9 +65,9 @@ Abridged output. A complete run prints 18 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 79/79
-  OK   Suite 1  conformance — RESULT: 50/50 — CONFORMANT
-  OK   Suite 2  executor mutation — RESULT: 24/24 killed
+  OK   ALL attacks (consolidated registry) — RESULT: 80/80
+  OK   Suite 1  conformance — RESULT: 52/52 — CONFORMANT
+  OK   Suite 2  executor mutation — RESULT: 25/25 killed
   ...
 ```
 
@@ -413,7 +413,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 128 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 129 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56

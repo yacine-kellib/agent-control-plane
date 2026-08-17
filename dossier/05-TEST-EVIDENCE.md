@@ -15,19 +15,19 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ---
 
-## Suite 1 — Conformance (50/50)
+## Suite 1 — Conformance (52/52)
 
 `python3 reference/suites/conformance.py`
 
-Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature.
+Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature, an irreversible action below floor-HIGH with no notice channel named in the bundle (DR-13).
 
-Eight positive paths, which is why the suite total is 50 and not 42: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, and a sampled action is treated as irreversible. **42 attacks must fail closed; 8 honest paths must execute.**
+Nine positive paths, which is why the suite total is 52 and not 43: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, a sampled action is treated as irreversible, and an irreversible action below floor-HIGH executes while leaving a committed notice. **43 attacks must fail closed; 9 honest paths must execute.**
 
 *(This paragraph said 44 and 36 while the suite printed 45. The drift predates the AT-3 fix below and is corrected here rather than quietly: a number in the prose that no longer matches a number the code prints is a defect in this repository, whichever direction it drifted.)*
 
-**Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist.
+**Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist. The DR-13 row above is what that limit looks like when it bites: it is here because an **external** corpus harness found the gap, not because this suite's enumeration reached it. See Suite 2's sixth lesson.
 
-## Suite 2 — Implementation mutation (24/24 kill)
+## Suite 2 — Implementation mutation (25/25 kill)
 
 `python3 reference/suites/mutate_executor.py`
 
@@ -46,6 +46,10 @@ For each check: delete it, then require the corresponding attack to succeed **an
 Restoring the consent check then **masked** the threshold mutant — the fourth masking in this document — because an attacker must misstate `required_count` to move the threshold, and misstating it is exactly what the consent check refuses. The masking is real rather than a test defect, and it was resolved by admitting what the recomputation is: `need_roles = b.quorum_k` raises nothing, so it is not a check, it is the choice of which variable a number is read from. Mutation testing scores branches that can refuse. `a_AT3_partial_quorum` — one genuine approval, honestly stating a count of two — isolates the comparison that does refuse, and is the only quorum attack in the suite that no earlier check catches.
 
 *Generalisation, and it is the one worth carrying:* **"this check is redundant" is a claim about the attacks you enumerated, not about the check.** Both times the redundancy argument was made here it was locally valid and globally wrong, because the enumeration was missing a class — masking in one direction, consent in the other.
+
+**A sixth, and it is the largest of them: this method cannot find a check that was never written.** The five lessons above are all about checks that exist — whether they are load-bearing, whether they mean the right thing, whether one hides another. Every one of them presumes the check is in the source for a mutant to delete. DR-13's case had no check at all: an `IRREVERSIBLE` action graded below floor-HIGH executed with nobody notified, because §9.6's clauses were scoped to floor-HIGH and nothing below it read the reversibility class the Executor had just computed. Twenty-four mutants ran green against that gap for four releases, and correctly so — there was nothing to delete. The prose differential (Suite 6) could not see it either, because it compares two readings of a document that does not mention the case.
+
+It was found by the external-corpus harness on its **first run** (case `fx-04`), which is the argument for that harness restated as a result rather than as an intention. **The blind spot of a suite written by the defender is not in its checks, it is in its enumeration** — and no amount of rigour applied to the enumeration you have will surface the one you do not. Now closed by DR-13 and mutation-proven like the rest (25th mutant), which is worth saying plainly: the fix is held to this suite's standard, but this suite is not what would have found it.
 
 ## Suite 3 — Ledger partition (9/9)
 
@@ -114,7 +118,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (79/79, 4/4)
+## Suite 10 — consolidated registry and composition (80/80, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

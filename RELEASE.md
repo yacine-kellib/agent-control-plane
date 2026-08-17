@@ -22,6 +22,102 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — a fourth released defect, found by somebody else's attacks
+
+**Specification: DR-13 is added to §9.6 in v1.3.15**, alongside PB-6, PB-7 and
+AT-9 below. The version does not move again; v1.3.15 is unreleased and has no
+readers, so the clause is folded in rather than minted as a v1.3.16 that would
+describe a document nobody ever held.
+
+**The defect (ACP-32).** Risk is recomputed from the *target resource's* tier
+floor; reversibility is a property of the *action class*. They are orthogonal,
+so an action can be `IRREVERSIBLE` and `LOW` at the same time — and every clause
+governing what happens to an irreversible action lived behind DR-1, which scopes
+the deferred-release gate to floor-HIGH. Below HIGH the Executor computed the
+reversibility class, compared it against the receipt for RV-3, and **discarded
+it**. An irreversible action on a T0/T1 target executed with no notification, no
+acknowledgement, and no record that a human existed. RV-1's fail-safe default —
+absent from `reversibility.json` ⇒ `IRREVERSIBLE` — set a value that nothing on
+that path read, which makes it documentation rather than a control.
+
+Mail exfiltration is exactly this shape, and it is the most common goal in the
+public indirect-prompt-injection corpora. Floor an inbox at T1, which is the
+natural choice because reading mail is routine, and an injected `send_email`
+goes out unseen.
+
+**How it was found, which is the part worth keeping.** Not by reading, and not
+by any suite in this repository. `reference/suites/art_harness.py` — added in the
+same batch of work, to run an external adversarial corpus against Door A instead
+of the author's own attack list — printed it on its **first run**, as case
+`fx-04`. Every other suite here was written by the party being defended, so the
+attack list and the clause list shared one blind spot: mutation testing cannot
+find a check that was never written, and the prose differential compares two
+readings of a document that does not mention the case. The harness was built on
+the argument that this would eventually happen. It happened immediately.
+
+**The fix, and what it deliberately is not.** DR-13 requires that an
+`IRREVERSIBLE` action graded below floor-HIGH commit a **notice** — to the
+Executor's own durable state, before the action executes — addressed to a
+recipient set named in the **signed bundle**. It does **not** require
+acknowledgement. DR-9's friction is affordable at floor-HIGH because a human
+quorum has already been paid for; below HIGH there is no quorum and the traffic
+is the bulk of a deployment, so demanding acknowledgement there would page a
+human for routine work at volume, which is T-26 habituation and AT-7
+rubber-stamping — and W2 already recorded that saturating approvers produces
+assent, not refusal. **Detection instead of prevention, and stated as the weaker
+guarantee it is.**
+
+Three consequences, each stated in the clause rather than left to be discovered:
+
+- **The recipient set is bundle policy, not notifier configuration.** A
+  notification service that picks its own audience is certifying its own
+  coverage, which is RES-8 and the exact shape of the still-open T-32. In the
+  bundle, "who would have found out" is readable off signed policy.
+- **An irreversible class below HIGH with no recipients named fails closed.** A
+  notice with no addressee is not a detection channel, and DR-8's rule does not
+  become false because the risk grade is lower. The deployment names recipients
+  or floors the class at T2+ and moves it onto the deferred path under DR-9.
+- **EO-2 is respected by weakening the obligation on purpose.** EO-2 budgets
+  25 ms p99 end-to-end for LOW and MEDIUM decisions, and a synchronous confirmed
+  delivery does not fit — two normative requirements that cannot both hold, the
+  DR-6 defect class. So what DR-13 makes a precondition of execution is the
+  *local durable commit*, not delivery. That is genuinely weaker than DR-8, and
+  the residual is named: a notice committed and never delivered leaves an audit
+  record and no human. Reconciling committed notices against delivery outcomes
+  is a deployment obligation, counted separately from DR-12 because releases on
+  this path are unacknowledged by construction and would otherwise swamp the
+  signal DR-12 exists to carry.
+
+**What did not change: the harness's floors.** `inbox` is still T1 and
+`public-web` still T0. Raising them would have made the finding disappear and
+proved the harness can be tuned, which is the failure mode it was written to
+avoid. What moved is the Executor. `fx-04` now reports a new outcome,
+`EXECUTED_NOTIFIED`, which sits between `ESCALATED` and `EXECUTED_SILENTLY`
+because nobody was asked but a record exists. Reversible low-tier actions still
+execute silently and should — DR-7's argument is that silence is acceptable
+exactly where a missed detection is bounded by reversibility.
+
+**The action still happens.** DR-13 makes it loud, not safe. Whether an inbox
+should have been floored at T1 is A-7, and A-7 remains conceded unprovable.
+
+Evidence: conformance 50 → 52, consolidated registry 79 → 80, executor mutants
+24 → 25 (35 across all suites). One mutant, not two: the block has a branch that
+refuses when no recipients are named, and a `record_notice` call that raises
+nothing. Mutation scoring measures branches that can refuse, so a mutant
+deleting only the commit would SURVIVE — not because the commit is dead code but
+because "the attack now succeeds" is the wrong instrument for it. The commit is
+covered by a positive-path assertion and labelled as one, rather than dressed up
+as a control. Same reasoning already recorded here for `need_roles = b.quorum_k`.
+
+**A separate defect, found by re-running the tooling self-test.** The published
+covered-file count said **128** while the signer covered **129** — the harness
+commit added a file and did not update the prose. `tools/selftest.sh` asserts
+exactly this equality and was red at `HEAD` before this change, which the prior
+session's handoff had recorded as passing. Corrected to 129. The assertion did
+its job; nobody ran it.
+
+---
+
 ## Unreleased since v1.3.14 — INV-1-HIGH did not hold, CR-4 was ordering the unorderable, and the specification is why
 
 **Specification version moves to ACP-SPEC-001 v1.3.15** (from v1.3.13; there is
@@ -147,7 +243,8 @@ code-fence stripping, dropping an undecodable `params`, or failing to wrap a
 non-list `actions` value kill 1 each. A sixth corrupts an expectation in the
 fixture corpus itself, so the data comparison is demonstrably not vacuous. The gate now
 prints **17** result lines (a harness line was added since). Coverage was **118** files at that point and is
-**128** now, the bundle schemas and `acp-bundle` having landed since.
+**129** now, the bundle schemas, `acp-bundle` and the external-corpus harness
+having landed since.
 
 **A scenario edit is withdrawn.** The poisoned supplier report had been given an
 out-of-spec deviation paragraph so that a correct model would have legitimate

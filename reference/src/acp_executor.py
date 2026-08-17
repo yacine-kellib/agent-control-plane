@@ -3,7 +3,8 @@
 acp_executor.py — reference Executor for ACP-SPEC-001 v1.3.5 §9.3.
 
 SCOPE. Implements the Executor verification checklist (steps 1-10), deferred
-release for floor-HIGH (DR-1..DR-8, the A-8 mitigation), the
+release for floor-HIGH (DR-1..DR-8, the A-8 mitigation), the DR-13 notice that
+covers irreversible actions BELOW floor-HIGH, the
 Consumption Ledger (CL-1..CL-6, plus the DS-6f origin binding), the EL-1
 expression evaluator, TR-8 risk recomputation, and AT-8/AT-8a/AT-8b
 attestation object verification.
@@ -264,6 +265,7 @@ class Ledger:
         self._attestations: set[str] = set()
         self._epoch_hwm: int = 0
         self._origin: dict[str, str] = {}      # DS-6f: proposal_hash -> nonce
+        self._notices: list[dict] = []         # DR-13: committed before execution
 
     def claim_nonce(self, nonce: str):
         if nonce in self._nonces:
@@ -293,6 +295,20 @@ class Ledger:
             raise CriticalAlert("DS-6f", "no pinned origin for this proposal")
         return self._origin[proposal_hash]
 
+    # DR-13. The Executor's OWN durable state, deliberately: what the clause
+    # makes a precondition of execution is the local commit, not the delivery.
+    # Delivery is a network round-trip and EO-2 budgets 25 ms p99 end-to-end for
+    # LOW and MEDIUM, so a synchronous confirmed delivery here would be the DR-6
+    # defect again -- two normative requirements that cannot both hold. What is
+    # bought is weaker than DR-8 and is stated as weaker: a notice committed and
+    # never delivered leaves an audit record and no human. The reconciliation
+    # obligation that closes that gap is on the deployment (DR-13), not here.
+    def record_notice(self, notice: dict) -> None:
+        self._notices.append(notice)
+
+    def notices(self) -> list[dict]:
+        return list(self._notices)
+
 
 # ------------------------------------------------------------------ bundle
 @dataclass
@@ -315,6 +331,13 @@ class Bundle:
     # threshold out of the attestation it was verifying — see _verify_quorum.
     quorum_k: int
     reversibility: dict[str, str] = field(default_factory=dict)
+    # DR-13: who is told when an IRREVERSIBLE action runs BELOW floor-HIGH.
+    # In the bundle rather than in the notifier's own configuration because a
+    # notification service that picks its own audience is certifying its own
+    # coverage -- RES-8, and the shape T-32 is still open on. Signed policy
+    # means "who would have found out" is readable off the bundle instead of
+    # being a question you have to ask the party under verification.
+    notice_targets: dict[str, list[str]] = field(default_factory=dict)
     min_suite: str = "hybrid-ed25519-mldsa65"      # CR-4: signed floor
 
     def __post_init__(self):
@@ -361,6 +384,11 @@ class Bundle:
                   "risk_functions": self.risk_functions,
                   "adapters": self.adapters, "schemas": self.schemas,
                   "reversibility": self.reversibility,
+                  # DR-13. Inside the hash for the same reason as the threshold
+                  # below: the recipient set is policy, and two Executors that
+                  # would notify different people must not be able to agree
+                  # that they hold the same policy.
+                  "notice_targets": self.notice_targets,
                   "min_suite": self.min_suite,
                   # AT-3 threshold, inside the hash for the same reason as the
                   # key registry below: two Executors running different quorum
@@ -692,6 +720,46 @@ class Executor:
         idem = h({"proposal_hash": phash, "origin_nonce": origin})
         if receipt.get("idempotency_key") not in (None, idem):
             raise CriticalAlert("DS-6b", "receipt idempotency_key disagrees")
+
+        # DR-13: an IRREVERSIBLE action graded below HIGH never reaches the
+        # deferred gate, because DR-1 scopes that gate to floor-HIGH. Until
+        # v1.3.15 that meant `reversibility` was computed here, compared against
+        # the receipt for RV-3, and then DROPPED -- so RV-1's fail-safe default
+        # set a value nothing on this path read, and an irreversible action on a
+        # T0/T1 target executed with no notification, no acknowledgement and no
+        # record that a human existed. Found by art_harness.py, case fx-04, on
+        # its first run; the shape is mail exfiltration.
+        #
+        # Notice BEFORE execution, for AU-7's reason: a record written after the
+        # action can be suppressed by whatever the action enabled, and detection
+        # that can be erased is not detection.
+        #
+        # No acknowledgement is required here and that is the deliberate half.
+        # DR-9's friction is affordable at floor-HIGH because a human quorum has
+        # already been paid for. Below HIGH there is no quorum and the traffic is
+        # the bulk of the deployment, so requiring acknowledgement would page a
+        # human for routine work at volume -- T-26 habituation and AT-7
+        # rubber-stamping, which W2 already showed is what saturation produces.
+        # Detection instead of prevention, and weaker on purpose.
+        if risk != "HIGH" and reversibility == "IRREVERSIBLE":
+            # DR-13-notice-before-execute (mutation target)
+            targets = b.notice_targets.get(proposal["task_type"]) or []
+            if not targets:
+                # A notice with no addressee is not a detection channel. DR-8's
+                # rule does not become false because the risk grade is lower, so
+                # this refuses rather than executing unwatched. It is a POLICY
+                # gap, not an attack, hence FailClosed and not CriticalAlert:
+                # the deployment either names recipients or floors the class at
+                # T2+ and moves it onto the deferred path under DR-9.
+                raise FailClosed("DR-13",
+                                 f"{proposal['task_type']} is IRREVERSIBLE at "
+                                 f"risk {risk} and the bundle names no notice "
+                                 f"recipients for it")
+            self.ledger.record_notice({
+                "proposal_hash": phash, "task_type": proposal["task_type"],
+                "targets": proposal.get("targets", []), "operator": operator,
+                "risk": risk, "reversibility": reversibility,
+                "recipients": list(targets), "at": now})
 
         result = {"executed": True, "risk": risk, "operator": operator,
                   "idempotency_key": idem, "fidelity": fidelity}
