@@ -2,12 +2,32 @@
 //!
 //! Since v1.3.14 the Python reference uses the same real primitives this crate
 //! does (Ed25519 + ML-DSA-65); it no longer models them with HMAC-SHA256.
-//! This crate is where real Ed25519 and ML-DSA-65 land. Neither primitive is
-//! implemented yet.
 //!
-//! What *is* implemented is the composition, deliberately: CR-3 is protocol
-//! logic, not cryptography, and the downgrade attack it prevents is a
-//! control-flow property that can be tested without a single real signature.
+//! What is implemented here:
+//!
+//! - [`verify_hybrid`] — the conjunctive composition. Implemented first and
+//!   deliberately: CR-3 is protocol logic, not cryptography, and the downgrade
+//!   attack it prevents is a control-flow property testable without a single
+//!   real signature.
+//! - [`suite`] — the suite table, its CR-4 ordering, and the fact that
+//!   `pq-slh` is declared and not implemented.
+//!
+//! Still absent: the primitives themselves. Nothing here can check an actual
+//! Ed25519 or ML-DSA signature, and the composition above is what decides what
+//! happens once something can — an `Unsupported` primitive is refused, never
+//! skipped.
+//!
+//! NEVER REINTRODUCE A SYMMETRIC PRIMITIVE, not even behind a test feature.
+//! Through v1.3.13 the reference used HMAC-SHA256 on the argument that
+//! substituting real signatures changed no control flow. That was true of
+//! every property except custody: HMAC is symmetric, so the verifier held the
+//! signing keys, and a compromised Executor could mint its own quorum.
+//! INV-1-HIGH did not hold against the adversary it names, and no protocol
+//! test could have found it.
+
+pub mod suite;
+
+pub use suite::{Primitive, Suite};
 
 /// Outcome of verifying one primitive within a declared suite.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
