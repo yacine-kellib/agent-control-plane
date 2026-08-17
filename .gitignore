@@ -14,6 +14,10 @@ dist/
 # Private working material, never signed, never published.
 private/
 
+# Local working notes. Same reasoning as .claude/ below: this repository is
+# public, and being outside the signed roots is not the same as being private.
+docs/study/
+
 # Local agent configuration. NOT discarded -- it is versioned in a separate
 # private repository (tack-run/claude-env, projects/acp/) because this repo is
 # public and .claude/ holds machine settings, hooks and session handoffs.
