@@ -22,6 +22,43 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — 47 of 85 suite cases could be shared data; the rest cannot
+
+`spec/vectors/` gains its first two files, and neither is a vector. **ACP-1 (VEC-1)**
+classified every case in the four suites the shared conformance corpus would cover —
+52 conformance, 8 canonical CBOR, 14 signed acknowledgement, 11 audit — against three
+tests: is the discriminating input serialisable, is the decision reached in one call,
+and is the expected outcome a verdict rather than state.
+
+**47 are vector-expressible. 38 are not, and the audit suite is 0 of 11.** On top of
+those sit the 35 mutation cases, which delete a line of the implementation's own source
+and can never travel as data.
+
+`spec/vectors/CLASSIFICATION.md` carries the per-case table; where a case fails closed,
+the rule and the raising function were taken from a run rather than from its docstring.
+Three rows moved as a result: the operator-substitution attack (AT-2) refuses under the
+default capability context, so its fixture's context change is scene-setting rather than
+the discriminator; the receipt-claims-reversible attack (RV-3) refuses inside `execute`
+with no deferred gate present, despite its gate fixture; and the one-key-two-identities
+attack (PB-DISTINCT) never reaches an Executor at all, so the corpus needs a
+bundle-load verdict class it does not yet have.
+
+`spec/vectors/OBLIGATIONS.md` is the first draft of the other half, and states the limit
+plainly: **passing every vector is a partial claim.** Three of the six defects fixed on
+this branch would have been invisible to any vector in the corpus — a bundle hash that
+dropped a field, a file count that had drifted, and a fail-safe default that set a value
+nothing read. None of them changes a verdict on any input. It also records what the
+corpus cannot carry and what replaces it: signatures are not transportable, so vectors
+declare **seeds**, not keys, and rely on `HybridKey` deriving both halves
+deterministically — a property `sim.supervise` already requires for its own reasons.
+
+This is the gate ticket for the vectors project: the 47 sizes extraction (VEC-3/VEC-5),
+and the 38 plus the mutants size VEC-6. It also says VEC-2 is underestimated — eight
+cases need a declared signature-mutation vocabulary, fourteen need a pending-release
+precondition block, and one needs the bundle-load verdict class above. None exists.
+
+---
+
 ## Unreleased since v1.3.14 — a fourth released defect, found by somebody else's attacks
 
 **Specification: DR-13 is added to §9.6 in v1.3.15**, alongside PB-6, PB-7 and
