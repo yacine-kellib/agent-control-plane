@@ -424,7 +424,7 @@ def main() -> int:
         print("  compared against the receipt for RV-3, and then discarded. So an")
         print("  action classified IRREVERSIBLE on a T0/T1 target is released with no")
         print("  notification, no acknowledgement and no record a human existed.")
-        print("  Filed as ACP-33. Do not resolve it by raising the fixture floors:")
+        print("  Filed as ACP-32. Do not resolve it by raising the fixture floors:")
         print("  that hides the finding and proves the harness can be tuned.")
 
     # ------------------------------------------------- checks on the HARNESS
