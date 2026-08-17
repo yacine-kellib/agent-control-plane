@@ -1,8 +1,8 @@
 //! Canonical bundle tree: the member index and the hash the signature covers.
 //!
 //! §8.2 says the SIGNATURE is "Ed25519 over SHA-256 of canonical bundle tree".
-//! That sentence leaves two things unstated, and both have to be pinned here or
-//! two conformant implementations will disagree on a valid bundle:
+//! That sentence leaves three things unstated, and all three have to be pinned
+//! here or two conformant implementations will disagree on a valid bundle:
 //!
 //!   1. WHICH FILES are in the tree. Answered by an explicit member index, so
 //!      coverage is a signed fact rather than whatever the reader walked. Same
@@ -11,13 +11,37 @@
 //!   2. IN WHAT ORDER. Answered by a bytewise sort on the path. Bytewise, not
 //!      locale-aware: a locale-dependent sort is a defect that only shows up on
 //!      someone else's machine.
+//!   3. WHETHER THE INDEX'S OWN HEADER IS COVERED. Answered yes, and this was
+//!      wrong in the first cut of this file — see below.
+//!
+//! **A CORRECTION WORTH RECORDING.** The first version of this module hashed
+//! `members` and nothing else, which left `signature.suite` — the field naming
+//! *which primitives a verifier must require* — outside the signature that
+//! field is part of. An attacker who can rewrite the index in flight relabels a
+//! `hybrid-ed25519-mldsa65` bundle as `ed25519`, the verifier obligingly checks
+//! one primitive, and the post-quantum leg is gone without a single byte of the
+//! member list changing. That is CR-3 downgrade, reintroduced by the very code
+//! written to prevent it, and it is the RES-8 class again: the verifier was
+//! reading a security-determining value from the artifact under verification.
+//! The header is now inside the hash. `schema_version` went in with it for the
+//! same reason one version further out — a v2 that reinterprets `members` must
+//! not be reachable by relabelling a v1.
 //!
 //! The hash is taken over canonical CBOR, reusing the encoding the repository
 //! already has a validating decoder and eight tests for (AT-8a). Writing a
 //! second canonicaliser here would be a second definition of one object, which
 //! is the encoding-split defect at source level.
 
+use acp_crypto::Suite;
 use sha2::{Digest, Sha256};
+
+/// The only bundle index version this build understands.
+///
+/// A constant rather than a field: a different version is a different reading
+/// of `members`, so a build that hashes "1" and parses v2 semantics is the bug
+/// this value exists to make unrepresentable. A loader meeting a foreign
+/// `schema_version` must refuse the bundle, not construct a `Tree` for it.
+pub const SCHEMA_VERSION: &str = "1";
 
 /// One file covered by the bundle signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,9 +93,10 @@ impl Member {
     }
 }
 
-/// The signed member index of one bundle.
+/// The signed member index of one bundle, header included.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tree {
+    suite: Suite,
     members: Vec<Member>,
 }
 
@@ -82,7 +107,11 @@ impl Tree {
     /// cannot produce a differently-ordered tree by accident. The order is
     /// part of what is hashed, so "the caller should sort first" would be a
     /// correctness requirement expressed as a comment.
-    pub fn new(mut members: Vec<Member>) -> Result<Self, TreeError> {
+    ///
+    /// `suite` is the suite the bundle signature is issued under. It is taken
+    /// as a [`Suite`] rather than a string so that the value the hash covers
+    /// has exactly one spelling — see the module note on the header.
+    pub fn new(suite: Suite, mut members: Vec<Member>) -> Result<Self, TreeError> {
         if members.is_empty() {
             return Err(TreeError::Empty);
         }
@@ -92,11 +121,17 @@ impl Tree {
                 return Err(TreeError::DuplicatePath);
             }
         }
-        Ok(Tree { members })
+        Ok(Tree { suite, members })
     }
 
     pub fn members(&self) -> &[Member] {
         &self.members
+    }
+
+    /// The suite this tree's signature is issued under, and which a verifier
+    /// must therefore require in full (CR-3, conjunctive).
+    pub fn suite(&self) -> Suite {
+        self.suite
     }
 
     /// The canonical CBOR encoding of the tree.
@@ -106,14 +141,22 @@ impl Tree {
     /// map-key handling, neither of which is visible at the call site. What is
     /// hashed has to be readable in the same file that says what it means.
     ///
-    /// Shape: a definite-length array of definite-length 2-element arrays,
-    /// `[[path, digest], ...]`. Arrays rather than maps because RFC 8949
-    /// canonical form orders map keys by encoded bytes, and relying on that
-    /// ordering is one more thing an implementation can get subtly wrong when
-    /// positional pairs express the same information with no ordering rule at
-    /// all.
+    /// Shape: `[schema_version, suite, [[path, digest], ...]]` — a
+    /// definite-length 3-element array whose last element is a definite-length
+    /// array of definite-length 2-element arrays. Arrays rather than maps
+    /// because RFC 8949 canonical form orders map keys by encoded bytes, and
+    /// relying on that ordering is one more thing an implementation can get
+    /// subtly wrong when positional pairs express the same information with no
+    /// ordering rule at all.
+    ///
+    /// The header comes first so that a truncated read cannot be mistaken for
+    /// a shorter valid tree: the version and suite are decided before any
+    /// member is.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
+        write_array_header(&mut out, 3);
+        write_text(&mut out, SCHEMA_VERSION);
+        write_text(&mut out, self.suite.as_wire());
         write_array_header(&mut out, self.members.len() as u64);
         for m in &self.members {
             write_array_header(&mut out, 2);
@@ -188,27 +231,35 @@ mod tests {
         Member::new(path, digest(seed)).expect("test path should be valid")
     }
 
+    const HYBRID: Suite = Suite::HybridEd25519MlDsa65;
+
     #[test]
     fn member_order_does_not_change_the_hash() {
-        let a = Tree::new(vec![
-            member("floors.json", 1),
-            member("manifest.json", 2),
-            member("attesters/alice.json", 3),
-        ])
+        let a = Tree::new(
+            HYBRID,
+            vec![
+                member("floors.json", 1),
+                member("manifest.json", 2),
+                member("attesters/alice.json", 3),
+            ],
+        )
         .unwrap();
-        let b = Tree::new(vec![
-            member("attesters/alice.json", 3),
-            member("floors.json", 1),
-            member("manifest.json", 2),
-        ])
+        let b = Tree::new(
+            HYBRID,
+            vec![
+                member("attesters/alice.json", 3),
+                member("floors.json", 1),
+                member("manifest.json", 2),
+            ],
+        )
         .unwrap();
         assert_eq!(a.hash(), b.hash(), "canonical order is not being applied");
     }
 
     #[test]
     fn changing_one_digest_changes_the_hash() {
-        let before = Tree::new(vec![member("floors.json", 1)]).unwrap();
-        let after = Tree::new(vec![member("floors.json", 2)]).unwrap();
+        let before = Tree::new(HYBRID, vec![member("floors.json", 1)]).unwrap();
+        let after = Tree::new(HYBRID, vec![member("floors.json", 2)]).unwrap();
         assert_ne!(
             before.hash(),
             after.hash(),
@@ -219,9 +270,36 @@ mod tests {
     #[test]
     fn adding_a_file_changes_the_hash() {
         // An unsigned file smuggled into a signed bundle must not be free.
-        let one = Tree::new(vec![member("manifest.json", 1)]).unwrap();
-        let two = Tree::new(vec![member("manifest.json", 1), member("extra.json", 9)]).unwrap();
+        let one = Tree::new(HYBRID, vec![member("manifest.json", 1)]).unwrap();
+        let two = Tree::new(
+            HYBRID,
+            vec![member("manifest.json", 1), member("extra.json", 9)],
+        )
+        .unwrap();
         assert_ne!(one.hash(), two.hash());
+    }
+
+    #[test]
+    fn downgrading_the_suite_changes_the_hash() {
+        // THE CR-3 DOWNGRADE, at the index rather than at the verifier. The
+        // member list is byte-identical; only the declared suite moves. If
+        // these hashes matched, an attacker could relabel a hybrid bundle as
+        // classical-only and the original signature would still verify over
+        // it, so the verifier would require one primitive where the signer
+        // required two.
+        let members = || vec![member("manifest.json", 1), member("floors.json", 2)];
+        let hybrid = Tree::new(HYBRID, members()).unwrap();
+        let classical = Tree::new(Suite::Ed25519, members()).unwrap();
+        assert_eq!(
+            hybrid.members(),
+            classical.members(),
+            "the two trees must differ ONLY in the suite for this test to mean anything"
+        );
+        assert_ne!(
+            hybrid.hash(),
+            classical.hash(),
+            "signature.suite is outside the tree hash — CR-3 downgrade is free"
+        );
     }
 
     #[test]
@@ -254,13 +332,16 @@ mod tests {
 
     #[test]
     fn duplicate_paths_are_refused_not_deduplicated() {
-        let e = Tree::new(vec![member("floors.json", 1), member("floors.json", 2)]);
+        let e = Tree::new(
+            HYBRID,
+            vec![member("floors.json", 1), member("floors.json", 2)],
+        );
         assert_eq!(e, Err(TreeError::DuplicatePath));
     }
 
     #[test]
     fn empty_tree_is_refused() {
-        assert_eq!(Tree::new(vec![]), Err(TreeError::Empty));
+        assert_eq!(Tree::new(HYBRID, vec![]), Err(TreeError::Empty));
     }
 
     #[test]
@@ -289,18 +370,27 @@ mod tests {
         // is pinned here as bytes rather than left to be true by luck.
         //
         // Regenerate with:
-        //   cd reference/src && python3 -c "import acp_crypto as C; \
-        //     print(C.canon_cbor([['manifest.json', bytes([0xAB]*32)]]).hex())"
+        //   cd reference/src && python3 -c "import acp_crypto as C, hashlib; \
+        //     v = ['1', 'hybrid-ed25519-mldsa65', \
+        //          [['manifest.json', bytes([0xAB]*32)]]]; \
+        //     b = C.canon_cbor(v); print(b.hex()); \
+        //     print(hashlib.sha256(b).hexdigest())"
+        //
+        // The constant MOVED when the header came inside the hash (see the
+        // module note). That is a deliberate break of a value nothing has
+        // signed yet, not a divergence: it was regenerated from Python after
+        // the shape changed, not edited until Rust agreed with itself.
         //
         // If this test fails, ONE OF THE TWO ENCODERS IS WRONG. Find out which
         // before changing the constant — a divergence here is a specification
         // ambiguity, and patching the expected value hides it.
-        const PYTHON_CANON_CBOR: &str = "81826d6d616e69666573742e6a736f6e5820\
-                                         abababababababababababababababababababababababababababababababab";
+        const PYTHON_CANON_CBOR: &str = "836131766879627269642d656432353531392d6d6c6473613635\
+                                         81826d6d616e69666573742e6a736f6e5820abababababababab\
+                                         abababababababababababababababababababababababab";
         const PYTHON_SHA256: &str =
-            "c7a02a88ac1e3265a3df0fd77a0c75f4621a7a638843f2fcdd493450f1b063a8";
+            "992660054cc117175d9037f853a5609341873442d79e155c11210427177e2904";
 
-        let t = Tree::new(vec![member("manifest.json", 0xAB)]).unwrap();
+        let t = Tree::new(HYBRID, vec![member("manifest.json", 0xAB)]).unwrap();
         assert_eq!(
             hex(&t.canonical_bytes()),
             PYTHON_CANON_CBOR.replace(char::is_whitespace, ""),
@@ -317,7 +407,7 @@ mod tests {
     fn digest_is_encoded_as_bytes_not_text() {
         // A hex *string* and a byte string are different CBOR values. Fixing
         // this later would silently invalidate every signature already issued.
-        let t = Tree::new(vec![member("a.json", 0xAB)]).unwrap();
+        let t = Tree::new(HYBRID, vec![member("a.json", 0xAB)]).unwrap();
         let bytes = t.canonical_bytes();
         // major type 2 (byte string), 32 bytes -> 0x40 | 24, then length 32.
         assert!(

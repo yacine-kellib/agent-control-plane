@@ -8,7 +8,9 @@
 //!
 //! Scope of this crate, and what is deliberately not here yet:
 //!
-//! - [`tree`] — the member index and the hash the signature covers. Complete.
+//! - [`tree`] — the index and the hash the signature covers: the member list
+//!   AND the header that says how to read it, including the declared suite.
+//!   Complete. The suite's inclusion is a correction; see the module note.
 //! - `model`  — the typed bundle contents. **Not written by hand.** The
 //!   schemas in `spec/schemas/bundle/` are the normative source, and a
 //!   hand-written Rust struct would be a second definition of one object,

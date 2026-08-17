@@ -7,6 +7,11 @@ publish.workspace = true
 
 [dependencies]
 sha2 = "0.10"
+# The tree hash covers the declared suite (CR-3), so the tree needs the suite
+# TYPE, not a suite string. A `&str` here would let two spellings of one suite
+# produce two tree hashes, which is the encoding split arriving through the
+# door marked "it's only a label".
+acp-crypto.workspace = true
 
 # Deliberately NOT depended on yet:
 #   ciborium / serde — the encoder here is hand-rolled and 30 lines, because

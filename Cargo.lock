@@ -13,6 +13,7 @@ dependencies = [
 name = "acp-bundle"
 version = "0.0.0"
 dependencies = [
+ "acp-crypto",
  "sha2",
 ]
 
