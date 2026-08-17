@@ -20,7 +20,7 @@ Run:  python3 -m sim.bundle          # the grading table
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as dc_fields
 
 import sim  # noqa: F401  — puts ../reference/src on sys.path
 from acp_executor import Bundle, Executor, Ledger, FailClosed, h
@@ -192,6 +192,18 @@ class ResearchBundle(Bundle):
             # that widened the hash but dropped quorum_k would let the
             # simulation's own bundle run a threshold nothing signed.
             "quorum_k": self.quorum_k,
+            # DR-13 notice recipients. THIRD field to arrive in the base class
+            # and need adding here by hand — after quorum_k and the attester
+            # registry. That is a defect the shape of this method invites: it
+            # RESTATES the parent's dict instead of extending it, so every new
+            # base-class field is silently dropped until somebody notices, and
+            # nothing fails when it is. Kept as a restatement anyway, because
+            # the alternative — inheriting a dict and adding to it — makes the
+            # signed field set depend on a superclass the reader cannot see,
+            # and this file's whole argument is that a policy input not covered
+            # by the signature is a transmitted value in a policy costume. The
+            # cost is this comment and the discipline it asks for.
+            "notice_targets": self.notice_targets,
             # PB-KEY: the key registry, same reason as the base class — see
             # acp_executor.Bundle.hash. A subclass that widened the hash with
             # domain fields but not with the attesters would reintroduce the
@@ -322,6 +334,37 @@ def show_table() -> None:
     print("will always be incomplete.")
 
 
+def _perturb(b: ResearchBundle, name: str) -> bool:
+    """
+    Change one field in a way `hash()` must notice. Returns False for a field
+    this helper cannot meaningfully alter, so a new field of an unhandled type
+    is SKIPPED rather than silently passing — and the skip is visible here
+    rather than reported as coverage.
+    """
+    v = getattr(b, name)
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, int):
+        setattr(b, name, v + 1)
+    elif isinstance(v, str):
+        setattr(b, name, v + "-probe")
+    elif isinstance(v, dict):
+        # An EMPTY dict is the case that matters: `notice_targets` is empty in
+        # this bundle, so only an insertion probes it. A pop-only helper would
+        # have skipped the exact field that motivated this check.
+        if v:
+            v.pop(next(iter(v)))
+        else:
+            v["__probe__"] = ["__probe__"]
+    elif isinstance(v, list):
+        v.append({"applies_to": "__probe__", "base": "LOW", "raise_to": []})
+    elif name == "receipt_key":
+        setattr(b, name, next(iter(ATTESTER_KEYS.values())))
+    else:
+        return False
+    return True
+
+
 def check() -> int:
     """Prove the action classes compute correctly before anything else exists."""
     b = make_bundle()
@@ -378,8 +421,38 @@ def check() -> int:
     print(f"  {'PASS' if ok else 'FAIL'}  {'(program ownership)':<20}"
           f"{'—':<28}{'—':<8}—  [covered by policy_bundle_hash]")
 
+    # EVERY signed-policy field must move the hash — not just the one above.
+    #
+    # This check exists because it did not, three times. `ResearchBundle.hash()`
+    # RESTATES the parent's dict rather than extending it, so a field added to
+    # `Bundle.hash()` is silently dropped here until somebody notices: it
+    # happened to `quorum_k`, to the attester registry, and again to DR-13's
+    # `notice_targets`. Nothing failed on any of the three. The subclass hash is
+    # self-consistent whatever it covers, and no line of the `--suites` gate
+    # runs this file, so the omission is invisible from every direction that
+    # normally reports.
+    #
+    # Enumerated from `dataclasses.fields` rather than from a list written here,
+    # so a field added tomorrow joins this check without anyone remembering to
+    # add it. A hand-written list of field names would be a second definition of
+    # the class's own field set — the encoding-split defect, one level up, in
+    # the very check meant to catch it.
+    uncovered = []
+    for f in dc_fields(make_bundle()):
+        probe = make_bundle()
+        if not _perturb(probe, f.name):
+            continue
+        if probe.hash() == h0:
+            uncovered.append(f.name)
+    ok = not uncovered
+    bad += not ok
+    print(f"  {'PASS' if ok else 'FAIL'}  {'(hash covers all)':<20}"
+          f"{'—':<28}{'—':<8}—  [every signed field moves policy_bundle_hash]")
+    if uncovered:
+        print(f"        NOT covered by ResearchBundle.hash(): {', '.join(uncovered)}")
+
     print("=" * 92)
-    print(f"RESULT: {len(EXPECTED) + 5 - bad}/{len(EXPECTED) + 5}"
+    print(f"RESULT: {len(EXPECTED) + 6 - bad}/{len(EXPECTED) + 6}"
           f"{'' if not bad else '  — REVIEW REQUIRED'}")
     return 1 if bad else 0
 

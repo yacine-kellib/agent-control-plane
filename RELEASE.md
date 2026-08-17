@@ -109,12 +109,39 @@ because "the attack now succeeds" is the wrong instrument for it. The commit is
 covered by a positive-path assertion and labelled as one, rather than dressed up
 as a control. Same reasoning already recorded here for `need_roles = b.quorum_k`.
 
+**A third silent drop in `ResearchBundle.hash()`, and a check so it is the last.**
+`sim/bundle.py`'s subclass **restates** the parent's hash dict rather than
+extending it, so every field added to `Bundle.hash()` must be added there by
+hand. `notice_targets` was the third to be missed — after `quorum_k` and the
+attester registry — and nothing failed on any of the three: the subclass hash is
+self-consistent whatever it covers, and no line of the `--suites` gate runs that
+file. Two research bundles that would notify different people would have agreed
+they held the same policy, which is the PB-KEY defect class and the argument
+written in that method's own comments.
+
+Fixed, and then made unrepeatable: `sim.bundle --check` gains a case that
+enumerates fields from `dataclasses.fields` and requires every one to move the
+hash. Enumerated rather than listed, so a field added tomorrow joins the check
+without anyone remembering — a hand-written list of field names would be a second
+definition of the class's field set, the encoding-split defect inside the check
+meant to catch it. Proven non-vacuous by removing `notice_targets` from the
+subclass hash again and confirming it fails **and names the field**. 14/14 → 15/15.
+
 **A separate defect, found by re-running the tooling self-test.** The published
 covered-file count said **128** while the signer covered **129** — the harness
 commit added a file and did not update the prose. `tools/selftest.sh` asserts
 exactly this equality and was red at `HEAD` before this change, which the prior
-session's handoff had recorded as passing. Corrected to 129. The assertion did
-its job; nobody ran it.
+session's handoff had recorded as passing. Now **130**, `notice_targets.schema.json`
+having landed with DR-13. Filed as ACP-34, because the interesting part is not
+the number: the assertion existed and did its job, and nobody ran it.
+
+**Both DR-13 branches are covered by something that can fail, and this was
+checked rather than claimed.** The refusal branch has the 25th mutant (KILL).
+For the commit, the executor was edited to drop *only* `record_notice` while
+keeping the refusal — conformance goes **51/52 NOT CONFORMANT** and the harness
+raises `AssertionError: irreversible below-HIGH execution left no notice`. A
+positive-path obligation asserted to be covering something is worth exactly as
+much as the experiment that shows it failing.
 
 ---
 
@@ -243,8 +270,8 @@ code-fence stripping, dropping an undecodable `params`, or failing to wrap a
 non-list `actions` value kill 1 each. A sixth corrupts an expectation in the
 fixture corpus itself, so the data comparison is demonstrably not vacuous. The gate now
 prints **17** result lines (a harness line was added since). Coverage was **118** files at that point and is
-**129** now, the bundle schemas, `acp-bundle` and the external-corpus harness
-having landed since.
+**130** now, the bundle schemas, `acp-bundle`, the external-corpus harness and
+DR-13's `notice_targets` schema having landed since.
 
 **A scenario edit is withdrawn.** The poisoned supplier report had been given an
 out-of-spec deviation paragraph so that a correct model would have legitimate

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/notice_targets.schema.json",
+  "title": "Notice recipients for irreversible actions below floor-HIGH (ACP-SPEC-001 §9.6, DR-13)",
+  "description": "Maps each action class to the parties told when an IRREVERSIBLE action of that class executes BELOW floor-HIGH.\n\nWHY THIS FILE EXISTS. Risk is recomputed from the target resource's tier floor; reversibility is a property of the action class. They are orthogonal, so an action can be IRREVERSIBLE and LOW at the same time — and every clause governing irreversible actions lived behind DR-1, which scopes the deferred-release gate to floor-HIGH. Below HIGH the Executor computed the reversibility class and discarded it: the action executed with no notification, no acknowledgement, and no record that a human existed. RV-1's fail-safe default set a value nothing on that path read. Mail exfiltration is exactly this shape — floor an inbox at T1, which is the natural choice because reading mail is routine, and an injected send_email goes out unseen.\n\nWHY THE RECIPIENTS ARE HERE AND NOT IN THE NOTIFIER'S CONFIGURATION. A notification service that selects its own audience is certifying its own coverage. That is RES-8 — a verifier must never accept a derived security value from the party it is verifying — and it is the exact shape of the still-open finding T-32, where note.source_path, note.from_canonical and delivered are all classified T. Naming recipients in the signed bundle puts the audience under RK-5 two-person offline control alongside the floors it complements, and makes \"who would have found out\" a property an auditor reads off signed policy rather than asks the notifier about.\n\nABSENCE FAILS CLOSED, AND JSON SCHEMA CANNOT SAY SO. An action class that is IRREVERSIBLE, graded below HIGH, and absent from this file MUST cause the Executor to refuse the action: a notice with no addressee is not a detection channel, and DR-8's rule — executing while the detection channel is absent is executing unwatched — does not become false because the risk grade is lower. The condition spans three files (this one, reversibility.json, and the risk grading over floors.json), so no schema keyword can express it. The rule is normative in §9.6 DR-13 and its enforcement point is the Executor, as with PB-7 in attesters.schema.json. A normative rule with no enforcement point is a comment.\n\nWHAT IS NOT REQUIRED: acknowledgement. DR-9's friction is affordable at floor-HIGH because a human quorum has already been paid for. Below HIGH there is no quorum and the traffic is the bulk of a deployment, so demanding acknowledgement would page a human for routine work at volume — T-26 habituation and AT-7 rubber-stamping, and W2 already recorded that saturating approvers produces assent rather than refusal. DR-13 buys detection, not prevention, and is stated as the weaker guarantee it is.\n\nDELIVERY IS NOT A PRECONDITION OF EXECUTION. EO-2 budgets 25 ms p99 end-to-end for LOW and MEDIUM decisions and a synchronous confirmed delivery does not fit inside it — two normative requirements that cannot both hold, which is the DR-6 defect class. What DR-13 requires before execution is the durable local commit of the notice. A notice committed and never delivered leaves an audit record and no human; that residual is disclosed as RES-P6, and reconciling committed notices against delivery outcomes is a deployment obligation.\n\nA-7 applies here as it does to floors and to reversibility: that a deployment named the RIGHT recipients is conceded unprovable. Deployments SHOULD floor action classes that are both irreversible and externally visible at T2 or above, which moves them onto the deferred path under DR-9; this file is what holds when they have not.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "notice_targets"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "notice_targets": {
+      "type": "object",
+      "description": "action class -> recipient identities. Open map (actions are deployment-specific), and every value is a non-empty set. An empty array is REFUSED rather than treated as 'notify nobody': the two are indistinguishable at run time from an entry that was never written, and the fail-safe reading of both is refusal. Making the empty case invalid here means a deployment that wants no notice channel for a class must say so by floor policy — raise the class to T2+ and let DR-9 govern it — rather than by writing a control that looks configured and does nothing.",
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "description": "Recipient identities, resolved by the deployment's notification service to actual channels. Identities rather than addresses, for the same reason the attester registry holds identities: an address is a routing detail that changes without a policy review, and putting one under an offline signing key makes routine operations require RK-5.",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    }
+  }
+}

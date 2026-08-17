@@ -11,7 +11,7 @@ Companion to ACP-SPEC-001 v1.3.15 and Annex D.
 ## Run it
 
 ```bash
-python3 -m sim.bundle --check     # the action grading table, asserted        14/14
+python3 -m sim.bundle --check     # the action grading table, asserted        15/15
 python3 -m sim.run_day            # the day, one process                      fast
 python3 -m sim.supervise          # the day, seven OS processes               real boundaries
 python3 -m sim.scoreboard         # the deliverable

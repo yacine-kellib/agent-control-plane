@@ -35,7 +35,7 @@ PYTHONPATH=../src python3 art_harness.py           # a HARNESS, not a suite: it 
                                                    # fixtures until load_corpus() is wired to real ART.
 
 # the simulation — run from the repo root, it is a package
-python3 -m sim.bundle --check      # 14/14 grading table asserted
+python3 -m sim.bundle --check      # 15/15 grading table asserted
 python3 -m sim.run_day             # the day, one process
 python3 -m sim.supervise           # the day, seven real OS processes
 python3 -m sim.supervise --checks  # process-isolation properties only
@@ -139,6 +139,6 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 129 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 130 files across ten roots.
 
 Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 52 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.
