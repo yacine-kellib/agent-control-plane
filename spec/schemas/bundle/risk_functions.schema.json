@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/risk_functions.schema.json",
+  "title": "Parameter-sensitive risk functions (ACP-SPEC-001 §8.3, RK-2)",
+  "description": "Deterministic functions from a Proposal's parameters and its targets' effective tiers to a risk level.\n\nRK-2 exists because static per-action risk is insufficient: `modify_firewall_rule = HIGH` says nothing useful, since risk is a function of PARAMETERS and TARGETS, not action names.\n\nTHE ABSENT CASE DIFFERS FROM floors AND reversibility. An action with no risk function is REFUSED at §8.4 step 3 — it is NOT graded HIGH. Refusing and grading-HIGH are different behaviours: grading HIGH would route an unknown action into the human quorum, which looks conservative but silently teaches approvers to rubber-stamp things the policy author never considered. P-4: unknown is never LOW, and here it is not HIGH either — it is a refusal.\n\nTR-8: these functions are evaluated by the Executor over the INDEPENDENTLY RECEIVED canonical Proposal and the trusted bundle, ignoring every Context-Store raise and ignoring any risk value asserted in the receipt. The recomputed value is what all subsequent attestation requirements key on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "risk_functions"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "risk_functions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/risk_function"
+      }
+    }
+  },
+  "$defs": {
+    "risk_function": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applies_to", "base", "raise_to"],
+      "properties": {
+        "applies_to": {
+          "description": "Action class this function grades. At most one function per action class — two functions for one class is an ambiguity, not a merge, and the loader refuses it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "base": {
+          "$ref": "#/$defs/risk"
+        },
+        "raise_to": {
+          "description": "Clauses evaluated in order. MONOTONE BY CONSTRUCTION: a clause can only raise the level, never lower it, which is why the field is `raise_to` and there is no `lower_to`. Monotonicity is what makes the Dafny proof that floors dominate raises tractable — a lowering clause would let a crafted parameter walk a HIGH action down to LOW.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/raise_clause"
+          }
+        }
+      }
+    },
+    "raise_clause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["if", "then"],
+      "properties": {
+        "if": {
+          "description": "An EL-1 expression. EL-1 is deliberately minimal, TOTAL (no expression can fail to evaluate, so there is no error path to fall open through) and monotone.\n\nPRECEDENCE IS NORMATIVE: `&&` binds tighter than `||`. That sentence exists because its absence WAS a defect — Z1, found by building two evaluators from the prose alone and running 10,000 differential cases until they disagreed. An implementation that leaves precedence to its host language reproduces the ambiguity.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "then": {
+          "$ref": "#/$defs/risk"
+        }
+      }
+    },
+    "risk": {
+      "description": "Ordered LOW < MEDIUM < HIGH. §8.4 composes with max.",
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH"]
+    }
+  }
+}

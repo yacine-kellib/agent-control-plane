@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/bundle.schema.json",
+  "title": "Policy bundle tree index and signature (ACP-SPEC-001 §8.2)",
+  "description": "The index of one signed policy bundle: every member file, its digest, and the hybrid signature over the canonical tree.\n\nWHY AN INDEX EXISTS AT ALL. The signature covers `SHA-256 of canonical bundle tree`. Without an explicit member list, \"the tree\" is whatever the reader happened to walk — so a verifier that skipped a file and a signer that included it would compute different hashes and neither could tell which was wrong. The index makes the covered set a signed fact rather than a convention, which is the same reasoning that makes tools/sign-release.sh halt on an unrecognised file type instead of silently signing or silently skipping it.\n\nCOVERAGE IS TOTAL AND CLOSED. Every file in the bundle directory MUST appear in `members`, and every member MUST exist. A file present on disk but absent from the index is a load error, not a warning — an unsigned file sitting inside a signed bundle is precisely the shape of an attack. The loader reports the first discrepancy and refuses the bundle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "members", "signature"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "members": {
+      "description": "Every file in the bundle, sorted by path under a byte-wise ordering. Sorting is normative: the tree hash is computed over this sequence, so two signers must agree on the order or they produce different hashes for identical content. Byte-wise, not locale-aware — a locale-dependent sort is a portability defect that only appears on someone else's machine.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/member"
+      }
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "description": "Path relative to the bundle root, forward slashes. No leading slash, no `.`, no `..`, and no backslashes — a path that can escape the bundle root is a file-read primitive handed to whoever writes the index.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!/)(?!.*\\.\\.)(?!.*\\\\)[^\\u0000]+$"
+        },
+        "sha256": {
+          "description": "Lowercase hex SHA-256 of the file's exact bytes. Bytes, not parsed content: two JSON documents that parse equal but differ in whitespace are different files, and pretending otherwise reintroduces the encoding split at the file level.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suite", "classical", "pq"],
+      "description": "Hybrid signature over the canonical tree hash.\n\nCR-3, CONJUNCTIVE: verification requires EVERY declared primitive, never any. An `any`-shaped check lets an attacker strip the post-quantum signature, present a genuine classical one, and be accepted — the exact downgrade the hybrid suite exists to prevent. Proven in reference/proofs/binding.dfy: `CR3_AND_SurvivesPQBreak` versus `CR3_OR_CollapsesOnSingleBreak`.\n\nBoth fields are REQUIRED rather than optional. An optional signature field would create two canonical encodings of one object (Z4), and would also let a bundle omit the leg an attacker cannot forge.",
+      "properties": {
+        "suite": {
+          "description": "CR-1: a suite this build cannot verify is REFUSED, never ignored. Unsupported is not a pass.",
+          "type": "string",
+          "enum": ["hybrid-ed25519-mldsa65"]
+        },
+        "classical": {
+          "description": "Ed25519 signature, base64. 64 bytes raw.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        },
+        "pq": {
+          "description": "ML-DSA-65 signature, base64. 3309 bytes raw. ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, which is why conformance vectors are defined over canonical bytes and declared mutations rather than over signatures.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{4412}$"
+        }
+      }
+    }
+  }
+}

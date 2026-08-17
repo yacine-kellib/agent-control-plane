@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/acp-core",
     "crates/acp-crypto",
+    "crates/acp-bundle",
     "crates/acp-conformance",
     "services/executor",
     "services/policy",

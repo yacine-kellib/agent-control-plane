@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/manifest.schema.json",
+  "title": "Policy bundle manifest (ACP-SPEC-001 §8.2)",
+  "description": "Identity and provenance of one signed policy bundle. PB-5: bundle_epoch is strictly increasing and never reused or decreased. PB-2: author and reviewer identities MUST differ — asserted by the signer, because a schema cannot express a comparison between two of its own fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_epoch",
+    "created_at",
+    "author",
+    "reviewer",
+    "expires_at",
+    "min_suite",
+    "custody"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Version of this manifest schema. Present so a decoder can refuse a bundle it does not fully understand rather than ignoring fields it does not recognise.",
+      "type": "string",
+      "const": "1"
+    },
+    "bundle_epoch": {
+      "description": "PB-5. Strictly increasing integer. Never reused, never decreased. The Executor keeps a high-water mark indefinitely (CL-4) — an expiring epoch mark would reopen rollback.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "created_at": {
+      "description": "RFC 3339 UTC. Informational: freshness is enforced by expires_at and by the epoch, never by comparing this to a local clock.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "author": {
+      "$ref": "#/$defs/identity",
+      "description": "Who wrote this bundle. PB-2: MUST differ from reviewer."
+    },
+    "reviewer": {
+      "$ref": "#/$defs/identity",
+      "description": "Who reviewed it. PB-2: MUST differ from author. Two-person integrity on the highest-leverage governance artifact in the system — RES-1 names floor maintenance as exactly that."
+    },
+    "expires_at": {
+      "description": "RFC 3339 UTC. PB-1: the engine MUST refuse to serve an expired bundle. A deployment MAY configure a grace window during which all Decisions are capped at ATTEST — it may not configure one that serves the bundle normally.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "min_suite": {
+      "description": "CR-4. The signed floor on signature suites. A receipt or attestation declaring a weaker suite is refused. This is in the signed bundle precisely so a downgrade cannot be negotiated at runtime.",
+      "type": "string",
+      "enum": ["hybrid-ed25519-mldsa65"]
+    },
+    "custody": {
+      "$ref": "#/$defs/custody"
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name"],
+      "properties": {
+        "id": {
+          "description": "Stable identifier. Compared byte-for-byte for PB-2; display_name is never used for the comparison because two people can share a display name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "custody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "classical", "pq"],
+      "description": "How the bundle signing key is held.\n\nCLASSIFIED **T** (trusted as transmitted) AND NOT A CONTROL INPUT. A verifier MUST NOT weight any decision on this object. A bundle asserting its own custody strength is the recurring defect RES-8/RES-9/RES-10 names: a verifier must never accept a derived security value from the party it is verifying. A compromised signer writes this object freely.\n\nIt is recorded for humans — auditors, operators, and the reviewer named above — and for no other purpose. The real binding is that the verifier is configured out of band with the expected public key.",
+      "properties": {
+        "tier": {
+          "description": "T0 development only; T1 encrypted key on an air-gapped host; T2 non-exportable cloud KMS; T3 PKCS#11 HSM. Split custody reports the WEAKER of its two legs, because a claim should never round in the flattering direction.",
+          "type": "string",
+          "enum": ["T0", "T1", "T2", "T3"]
+        },
+        "classical": {
+          "$ref": "#/$defs/custody_leg"
+        },
+        "pq": {
+          "$ref": "#/$defs/custody_leg"
+        }
+      }
+    },
+    "custody_leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "mechanism"],
+      "description": "Custody of one primitive. The two legs may differ, and differing is not a weakness: verification is conjunctive (CR-3), so forging requires BOTH signatures and therefore BOTH keys. An attacker must defeat both mechanisms.",
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["T0", "T1", "T2", "T3"]
+        },
+        "mechanism": {
+          "description": "Free text naming the concrete mechanism, e.g. \"YubiHSM2 slot 3\" or \"age-encrypted file, offline laptop\". Human-readable only.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

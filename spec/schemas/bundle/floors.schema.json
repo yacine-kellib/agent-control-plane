@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/floors.schema.json",
+  "title": "Resource tier floors (ACP-SPEC-001 §8.3.2, RK-1)",
+  "description": "Maps each governable resource to its floor tier.\n\nRK-1: a resource ABSENT from this file MUST be treated as T3. That rule cannot be expressed in JSON Schema — a schema constrains what is present, never what is missing — so it is enforced in code by `RiskTier::for_unclassified()` (crates/acp-core) and by the absent⇒T3 branch in the Python reference. A conformance case asserts it in both, because a fail-safe default that only exists in a comment is not a control.\n\nRES-1 (A-7): the architecture guarantees no runtime component evaluates a resource BELOW its signed floor. It cannot know whether the floor was set correctly. A production database labelled T0 defeats the design with zero attack. Floor maintenance is the highest-leverage governance task in the system and is structurally unprovable — this file is where that risk concentrates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "floors"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "floors": {
+      "type": "object",
+      "description": "resource identifier -> floor tier. Deliberately an open map: resources are deployment-specific. The VALUES are closed.",
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/tier"
+      }
+    }
+  },
+  "$defs": {
+    "tier": {
+      "description": "T0 public/sandbox · T1 internal · T2 production · T3 privileged. Ordered: T0 < T1 < T2 < T3, and §8.4 composes tiers with max, so the ordering is load-bearing rather than cosmetic.",
+      "type": "string",
+      "enum": ["T0", "T1", "T2", "T3"]
+    }
+  }
+}

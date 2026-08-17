@@ -1,0 +1,17 @@
+[package]
+name = "acp-bundle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+sha2 = "0.10"
+
+# Deliberately NOT depended on yet:
+#   ciborium / serde — the encoder here is hand-rolled and 30 lines, because
+#     what gets hashed must be readable in the file that says what it means.
+#     A derive's output depends on field order and map-key handling that are
+#     invisible at the call site.
+#   acp-core        — the tree is paths and digests; it needs no risk types.
+#     Added when `verify` lands and BundleEpoch is actually consulted.

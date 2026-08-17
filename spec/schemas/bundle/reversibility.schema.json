@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/reversibility.schema.json",
+  "title": "Per-action-class reversibility (ACP-SPEC-001 §9.6, RV-1)",
+  "description": "Maps each action class to whether it can be undone.\n\nRV-1: an action ABSENT from this file MUST be treated as IRREVERSIBLE. As with floors, JSON Schema cannot express absence, so the default is carried by the type itself — `impl Default for Reversibility` returns `Irreversible` in crates/acp-core, so a struct-update or a deserialisation gap cannot silently produce the permissive value.\n\nWhy this matters more than it looks: reversibility selects the acknowledgement regime. IRREVERSIBLE at floor-HIGH demands positive acknowledgement from a non-operator (DR-9) — silence is not consent. Getting this entry wrong in the permissive direction converts a held action into a released one.\n\nRV-3 is the reason the value is recomputed here and never read from a receipt: a compromised issuer claiming REVERSIBLE otherwise obtains Silent mode. Proven in reference/proofs/binding.dfy as `RV3_TrustedModeAcceptsDowngrade`.\n\nA-7 applies here exactly as it does to floors: that a classification is HONEST is conceded unprovable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "reversibility"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "reversibility": {
+      "type": "object",
+      "description": "action class -> reversibility. Open map (actions are deployment-specific), closed values.",
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["REVERSIBLE", "IRREVERSIBLE"]
+      }
+    }
+  }
+}
