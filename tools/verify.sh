@@ -96,6 +96,12 @@ run ack_suite.py            "6/6"        "Suite 9  ack mutation" --mutate
 run audit_suite.py          "11/11"      "Suite 7  audit/anchor/accumulator"
 run audit_suite.py          "4/4"        "Suite 7  audit mutation" --mutate
 run llm_agent_suite.py      "44/44"      "Suite 10 live-agent client"
+# NOT numbered as a suite, deliberately. Its corpus is fixtures until the
+# published ART file is wired, so calling it "Suite 11" would let a reader
+# count it as external evidence it does not yet carry. What it asserts today is
+# that the harness itself is non-vacuous; what it MEASURES is printed as
+# findings and is not allowed to fail this gate. See its module docstring.
+run art_harness.py    "harness non-vacuous"  "Harness  external corpus (FIXTURES — ART not wired)"
 o=$(python3 diff_prose.py 2>&1 | grep -c "disagreements")
 [ "$o" -ge 1 ]; chk $? "Suite 6  prose differential — Z1 divergence reproduced"
 cd ..

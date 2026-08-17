@@ -13,7 +13,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ## Commands
 
 ```bash
-./tools/verify.sh --suites         # proofs + all 14 suites — THE PER-COMMIT GATE, no key needed
+./tools/verify.sh --suites         # proofs + 14 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
 ./tools/selftest.sh                # tests the tooling itself (34 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
@@ -51,7 +51,7 @@ Dependencies: `cryptography` and `dilithium-py`. Since v1.3.14 **`sim/` needs th
 
 `./tools/verify.sh` sections 1–2 are integrity and Ed25519 signature. **Only the key holder can make them green**, because regenerating the manifest requires the offline release key. Between releases they are expected to be red.
 
-- **`--suites`** — proofs + 14 suite lines. No key. Green at every commit. A clean run prints **16** result lines (1 prerequisites + 1 proofs + 14 suites).
+- **`--suites`** — proofs + 14 suite lines + the external-corpus harness. No key. Green at every commit. A clean run prints **17** result lines (1 prerequisites + 1 proofs + 14 suites + 1 harness).
 - **full** — the above plus integrity and signature. Green at a tagged release.
 
 **Never "fix" a red integrity line by regenerating `MANIFEST.sha256`.** A regenerated manifest whose signature no longer verifies is strictly worse than a stale one, and nobody but the key holder can repair it.
@@ -124,7 +124,7 @@ The prose is deliberately self-critical and states limits before strengths — `
 
 ## Testing the tooling
 
-Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, that `--suites` prints 16 result lines with no failures, that a mutation suite whose mutants cannot import reports ERROR rather than KILL, and that every file count published in prose equals the number the signer actually covers. Three real defects have been found by writing those assertions.
+Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, that `--suites` prints 17 result lines with no failures, that a mutation suite whose mutants cannot import reports ERROR rather than KILL, and that every file count published in prose equals the number the signer actually covers. Three real defects have been found by writing those assertions.
 
 ## Current state
 

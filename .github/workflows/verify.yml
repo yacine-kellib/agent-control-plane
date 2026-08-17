@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   gate:
-    name: proofs + 14 suites + tooling self-test
+    name: proofs + 14 suites + harness + tooling self-test
     runs-on: ubuntu-latest
     # Raised from 20 in v1.3.14. The gate signs with real ML-DSA-65 in pure
     # Python (~210 ms per signature), so `--suites` went from seconds to ~2

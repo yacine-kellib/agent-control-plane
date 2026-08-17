@@ -16,7 +16,7 @@ allowed to differ, and are.
 Reproduce everything in one command:
 
 ```bash
-./tools/verify.sh            # integrity + signature + proofs + all 14 suites
+./tools/verify.sh            # integrity + signature + proofs + 14 suites + harness
 ./tools/verify.sh --suites   # proofs + suites only, no release key needed
 ```
 
@@ -146,7 +146,7 @@ verbatim, re-adding a deviation paragraph to the report kills 2, and removing
 code-fence stripping, dropping an undecodable `params`, or failing to wrap a
 non-list `actions` value kill 1 each. A sixth corrupts an expectation in the
 fixture corpus itself, so the data comparison is demonstrably not vacuous. The gate now
-prints **16** result lines. Coverage was **118** files at that point and is
+prints **17** result lines (a harness line was added since). Coverage was **118** files at that point and is
 **128** now, the bundle schemas and `acp-bundle` having landed since.
 
 **A scenario edit is withdrawn.** The poisoned supplier report had been given an

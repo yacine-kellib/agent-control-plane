@@ -12,11 +12,11 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ## The two gates
 
 ```bash
-./tools/verify.sh --suites   # proofs + all 14 suites. No release key needed.
+./tools/verify.sh --suites   # proofs + 14 suites + harness. No release key needed.
 ./tools/verify.sh            # the above, plus integrity and signature.
 ```
 
-`--suites` is the gate every commit is measured against. A clean run prints **16** result lines — 1 prerequisites, 1 proofs, 14 suites — and no failures. It is not a reduced gate: it runs every suite the full command runs.
+`--suites` is the gate every commit is measured against. A clean run prints **17** result lines — 1 prerequisites, 1 proofs, 14 suites, 1 external-corpus harness — and no failures. It is not a reduced gate: it runs every suite the full command runs.
 
 The full command additionally proves the bytes on your disk are the signed release bytes.
 

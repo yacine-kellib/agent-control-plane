@@ -81,7 +81,7 @@ Two gates, and the difference matters:
 
 | Command | Checks | Needs the release key? |
 |---|---|---|
-| `./tools/verify.sh --suites` | proofs + 14 suites | No — green at every commit |
+| `./tools/verify.sh --suites` | proofs + 14 suites + harness | No — green at every commit |
 | `./tools/verify.sh` | the above + integrity + signature | Yes — green only at a tagged release |
 
 Sections 1–2 can only be made green by the key holder, because regenerating the manifest requires the offline Ed25519 key. **Red integrity between releases is offline signing working as designed, not a defect** — see [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md).
