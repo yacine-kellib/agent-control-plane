@@ -413,7 +413,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 132 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 136 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56

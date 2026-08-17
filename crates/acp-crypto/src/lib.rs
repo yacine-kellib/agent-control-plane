@@ -11,11 +11,21 @@
 //!   real signature.
 //! - [`suite`] — the suite table, its CR-4 ordering, and the fact that
 //!   `pq-slh` is declared and not implemented.
+//! - [`primitives`] — Ed25519 (RFC 8032) and ML-DSA-65 (FIPS 204), which is
+//!   what produces the verdicts the composition consumes. Added in rule-store
+//!   step 2; until then this crate composed verdicts that nothing could
+//!   compute. An `Unsupported` primitive is refused, never skipped.
 //!
-//! Still absent: the primitives themselves. Nothing here can check an actual
-//! Ed25519 or ML-DSA signature, and the composition above is what decides what
-//! happens once something can — an `Unsupported` primitive is refused, never
-//! skipped.
+//! **The primitives interoperate with the Python reference, and that is
+//! asserted rather than assumed.** `crates/acp-crypto/tests/python_interop.rs`
+//! verifies signatures produced by `dilithium-py` and `cryptography` against
+//! a committed fixture. Two crates naming the same standard does not make their
+//! bytes interchangeable; carrying bytes across is the only thing that shows it.
+//!
+//! Still absent: signing. This crate can verify and cannot produce, so the
+//! opposite direction — Python verifying a Rust signature — is an obligation
+//! nobody has discharged. That is rule-store step 3, the `Signer` trait and its
+//! custody tiers.
 //!
 //! NEVER REINTRODUCE A SYMMETRIC PRIMITIVE, not even behind a test feature.
 //! Through v1.3.13 the reference used HMAC-SHA256 on the argument that
@@ -25,8 +35,10 @@
 //! INV-1-HIGH did not hold against the adversary it names, and no protocol
 //! test could have found it.
 
+pub mod primitives;
 pub mod suite;
 
+pub use primitives::{verify_ed25519, verify_mldsa65};
 pub use suite::{Primitive, Suite};
 
 /// Outcome of verifying one primitive within a declared suite.

@@ -6,3 +6,13 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+# Real primitives, added for rule-store step 2 (ACP-36). Until these landed
+# nothing in Rust could check a signature; verify_hybrid composed verdicts
+# that nothing could produce.
+ed25519-dalek = "3.0"
+fips204 = "0.4"
+
+[dev-dependencies]
+# Cross-language fixture only: the vector is emitted by the Python reference.
+serde_json = "1"
+hex = "0.4"
