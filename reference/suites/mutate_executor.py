@@ -57,12 +57,37 @@ MUTANTS = [
       "        risk = receipt.get('risk_level_floor_only') or self.recompute_floor_risk(proposal)"),
      "a_X1_risk_downgrade"),
 
-    # Restores the v1.3.14 line verbatim. If this ever SURVIVEs, the threshold
-    # has stopped being load-bearing somewhere else and a quorum of one is back.
-    ("quorum threshold RECOMPUTATION [AT-3]",
-     ("        need_roles = b.quorum_k",
-      '        need_roles = entries[0]["obj"]["required_count"]'),
-     "a_AT3_quorum_threshold_from_attestation"),
+    # NOTE. There is deliberately NO mutant restoring the v1.3.14 line
+    # `need_roles = entries[0]["obj"]["required_count"]`. It was written, and
+    # it SURVIVED: AT-9 requires every entry's required_count to equal
+    # b.quorum_k, so under that mutant entries[0] carries the bundle's own
+    # number and the substitution changes nothing. The masking is real, not a
+    # test defect — the fourth instance of it in this repository (see
+    # dossier/05-TEST-EVIDENCE.md, and the audit suite's AC-5 mutant).
+    #
+    # Rather than keep a SURVIVE line or invent a contrived attack, the honest
+    # reading is that `need_roles = b.quorum_k` is not a CHECK at all: it is
+    # the choice of which variable a number is read from, and it raises
+    # nothing. Mutation testing scores branches that can refuse. The two
+    # branches here are AT-9's equality and AT-3's comparison, and both are
+    # below. The recomputation stays because it makes the property local
+    # instead of dependent on a check elsewhere in the loop, and it is
+    # labelled defence in depth rather than dressed up as a control.
+    ("quorum COMPARISON [AT-3]",
+     ("""        if len(set(approvals)) < need_roles:
+            raise CriticalAlert("AT-3", f"quorum {len(set(approvals))} < {need_roles}")""",
+      "        pass"),
+     "a_AT3_partial_quorum"),
+
+    # Proves AT-9's two halves are not redundant: the threshold recomputation
+    # (above) survives this deletion untouched and still cannot see it.
+    ("stated-vs-applied quorum [AT-9]",
+     ('''            if obj["required_count"] != b.quorum_k:
+                raise CriticalAlert("AT-9",
+                                    f"attester signed for quorum {obj['required_count']}, "
+                                    f"bundle requires {b.quorum_k}")''',
+      "            pass"),
+     "a_AT9_attesters_signed_for_a_larger_quorum"),
 
     ("attester key distinctness [PB-DISTINCT]",
      ("""        if len(set(fingerprints)) != len(fingerprints):

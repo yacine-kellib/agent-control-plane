@@ -15,19 +15,19 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ---
 
-## Suite 1 — Conformance (48/48)
+## Suite 1 — Conformance (50/50)
 
 `python3 reference/suites/conformance.py`
 
 Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature.
 
-Eight positive paths, which is why the suite total is 48 and not 40: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, and a sampled action is treated as irreversible. **40 attacks must fail closed; 8 honest paths must execute.**
+Eight positive paths, which is why the suite total is 50 and not 42: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, and a sampled action is treated as irreversible. **42 attacks must fail closed; 8 honest paths must execute.**
 
 *(This paragraph said 44 and 36 while the suite printed 45. The drift predates the AT-3 fix below and is corrected here rather than quietly: a number in the prose that no longer matches a number the code prints is a defect in this repository, whichever direction it drifted.)*
 
 **Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist.
 
-## Suite 2 — Implementation mutation (23/23 kill)
+## Suite 2 — Implementation mutation (24/24 kill)
 
 `python3 reference/suites/mutate_executor.py`
 
@@ -40,6 +40,12 @@ For each check: delete it, then require the corresponding attack to succeed **an
 - **DR-2 "survived"**: the realistic trap is not a notifier proxying the approval UI, but one that renders **honestly** from canonical bytes **through the same formatting library**. It looks independent and is not.
 
 **A fourth lesson, added later, about what this method does not see.** Every mutant above works by *deleting* a check, so the suite answers "is this check load-bearing?" and never "does this check mean the right thing?". CR-4 passed every mutant for four releases while ordering incomparable primitive sets on a single scale — the check was present, was load-bearing, and was wrong. The CR-4 containment mutant is the first here that does not delete anything: it replaces the set comparison with a scalar one, which is the shape the defect actually had. **A suite of deletions cannot catch a check that is present and means something else**, and that is a limit of the method, not of this instance of it.
+
+**A fifth, and it caught an error in the AT-9 fix itself while that fix was being written.** The first attempt at closing ACP-28 recomputed the quorum threshold from the bundle and *deleted* the check comparing the attestation's stated `required_count` against it, on the argument that the threshold is already bound transitively through `policy_bundle_hash` and the comparison therefore kills no mutant. The argument was sound; the conclusion was wrong. It considered only attacks that **lower** the threshold. Raising the stated count is not an attack on INV-1-HIGH at all — it is an attack on **consent**: attesters shown "3 approvals required" sign on that basis, and executing after two removes a reviewer they were relying on, with the invariant holding throughout and no signature anywhere invalid. AT-9 now mandates both halves, and they kill different mutants.
+
+Restoring the consent check then **masked** the threshold mutant — the fourth masking in this document — because an attacker must misstate `required_count` to move the threshold, and misstating it is exactly what the consent check refuses. The masking is real rather than a test defect, and it was resolved by admitting what the recomputation is: `need_roles = b.quorum_k` raises nothing, so it is not a check, it is the choice of which variable a number is read from. Mutation testing scores branches that can refuse. `a_AT3_partial_quorum` — one genuine approval, honestly stating a count of two — isolates the comparison that does refuse, and is the only quorum attack in the suite that no earlier check catches.
+
+*Generalisation, and it is the one worth carrying:* **"this check is redundant" is a claim about the attacks you enumerated, not about the check.** Both times the redundancy argument was made here it was locally valid and globally wrong, because the enumeration was missing a class — masking in one direction, consent in the other.
 
 ## Suite 3 — Ledger partition (9/9)
 
@@ -108,7 +114,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (77/77, 4/4)
+## Suite 10 — consolidated registry and composition (79/79, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

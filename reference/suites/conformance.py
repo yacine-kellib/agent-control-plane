@@ -259,7 +259,29 @@ def a_AT2_self_approval():
     ex.execute(receipt(b, p, atts=atts), p)
 
 
-def a_AT3_quorum_threshold_from_attestation():
+def a_AT3_partial_quorum():
+    """
+    ONE GENUINE APPROVAL WHERE THE BUNDLE REQUIRES TWO.
+
+    Nothing is misstated: the object says `required_count: 2`, which is what
+    the bundle says, so the AT-9 consent check passes cleanly. The receipt
+    simply carries one approval instead of two.
+
+    This is the attack that isolates the AT-3 comparison. Every other quorum
+    attack in this file is caught by an earlier check — a misstated count by
+    AT-9, a shared key by PB-DISTINCT, a self-approval by AT-2 — so without
+    this one the comparison itself is never the thing that refuses, and its
+    mutant is masked.
+    """
+    b, ex = fresh()
+    p = proposal()
+    o = att_obj(b, h(p), 1600.0, OP)
+    atts = [entry(o, A1),
+            entry(dict(o, att_nonce="p2"), OP, "confirmation")]
+    ex.execute(receipt(b, p, atts=atts), p)
+
+
+def a_ACP28_single_key_asserts_its_own_quorum():
     """
     ONE COMPROMISED ATTESTER KEY, AND THE QUORUM IS SATISFIED.
 
@@ -273,14 +295,47 @@ def a_AT3_quorum_threshold_from_attestation():
     demand and believed the answer.
 
     That is INV-1-HIGH broken by a single component compromise, which is the
-    one thing the invariant claims cannot happen. The threshold is now
-    recomputed from `Bundle.quorum_k`, so this object is simply one approval
-    against a k of two.
+    one thing the invariant claims cannot happen.
+
+    Kept as a regression test of the original exploit, verbatim. It now fails
+    closed on **AT-9** rather than AT-3, and the reason is worth reading: the
+    attacker had to misstate `required_count` to move the threshold, and
+    misstating it is exactly what the consent check refuses. The refusal
+    arrives one step earlier than the fix that was written for it. Both checks
+    are still needed — see `a_AT3_partial_quorum` for what AT-9 cannot see.
     """
     b, ex = fresh()
     p = proposal()
     o = att_obj(b, h(p), 1600.0, OP)
     ex.execute(receipt(b, p, atts=[entry(dict(o, required_count=1), A1)]), p)
+
+
+def a_AT9_attesters_signed_for_a_larger_quorum():
+    """
+    THE APPROVERS CONSENTED TO SOMETHING THAT DID NOT HAPPEN.
+
+    Not an attack on INV-1-HIGH — the invariant holds throughout. Both objects
+    say `required_count: 3`, so both attesters were shown, and signed for, an
+    action three people would review. Only two approvals are presented, and the
+    bundle's `quorum_k` is 2, so the recomputed threshold is met and the action
+    would execute.
+
+    It executes on a basis nobody agreed to. The third reviewer the approvers
+    were relying on never existed, and neither approver can tell from their own
+    signature that the policy applied was not the policy displayed.
+
+    AT-9 splits this from the threshold rule deliberately: the threshold check
+    catches a quorum being LOWERED and is an INV-1-HIGH control; this catches
+    the stated basis diverging from the applied one and is an AT-3 control.
+    Delete either and the other does not cover it.
+    """
+    b, ex = fresh()
+    p = proposal()
+    o = att_obj(b, h(p), 1600.0, OP)
+    o = dict(o, required_count=3)          # what the humans were shown
+    atts = [entry(o, A1), entry(dict(o, att_nonce="q2"), A2),
+            entry(dict(o, att_nonce="q3"), OP, "confirmation")]
+    ex.execute(receipt(b, p, atts=atts), p)
 
 
 def a_PBDISTINCT_one_key_two_identities():
@@ -728,7 +783,9 @@ ATTACKS = [
     ("T13 receipt nonce replay",        a_nonce_replay,         "CL-2"),
     ("T14 attestation replay",          a_T14_attestation_replay, "CL-3"),
     ("AT-2 operator self-approval",     a_AT2_self_approval,    "AT-2"),
-    ("AT-3 quorum k from attestation",  a_AT3_quorum_threshold_from_attestation, "AT-3"),
+    ("AT-3 partial quorum (1 of 2)",    a_AT3_partial_quorum,         "AT-3"),
+    ("ACP-28 one key sets its own k",   a_ACP28_single_key_asserts_its_own_quorum, "AT-9"),
+    ("AT-9 signed for a larger quorum", a_AT9_attesters_signed_for_a_larger_quorum, "AT-9"),
     ("PB-DISTINCT one key, two names",  a_PBDISTINCT_one_key_two_identities, "PB-DISTINCT"),
     ("T10 capability revoked in window", a_capability_revoked,  "9.3-9"),
     ("B-1a proposal tampered post-sign", a_tampered_proposal,   "9.3-3"),

@@ -753,6 +753,33 @@ class Executor:
                 raise CriticalAlert("9.3-7b-iii", "attestation policy basis mismatch")
             if obj["floor_only_risk"] != risk:
                 raise CriticalAlert("9.3-7b-iii", "attestation risk != recomputed risk")
+            # (iii) AT-9 CONSENT, not threshold.       (AT-9-consent mutation target)
+            #
+            # This is NOT how the quorum size is obtained -- see the AT-9 note
+            # further down, where it is recomputed from b.quorum_k and this
+            # field is never consulted. Deleting this line cannot lower a
+            # quorum.
+            #
+            # What it catches is different and is an AT-3 failure, not an
+            # INV-1-HIGH one: `required_count` is part of what the attester was
+            # SHOWN and signed, so a mismatch means the humans approved under a
+            # policy the engine did not apply. An attester shown "3 approvals
+            # required" consented to an action three people would review.
+            # Executing it after two is a real loss of the basis their
+            # signature rested on, even though the count enforced was the
+            # bundle's and the invariant held throughout.
+            #
+            # A FIRST PASS AT THIS FIX DELETED THIS CHECK, on the argument that
+            # the threshold is already bound transitively through
+            # policy_bundle_hash and so an equality test kills no mutant. The
+            # argument was sound and the conclusion was wrong, because it only
+            # considered attacks that LOWER the threshold. Raising the stated
+            # count is not an attack on the invariant at all -- it is an attack
+            # on consent, and it has its own mutant.
+            if obj["required_count"] != b.quorum_k:
+                raise CriticalAlert("AT-9",
+                                    f"attester signed for quorum {obj['required_count']}, "
+                                    f"bundle requires {b.quorum_k}")
             # (iii) freshness of the object itself
             if obj["expires_at"] < receipt["issued_at"]:
                 raise FailClosed("9.3-7b-iii", "attestation expired before issuance")
@@ -792,11 +819,13 @@ class Executor:
         # no longer an input to a control decision, so by the §14 suite 12
         # method it has no class at all rather than a class of T.
         #
-        # An equality check between the two was considered and NOT added. It
-        # would kill no mutant: `quorum_k` is inside `Bundle.hash()`, and every
-        # entry's `policy_bundle_hash` is already checked against it above, so
-        # each attester's signature covers the enforced threshold transitively.
-        # A check that kills no mutant is not a control.
+        # The per-entry equality check lives in the loop above and is AT-9's
+        # SECOND requirement. It is not this one and cannot substitute for it:
+        # the two fail closed on disjoint inputs. Deleting the equality check
+        # cannot lower a quorum; deleting this line cannot detect an attester
+        # who signed under a different stated threshold. Keeping only this one
+        # satisfies INV-1-HIGH while silently executing actions no attester
+        # agreed to.
         need_roles = b.quorum_k
         if len(set(approvals)) < need_roles:
             raise CriticalAlert("AT-3", f"quorum {len(set(approvals))} < {need_roles}")

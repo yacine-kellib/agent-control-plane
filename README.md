@@ -5,7 +5,7 @@
 **A structured-input control plane that decides whether an AI agent's action is authorised — outside the model, where prompt injection cannot reach.**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Spec](https://img.shields.io/badge/spec-ACP--SPEC--001%20v1.3.13-informational)](spec/ACP-SPEC-001.md)
+[![Spec](https://img.shields.io/badge/spec-ACP--SPEC--001%20v1.3.15-informational)](spec/ACP-SPEC-001.md)
 [![Status](https://img.shields.io/badge/status-evaluate%2C%20not%20deploy-orange)](#wanted-an-adversarial-reviewer)
 
 Most agent deployments give the model a credential and call that authorisation. It isn't. It means anyone who can influence the model can act with the agent's rights: a poisoned document, a hostile support ticket, a comment in a dependency README. No break-in required.
@@ -65,9 +65,9 @@ Abridged output. A complete run prints 18 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 77/77
-  OK   Suite 1  conformance — RESULT: 48/48 — CONFORMANT
-  OK   Suite 2  executor mutation — RESULT: 23/23 killed
+  OK   ALL attacks (consolidated registry) — RESULT: 79/79
+  OK   Suite 1  conformance — RESULT: 50/50 — CONFORMANT
+  OK   Suite 2  executor mutation — RESULT: 24/24 killed
   ...
 ```
 
@@ -75,7 +75,7 @@ Fourteen suite lines in all, spanning 10 numbered suites, and 30 mutation contro
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
-**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 33 of them: 23 executor, 6 acknowledgement, 4 audit.
+**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 34 of them: 24 executor, 6 acknowledgement, 4 audit.
 
 Two gates, and the difference matters:
 
@@ -360,7 +360,7 @@ The dossier is the argument; the spec is the normative source. Read `06` before 
 | [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md) | Running and presenting the demo | — |
 | [`dossier/annexes/D-research-pipeline.md`](dossier/annexes/D-research-pipeline.md) | Annex D — worked example in an agentic research pipeline | — |
 | [`spec/ACP-SPEC-001.md`](spec/ACP-SPEC-001.md) | The full normative specification | 3 h |
-| [`RELEASE.md`](RELEASE.md) | What changed in package release v1.3.14 — spec unchanged at v1.3.13 | — |
+| [`RELEASE.md`](RELEASE.md) | What changed in package release v1.3.14, and the unreleased v1.3.15 spec revision | — |
 
 ---
 

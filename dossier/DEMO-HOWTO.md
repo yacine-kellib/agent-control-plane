@@ -108,7 +108,7 @@ Volunteering this is what separates you from a vendor pitch. It also pre-empts t
 cd acp && ./tools/verify.sh
 ```
 
-Integrity check, signature check, then fourteen suite lines across ten numbered suites: 77 registry attacks, 48 conformance vectors, 23 executor mutants, 9 partition tests, 6 integration tests, 8 encoding tests, 14 acknowledgement tests, 6 acknowledgement mutants, 11 audit tests, 4 audit mutants, 44 live-agent client checks, and the reproduced grammar-ambiguity witness.
+Integrity check, signature check, then fourteen suite lines across ten numbered suites: 79 registry attacks, 50 conformance vectors, 24 executor mutants, 9 partition tests, 6 integration tests, 8 encoding tests, 14 acknowledgement tests, 6 acknowledgement mutants, 11 audit tests, 4 audit mutants, 44 live-agent client checks, and the reproduced grammar-ambiguity witness.
 
 > "The mutation numbers are the ones that matter. Anyone can write a passing test suite. These delete each security check one at a time and require the corresponding attack to then succeed — so every check is proven load-bearing and no test is vacuous."
 

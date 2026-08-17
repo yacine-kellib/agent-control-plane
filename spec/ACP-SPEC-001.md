@@ -1,17 +1,30 @@
 # Door A: Structured-Input Security Pipeline
+
 ## Technical Architecture Specification
 
 **Document ID:** ACP-SPEC-001
-**Version:** 1.3.13
-**Status:** Draft — all closable items closed. Remaining open: A-7 (conceded unprovable) and independent confirmation (§14 suite 11, structurally unavailable to the authoring parties); hybrid post-quantum signature suites (CR-1..CR-7) per ANSSI hybridation doctrine; deferred release (DR-1..DR-12) with reversibility-keyed confirmation (RV-1..RV-4), mitigating the A-8 presentation residual; all prior findings dispositioned; DS-6f/AT-8b/DR-* unconfirmed
+**Version:** 1.3.15
+**Status:** Draft — all closable items closed. Remaining open: A-7 (conceded unprovable) and independent confirmation (§14 suite 11, structurally unavailable to the authoring parties); hybrid post-quantum signature suites (CR-1..CR-7) per ANSSI hybridation doctrine; deferred release (DR-1..DR-12) with reversibility-keyed confirmation (RV-1..RV-4), mitigating the A-8 presentation residual; all prior findings dispositioned; DS-6f/AT-8b/DR-*/PB-6/PB-7 unconfirmed
 **Date:** August 2026
-**Supersedes:** v1.3.12, v1.3.11, v1.3.10, v1.3.4, v1.3.3, v1.3.2, v1.3.1, v1.3.0, v1.2.0 (2026-08)
+**Supersedes:** v1.3.13, v1.3.12, v1.3.11, v1.3.10, v1.3.4, v1.3.3, v1.3.2, v1.3.1, v1.3.0, v1.2.0 (2026-08)
+
+> **Why 1.3.15 and not 1.3.14.** There is no specification v1.3.14 and there never will be. The *package* release v1.3.14 shipped with this document unchanged at v1.3.13 and says so in `RELEASE.md`; minting a specification v1.3.14 now would put two different artifacts behind one version string, which is precisely the X5 collision this document added a release-integrity rule to prevent. The number is skipped deliberately, and this note exists so that a reader who notices the gap does not go looking for a missing revision.
 **Intended Audience:** Security architects, platform engineers, policy engine implementers, formal-methods practitioners
 
 ---
 
 ## 1. Status of This Document
 
+> **⚠ NORMATIVE ALERT (v1.3.15). Three defects in released code, and two of them were reachable *because this document did not say enough*.** The reference implementation shipped in package v1.3.14 contained a working single-key defeat of INV-1-HIGH by two routes, plus a suite-floor comparison that accepted an algorithm the floor did not name. The implementation fixes are recorded in `RELEASE.md`; what follows is the normative half, without which a second implementation reproduces them and is conformant while doing so.
+>
+> **(a) The quorum threshold had no named source.** §9.3 step 7b(iii) required the object's "required roles/counts" to equal "the bundle rule's", but no clause named a bundle field to hold the count, and step 7b(vi) said only "quorum satisfied" without saying *satisfied against what*. The reference therefore took the threshold from `entries[0]` — the artifact under verification — and one compromised attester key, signing one object asserting that one approval sufficed, executed a floor-HIGH action. **PB-6** now puts `quorum_k` in the signed bundle, **AT-9** makes the threshold recomputed-only, and step 7b is rewritten to say which side is authoritative. Sixth recurrence of the RES-8 class (C2 → X1 → Y1 → Z3 → W1 → this) and the first *not* found in machinery a previous fix introduced: it was in the receipt-consumption path from v1.3.4 onward.
+>
+> **(b) Quorum counted names, not key holders.** AT-2 requires attesters "mutually distinct" and no clause said what distinguishes them. Two registry identities sharing one public key let one key holder sign twice under two names and satisfy k=2 alone. **PB-7** requires attester verification keys to be pairwise distinct over the full suite, and makes a registry violating it an invalid bundle rather than a runtime failure.
+>
+> **(c) CR-4 ordered suites that are not ordered.** "Ranks below" presumed a total order over suites, but a suite is a *set of primitives* (CR-1) and those sets are incomparable: `hybrid-ed25519-mldsa65` does not contain SLH-DSA, yet outranked `slhdsa128s` under every natural reading. A deployment whose signed floor named hash-based post-quantum accepted a lattice signature with the floor check reporting satisfaction — not a stronger suite accepted, a *different hardness assumption substituted*. **CR-4 is restated as containment.**
+>
+> **PB-6, PB-7 and AT-9 are NEW and UNCONFIRMED** and require independent confirmation per §14 suite 11 before they are relied upon. **A note on how (c) survived:** the ranking was implemented identically in two independent implementations and a differential test asserted their agreement. It agreed. Agreement between implementations is evidence about consistency and never about correctness — particularly when the second was written by reading the first.
+>
 > **⚠ NORMATIVE ALERT (v1.3.5).** An adversarial pass over v1.3.4's own newest machinery found **two defects in the fixes themselves**: **Z3** (DS-6b's origin check was a membership test, not a pinning test — a compromised KMS moves the idempotency key and a floor-HIGH action doubles) and **Z4** (AT-8a pinned the canonicalizer but not the schema — an optional field yields two ids for one attestation, reopening T-14). Both are closed here by **DS-6f** and **AT-8b** and mechanized in Annex D Part III. Z3 is the **fourth** recurrence of the RES-8 class (C2 → X1 → Y1 → Z3), again in machinery the previous fix introduced. **DS-6f and AT-8b are NEW and UNCONFIRMED** and require independent confirmation per §14 suite 11 before they are relied upon; Part I (Y1/Y1b/Y4) remains confirmed and normative. Two conformance artifacts now ship alongside this document: **ACP-CLASS-001** (the suite-12 classification table) and **`el1_migrate.py`** (the Z1 bundle migration checker), closing two obligations v1.3.4 created without satisfying.
 >
 > **⚠ HISTORICAL ALERT (v1.3.4).** The v1.3.3 alert is retained below for history. **Status change:** an independent adversarial review (ACP-REVIEW-002) by a party with no authorship or revision history **confirmed Y1 and Y2–Y4**, independently reproduced the Annex D artifact at its published hash, and re-ran the mutation control. AT-8 / TR-10 / step 7b are therefore promoted from PROPOSED to **NORMATIVE** in this revision. That review also produced **three new results**: (a) the published `Y1_AttackBlocked` premise was too strong and has been replaced by `Y1_AttackBlocked_Generalized`; (b) **Y3 now has normative text (DS-6)** and is mechanized; (c) a **new finding Z1** — the §8.3.1 expression grammar states no precedence for `&&`/`||`, so two faithful readings of the prose disagree on 4.9% of mixed-connective expressions (10,000-case prose-derived differential run, `diff_prose.py`). Z1 is fixed by EL-1 below. Deployments **MUST** re-run conformance suite 8 with the parser vectors.
@@ -41,6 +54,12 @@ Three things changed structurally, and everything else follows from them:
 **Y5's four minors are closed:** genesis specified (AU-8), canonicalization unified on validated CBOR, reconciliation trust domain stated, nonce-claim liveness tested.
 
 **What remains open, and why it cannot be closed here.** Two items, both structural. **A-7** (honesty of tier and reversibility labels) is conceded unprovable: no mechanism decides whether a label matches the world, and RV-2/RK-5 place label changes under two-person offline control precisely because that is the only available answer. **§14 suite 11 independent confirmation** is unavailable to any party in this document's revision history; every fix from DS-6 onward — DS-6f, AT-8b, DR-*, RV-*, CR-*, CL-7, AC-5, AU-7/8 — is mechanized and tested but unconfirmed, and this document's own pattern (C2 → X1 → Y1 → Z3 → W1) predicts the next defect lives in whichever of them is newest.
+
+**What v1.3.15 changes.** Three clauses that were exploitable *as written*, and a correction to how this document reads its own evidence.
+
+**PB-6, PB-7 and AT-9 are new; CR-4 and §9.3 step 7b are revised.** The quorum threshold now has a named home in the signed bundle and a normative rule that it is recomputed and never read from an attestation; attester identity is now resolved over keys rather than names; and the suite floor is satisfied by containment rather than by rank. Each closes a defect that was live in released code, and in every case the implementation defect was **downstream of a gap here**: a threshold comparison whose right-hand side named no field, a distinctness requirement that never said what distinguishes, and an ordering over a set that has none. See the v1.3.15 alert in §1.
+
+**The lesson is about a claim this document makes, not only about three clauses.** §14 rests substantially on differential testing — two implementations, one corpus, disagreement as the signal. CR-4's rank table was implemented identically in both, and the differential test asserted their agreement and got it. **Agreement between implementations is evidence about consistency and never about correctness**, and it is weakest exactly where it feels strongest: when the second implementation was written by reading the first, a shared misreading is invisible by construction. §14 suite 6 (prose-derived differential) exists for this reason and is the only suite that could have caught it, because it derives its second reading from the *text* rather than from the code — and CR-4's text said "ranks", so it would have reproduced the defect faithfully. **A prose differential inherits the specification's errors. It cannot find them.** That limit is now stated in §15 rather than left for a reader to infer.
 
 **What v1.3.9 changes.** Three claims this document had asserted but never measured are now measured, and one of them is **false as written**.
 
@@ -83,7 +102,7 @@ The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **
 The Dafny artifact in Annex B **has been executed**. Verification record:
 
 | Item | Value |
-|------|-------|
+| ------ | ------- |
 | Toolchain | Dafny `4.9.1+452c307284e1511e5c2d10b9615f4c9c15f010e2`, bundled Z3 **4.12.1** (default solver) |
 | Command | `dafny verify --function-syntax:4 ACP_RiskFunction_Proof.dfy` |
 | Result | `Dafny program verifier finished with 62 verified, 0 errors`, exit code 0 |
@@ -124,7 +143,7 @@ The pipeline achieves grammar-level immunity to instruction injection *for adapt
 ### 2.1 Applicability and Use-Case Coverage
 
 | # | Use case (example) | Ingress shape | Fidelity class (§6.1) | Provider class (§8.8) | Decisive control | Fit |
-|---|-------------------|--------------|----------------------|----------------------|-----------------|-----|
+| --- | ------------------- | -------------- | ---------------------- | ---------------------- | ----------------- | ----- |
 | 1 | Computational science / drug-design task submission | Sequences, identifiers, assay parameters | F-HIGH | Static signed entitlements | Grammar + output validation | **Ideal** |
 | 2 | Clinical / regulated data submission | Coded records, dosing schedules | F-HIGH | Static signed entitlements | Grammar + floor classification | **Ideal** |
 | 3 | Threat-intelligence ingestion | Hashes, indicators, vulnerability IDs | F-HIGH | Workload attestation | Grammar + accumulators | **Ideal** |
@@ -137,6 +156,7 @@ The pipeline achieves grammar-level immunity to instruction injection *for adapt
 | 10 | Free-form natural-language automation | Arbitrary text | **F-LOW** | Any | Confirmation (§8.6) + capability containment | **Conditional** |
 
 **Reading rules.**
+
 - Rows 1–4: ingress is naturally grammar-shaped and rights are stable. This is the architecture's home ground. Note that these rows also rarely need a model at all (B-5) — the strongest guarantee and the least inference coincide.
 - Rows 5–6: the grammar holds, but harm lives in *values and sequences*. The deployment's real work is writing honest risk functions and accumulators. Additionally, these targets are typically non-idempotent; §9.5 applies.
 - Rows 7–8: **corrected from v1.2.0**, which assigned these to Door A in one table and Door B in another. They are structured operations (F-HIGH) whenever the operator submits a typed tuple; they become F-LOW only if an NL adapter fronts them. The *provider class* (static vs live sync) is orthogonal to the fidelity class and must not be conflated with it.
@@ -192,7 +212,7 @@ The resolution: intent fidelity is a *dial*, not a *door*. Confirmation is a ris
 ## 3. Terminology
 
 | Term | Definition |
-|------|------------|
+| ------ | ------------ |
 | **Atom** | A single validated input object conforming to exactly one registered Input Schema. |
 | **Proposal** | A candidate operation submitted to the Policy Engine. Carries a fidelity class (§6.1). |
 | **Ingress Adapter** | A component converting external input into a Proposal, stamping a fidelity class. |
@@ -216,7 +236,7 @@ The resolution: intent fidelity is a *dial*, not a *door*. Confirmation is a ris
 ### 4.1 In Scope
 
 | ID | Threat | Countermeasure (§) |
-|----|--------|---------------------|
+| ---- | -------- | --------------------- |
 | T-01 | Instruction injection via input | Closed grammar for F-HIGH (§6); capability containment + confirmation for F-LOW (§8.6) |
 | T-02 | Adversarial model output | Output validation (§7) |
 | T-03 | Parameter abuse within valid syntax | Parameter-sensitive risk (§8.3) |
@@ -246,7 +266,7 @@ The resolution: intent fidelity is a *dial*, not a *door*. Confirmation is a ris
 | T-24 | **Display lie (A-8, mitigated in v1.3.6)** | A compromised Attestation Presentation Service shows a benign action while the canonical bytes describe a floor-HIGH one; approvers sign authentically and in good faith. No cryptographic control reaches this — the lie precedes the signature. Deferred release (§9.6): an independently rendered summary reaches the same humans out-of-band before execution, and any of them may veto. |
 | T-22 | **Origin substitution (NEW in v1.3.5)** | A compromised KMS names a different consumed nonce as a re-drive's origin, moving the idempotency key so the target cannot dedup a floor-HIGH action that already committed. Ledger-pinned origin binding (DS-6f). |
 | T-23 | **Attestation encoding split (NEW in v1.3.5)** | An optional Attestation Object field yields two canonical encodings, two ids, and two ledger slots for one attestation, reopening T-14. Closed object schema (AT-8b). |
-| T-21 | **Expression parse divergence (NEW in v1.3.4)** | An ambiguous `&&`/`||` grammar lets the Policy Engine and Executor parse one bundle rule into different trees, or lets a bundle author's intent diverge silently from evaluated meaning. EL-1 precedence rule; suite 8 parser vectors. |
+| T-21 | **Expression parse divergence (NEW in v1.3.4)** | An ambiguous `&&`/` | | ` grammar lets the Policy Engine and Executor parse one bundle rule into different trees, or lets a bundle author's intent diverge silently from evaluated meaning. EL-1 precedence rule; suite 8 parser vectors. |
 
 ### 4.2 Explicitly Out of Scope
 
@@ -259,7 +279,7 @@ The resolution: intent fidelity is a *dial*, not a *door*. Confirmation is a ris
 ### 4.3 Trust Classification
 
 | Component | Trust Class |
-|-----------|-------------|
+| ----------- | ------------- |
 | Ingress Adapter (F-HIGH) | Trusted for shape, not for intent |
 | Ingress Adapter (F-LOW) / translator model | **Untrusted.** Always. |
 | Input / Output Schema Validator | Trusted (deterministic, small, testable) |
@@ -599,7 +619,7 @@ bundle/
 ├── accumulators.json      # session-window rules
 ├── schemas/               # input + output schema registry
 ├── templates/             # prompt + attestation rendering templates
-├── attesters/             # approver + confirmer public keys
+├── attesters/             # approver + confirmer public keys, and quorum_k (PB-6, PB-7)
 ├── provider_selection.json
 └── SIGNATURE              # Ed25519 over SHA-256 of canonical bundle tree
 ```
@@ -609,6 +629,14 @@ bundle/
 - **PB-3.** The engine holds exactly one active bundle; activation is atomic; in-flight evaluations complete under the bundle they started with.
 - **PB-4.** Runtime components — including a fully compromised Policy Engine — possess no key capable of producing a valid bundle signature. Policy is read-only to the runtime **by cryptography**, not file permissions.
 - **PB-5 (NEW).** `manifest.json` **MUST** carry a strictly increasing integer `bundle_epoch`. Epochs are never reused or decreased.
+- **PB-6 (NEW in v1.3.15 — Normative).** The attester registry **MUST** carry an integer `quorum_k` ≥ 1: the number of **distinct approvals** a floor-HIGH action requires. It is signed policy, inside the bundle tree and therefore inside `policy_bundle_hash`, and it is the **only** authoritative source of that number (AT-9).
+
+  *Rationale.* Until v1.3.15 no clause named a field to hold the threshold, while §9.3 step 7b(iii) required the Attestation Object's count to equal "the bundle rule's" — a comparison against a value the document never defined. An implementation reading the whole reference carefully could not locate the bundle side of that equality, and the reference itself took the count from the object instead. A requirement whose left-hand side is undefined is not a requirement. `quorum_k` = 1 is permitted and is a deployment choice, but it collapses INV-1-HIGH to single-compromise and a deployment choosing it **MUST** disclose that in its residual-risk statement rather than discover it later.
+- **PB-7 (NEW in v1.3.15 — Normative). Attester verification keys MUST be pairwise distinct.** No two registry identities may carry the same verification key, compared over the **complete suite** — two identities differing in their classical key but sharing a post-quantum key are not distinct, and treating them as such is CR-3's conjunctive guarantee undone at the registry instead of at the verifier. An engine **MUST** refuse a bundle whose registry violates this, at load, as an invalid bundle under PB-1.
+
+  *Rationale.* AT-2 requires approvers to be "mutually distinct" without saying what distinguishes them, and `quorum_k` counts approvals by identity. A registry mapping two names onto one key therefore lets the holder of one private key produce two signatures over two objects differing only in their attestation nonces, label them with the two names, and satisfy k = 2 alone — INV-1-HIGH defeated by a single compromise, by a route that requires no defect anywhere in the verification path. This is a **well-formedness** property of the bundle, not a check on the quorum path: a registry that cannot support its own threshold is invalid for every component that reads it, and enforcing it only where quorum is counted would leave every other reader believing it sound.
+
+  *Conformance note.* This constraint is **not expressible in JSON Schema** — `uniqueItems` applies to arrays and there is no keyword for uniqueness across the values of a map. Implementations validating the registry by schema alone are non-conformant however cleanly they validate; the check belongs in the loader.
 
 ### 8.3 Parameter-Sensitive Risk
 
@@ -700,12 +728,14 @@ Set        ::= "[" Literal ("," Literal)* "]"
 ```
 
 Static constraints, all of which are modelled in Annex B (v1.2.0 modelled only the second):
+
 - Every FieldRef **MUST** resolve to a field declared in a typing environment derived from the Proposal schema and Context interface.
 - Every Set **MUST** be non-empty and contain literals of homogeneous type.
 - `.prefixlen` is valid only on fields typed as CIDR in that environment.
 - Numeric literals are integers; see AC-1a for width.
 
 **Evaluation rules.** `⟦e⟧(P, Ctx) ∈ {true, false}`.
+
 - **Field resolution:** absent path ⇒ `false` (totality).
 - **Comparison:** standard over the values' types; type mismatch ⇒ `false`.
 - **Set membership:** `true` iff equal by value to some element.
@@ -785,7 +815,7 @@ AndExpr ::= Term ("&&" Term)*
 - **AC-4.** Accumulator effects are monotone (RK-3 applies).
 - **AC-5 (NEW in v1.3.10 — Normative, closes W1). Accumulators count executions, not decisions.** An increment **MUST** be committed at **release** (§9.6), not at Decision commit. A Decision that is repudiated (DR-4), times out unacknowledged (DR-9), or fails closed at any Executor step **MUST NOT** increment any accumulator. A DS-3 re-drive of one logical action **MUST** increment at most once, keyed on the DS-6 `action_id`.
 
-  *Rationale (W1).* AC-2 bound accumulator updates to Decision commit, correct before v1.3.6 because a committed Decision executed immediately. Deferred release breaks that identity: an action can be decided and never execute. Counting at decision time inflates counters with actions that never happened, and the inflation is **attacker-controllable** — a party able to trigger proposals attributed to a victim operator, each subsequently repudiated, drives that operator's counters over threshold. Where the effect is `deny` (e.g. `schema_rejections`) the result is a targeted denial of service against a legitimate operator, mounted entirely through actions the system correctly refused. Note the shape: the defect was introduced by the DR-* machinery and lived in a section DR-* never mentions.
+  *Rationale (W1).* AC-2 bound accumulator updates to Decision commit, correct before v1.3.6 because a committed Decision executed immediately. Deferred release breaks that identity: an action can be decided and never execute. Counting at decision time inflates counters with actions that never happened, and the inflation is **attacker-controllable** — a party able to trigger proposals attributed to a victim operator, each subsequently repudiated, drives that operator's counters over threshold. Where the effect is `deny` (e.g. `schema_rejections`) the result is a targeted denial of service against a legitimate operator, mounted entirely through actions the system correctly refused. Note the shape: the defect was introduced by the DR-*machinery and lived in a section DR-* never mentions.
 
   *Bounded, stated for completeness:* evasion in the opposite direction — splitting activity across identities to stay under a threshold — **cannot** suppress floor-HIGH attestation, because floor-only risk (TR-5) is computed from the signed bundle alone and ignores accumulator raises entirely. Floor dominance caps this residual as it caps Context Store compromise.
 
@@ -804,6 +834,14 @@ Confirmations and approvals are the same object with different attester constrai
 - **AT-7.** **Behavioral assumption warning.** INV-1-HIGH depends on attesters maintaining discriminative review. If attesters converge to rubber-stamping, the mechanical guarantee becomes a behavioral fiction. There is no mechanical fallback; operational monitoring and human governance are the only countermeasures.
 - **AT-8 (NEW in v1.3.3; NORMATIVE in v1.3.4, closes Y1).** The receipt **MUST** carry each full **Attestation Object** — all AT-1 fields, including the 128-bit attestation nonce and the object's own `expires_at` — not merely its `attestation_id`. The attester signature is over the canonical encoding of that object. Rationale: the Executor cannot verify that a signature is *bound to the executed proposal* unless it can reconstruct the signed bytes. Transmitting only the id (v1.3.2) reduced binding verification to a claim the KMS asserts and the Executor cannot check — a receipt bearing a genuine quorum raised for proposal P₁ verifies against an attacker-chosen P₂ under one compromised KMS. Mechanized in Annex D (`Y1_CurrentCheckAcceptsMisbinding` shows the v1.3.2 check accepts the misbinding; `Y1_AttackBlocked_Generalized` shows AT-8 rejects it against an attacker holding arbitrarily many observed signatures).
 - **AT-8a (NEW in v1.3.4 — Normative, closes Y5.2 on the binding path).** The Attestation Object **MUST** be canonicalized as **canonical CBOR (RFC 8949 §4.2)** for both signing and `attestation_id` derivation — the same canonicalization as the receipt (WE-1/2). JCS (RFC 8785) **MUST NOT** be used for the Attestation Object. Rationale: AT-8 moved object hashing onto the binding path, where the id the ledger consumes is now `SHA-256(canonical(obj))`. Any encoder disagreement between issuer and Executor becomes a freshness and single-use defect in the exact mechanism Y1b closes — two encoders means two ids for one object, so a re-encoded object claims a fresh ledger slot. The dual-canonicalization observation was filed as an informative minor in ACP-AUDIT-001 (Y5.2); AT-8 promotes it to a binding-path requirement. Implementations **MUST** reject any Attestation Object whose received encoding is not the canonical one (non-canonical encodings **MUST NOT** be re-serialized and accepted).
+- **AT-9 (NEW in v1.3.15 — Normative). The quorum threshold is RECOMPUTED from the signed bundle, never read from an attestation.** The number of distinct approvals required for a floor-HIGH action **MUST** be taken from `quorum_k` (PB-6). The Attestation Object's `required_count` **MUST NOT** be an input to that decision, in whole or in part, under any circumstance — including the case where every entry agrees on it.
+
+  Separately and **additionally**, every Attestation Object presented **MUST** carry a `required_count` equal to `quorum_k`, and a mismatch **MUST** fail closed with a critical alert. These are two requirements with two purposes and neither substitutes for the other:
+
+  - The **first** is the security requirement. `required_count` is signed by the attester, and an attester is exactly the party under verification, so a verifier reading the threshold from it asks the adversary how large a quorum to demand. Under the §14 suite-12 classification the threshold is class **R**; there is no reading of the method under which it may be **T**.
+  - The **second** is a **consent** requirement and belongs to AT-3, not to INV-1-HIGH. `required_count` is part of what the attester was shown and signed, so a mismatch means the humans approved under a policy the engine did not apply. An attester shown "3 approvals required" who signs on that basis has consented to an action three people would review; executing it after two is a real loss of the basis their signature rested on, even though the count enforced was the bundle's and the invariant held throughout. **Do not collapse the second into the first.** They fail closed on disjoint inputs, and an implementation that keeps only the first satisfies INV-1-HIGH while silently executing actions no attester agreed to.
+
+  *Rationale.* This clause exists because its absence was exploited. See the v1.3.15 alert in §1 (a).
 - **AT-8b (NEW in v1.3.5 — Normative, closes Z4). The Attestation Object schema is CLOSED.** Every AT-1 field is **REQUIRED**; there are no optional fields, no defaultable fields, and no extension points. An object carrying an unknown field, or omitting any AT-1 field, **MUST** be rejected — never normalized, never defaulted. *Rationale (Z4).* AT-8a pinned the canonicalizer but not the schema. Given any optional field, an object present-as-null and the same object with the field omitted are **each** canonical CBOR, hash to **two distinct ids**, and therefore claim **two ledger slots** — one attestation, consumed twice. T-14 attestation amplification reopens through the very mechanism Y1b closed. Canonicalization rules cannot fix this: the ambiguity is in the field set, not the encoding, so the fix must be schema-level. Mechanized as `Z4_OptionalFieldYieldsTwoIds`. Extending the Attestation Object in a future revision is therefore a **breaking** change requiring a `receipt_version` increment, never an additive one.
 
 ### 8.6a Attestation Queue Isolation (NEW — Normative)
@@ -836,7 +874,7 @@ freshness() → age of last authoritative update
 ```
 
 | Deployment character | Provider class | Freshness contract |
-|---------------------|----------------|-------------------|
+| --------------------- | ---------------- | ------------------- |
 | Few operators, contract-driven entitlements | **Static signed entitlement bundle** — changes are deploys | Bundle validity; staleness ≈ 0 |
 | Non-human operators, M2M pipelines | **Workload-identity attestation** | Per-request proof; no directory |
 | Thousands of operators, rights change daily | **Live directory sync** | ≤ 5 min for revocations, push-based; sync broken → fail closed |
@@ -936,13 +974,13 @@ Before any state change, the Executor **MUST** verify in order, failing closed o
 7b. **(REWRITTEN in v1.3.3; NORMATIVE in v1.3.4, closes Y1/Y1b/Y4.)** For each attestation entry, which per AT-8 carries the full Attestation Object `obj` and the attester key:
    (i) **verify the attester signature over the canonical encoding of `obj`** against the bundle's attester keys;
    (ii) **verify `obj.proposal_hash` equals the hash computed in step 3** (the executed proposal) — *this is the binding check whose absence is Y1*;
-   (iii) verify `obj.policy_bundle_hash` and `obj.bundle_epoch` equal step 4's trusted values, `obj.floor_only_risk` equals the step-7 recomputed value, and `obj`'s required roles/counts equal the bundle rule's;
+   (iii) verify `obj.policy_bundle_hash` and `obj.bundle_epoch` equal step 4's trusted values, `obj.floor_only_risk` equals the step-7 recomputed value, and **`obj.required_count` equals the bundle's `quorum_k` (PB-6)** — *(REVISED in v1.3.15)*. Through v1.3.13 this read "`obj`'s required roles/counts equal the bundle rule's", naming no bundle field on the right-hand side; AT-9 supplies it. Note what this comparison is **for**: it detects an attester who signed under a different stated threshold than the one being applied, which is an AT-3 consent failure. It is **not** how the threshold is obtained — see (vi);
    (iii-a) **(NEW in v1.3.4, closes Y4)** verify `obj.operator` is identical across every attestation entry, and take the operator identity for distinctness (vi) and for the step-9 capability recheck **from the verified object — never from the receipt body's `operator` field**, which is diagnostic only;
    (iii-b) **(NEW in v1.3.4)** verify the received encoding of `obj` is canonical CBOR per AT-8a; a non-canonical encoding fails closed;
    (iv) verify `obj.expires_at` had not passed at the receipt's `issued_at`;
    (v) **recompute `attestation_id := SHA-256(obj)` per AT-1 — never read the id from the receipt — and claim the recomputed id atomically in the Consumption Ledger** (closes Y1b: there is no transmitted id to substitute);
-   (vi) quorum satisfied for recomputed floor-only risk HIGH; attester distinctness per AT-2; confirmation present if policy required it for the recomputed fidelity and tier.
-   Any failure of (i)–(iv) is fail-closed with a critical alert: a validly-signed quorum bound to a *different* proposal means the signing substrate is composing receipts the attesters did not authorize.
+   (vi) **(REVISED in v1.3.15, closes the §1 (a) defect)** the count of distinct approvals is compared against **`quorum_k`, read from the bundle established in step 4** — never against any value carried by the receipt or by an Attestation Object, and never against `entries[0]` (AT-9). Attester distinctness per AT-2, resolved over registry **keys** and not over names (PB-7); confirmation present if policy required it for the recomputed fidelity and tier.
+   Any failure of (i)–(vi) is fail-closed with a critical alert: a validly-signed quorum bound to a *different* proposal means the signing substrate is composing receipts the attesters did not authorize. *(The range was written as (i)–(iv) through v1.3.13, which left (v) and (vi) — the id recomputation that closes Y1b, and the quorum comparison itself — outside the sentence stating their failure mode. That was an editing slip rather than a design choice, and it is corrected here rather than silently: it is precisely the kind of gap this document keeps finding in itself.)*
 8. Tenant of the receipt matches the tenant scope of the credentials about to be used.
 9. **For recomputed floor-only risk HIGH: re-query the Context Store for capability of the operator established in step 7b(iii-a) on the target. If the capability has been revoked, fail closed.** This closes the issuance→execution window (T-10), during which v1.2.0 honored receipts for up to 120 s after revocation with no recheck. Applied to floor-HIGH only, to bound the added round-trip.
 
@@ -1026,7 +1064,9 @@ Verification (§9.3) establishes that a receipt is authentic, bound, fresh, and 
 - **CR-3. Hybrid composition is conjunctive.** Verification succeeds only if **every** primitive in the declared suite verifies, and the supplied set **exactly** matches the suite — no missing entries, **no extra ones**. An accepted extra primitive is an undeclared code path chosen by the party under verification.
 
   *Rationale.* Disjunctive composition is strictly weaker than its weakest member: an attacker breaking one primitive is unconstrained by the other, so adding an algorithm under OR reduces security. Same structure as INV-1-HIGH's quorum — safety comes from requiring all, not any. Mechanized in Annex D Part V in both directions.
-- **CR-4. The accepted suite floor lives in the signed bundle.** Each deployment declares a minimum suite; a structure whose `alg` ranks below it **MUST** fail closed with a critical alert. The floor is **never** taken from a transmitted value — this is RK-1's tier floor applied to cryptography, and lowering it is an RK-5 change (offline key, author and reviewer distinct from the proposer).
+- **CR-4 (REVISED in v1.3.15). The accepted suite floor lives in the signed bundle, and is satisfied by CONTAINMENT.** Each deployment declares a minimum suite. A structure's `alg` satisfies the floor **iff the suite it names contains every primitive the floor's suite names**; anything else **MUST** fail closed with a critical alert. Extra primitives are permitted; a missing one never is, whatever is offered in its place. The floor is **never** taken from a transmitted value — this is RK-1's tier floor applied to cryptography, and lowering it is an RK-5 change (offline key, author and reviewer distinct from the proposer).
+
+  *Rationale, and a correction (v1.3.15).* Through v1.3.13 this clause said "ranks below", which presumes a **total order** over suites. There is none. A suite is a *named set of primitives* (CR-1), and those sets are incomparable: `hybrid-ed25519-mldsa65` is `{classical, ML-DSA}` and contains no SLH-DSA, while `slhdsa128s` is `{SLH-DSA}` and contains no classical leg. Neither dominates. Every implementation that read "ranks" built a rank table, and every such table placed hybrid above `slhdsa128s` — so a deployment that set its floor to `slhdsa128s` **precisely because** it wanted a hash-based signature resting on no lattice assumption was served a lattice signature and told its floor was met. That is not a stronger suite being accepted; it is one hardness assumption silently substituted for another, against an offline policy decision CR-4 exists to make un-negotiable. Containment is the only comparison that is well-defined over sets, and it has the further merit of forcing a deployment that genuinely wants "either of these two" to say so as two floors rather than to smuggle it through an ordering.
 - **CR-5.** `alg` is an **AT-1 field** and therefore signature-covered: an issuer cannot rewrite the suite without invalidating the object. It is likewise covered by the receipt signature.
 - **CR-6.** Deployments **SHOULD** register `hybrid-ed25519-mldsa65` (FIPS 204) as the floor for receipts and attestations, and **SHOULD** use SLH-DSA (FIPS 205) for audit anchoring and bundle signing.
 - **CR-7.** Suite migration is **forward-only**: the floor may be raised at any epoch; lowering it is an RK-5 change. A deployment **MUST** verify structures signed under a *higher* suite than its floor.
@@ -1038,7 +1078,7 @@ Verification (§9.3) establishes that a receipt is authentic, bound, fresh, and 
 Conditional on A-1 through A-9.
 
 | Compromised component | What the attacker gains | INV-1-HIGH | Why the bound holds |
-|-----------------------|------------------------|-----------|---------------------|
+| ----------------------- | ------------------------ | ----------- | --------------------- |
 | Client / ingress adapter | Submit arbitrary bytes; for F-HIGH, arbitrary authorized Atoms | **No violation** *if confirmation is configured*; otherwise per A-1 the operator is authorized and intent is out of scope | Closed grammar rejects non-conforming shapes; floor-HIGH still requires attestation. Where confirmation is required, the operator's own signature is needed and a compromised client cannot produce it. |
 | Model / translator | Arbitrary output content | No violation | No tools, no egress (B-2); output must pass a closed Output Schema; a valid-shaped malicious Proposal still faces capability, risk, accumulator checks, and — if floor-HIGH — quorum. |
 | Input/Output Validator | Pass-through of malformed artifacts | No violation | Policy Engine re-attests schema (step 1) via bundle-registered hashes; Executor hashes the canonical Proposal itself. |
@@ -1112,7 +1152,7 @@ Findings are themselves audited. **Reconciliation runs in the anchor-verifier's 
 ## 13. Limits and Constraints (Normative)
 
 | # | Constraint | Value | Enforcement point |
-|---|------------|-------|-------------------|
+| --- | ------------ | ------- | ------------------- |
 | L-01 | Max request size (transport) | 32 KiB | Reverse proxy, pre-parse |
 | L-02 | Max JSON nesting depth | 8 | Parser |
 | L-03 | Max fields per schema | 24 | Registry admission |
@@ -1145,7 +1185,7 @@ Findings are themselves audited. **Reconciliation runs in the anchor-verifier's 
 | L-28 | **Hold window (NEW)** | default 60 s, min 30 s; `hold + margin < receipt validity`; ≥ L-14 ceiling = unsatisfiable config, reject | Executor (DR-1, DR-6) |
 | L-29 | **Confirmation sampling rate (NEW)** | bundle-configured, default 10% of REVERSIBLE floor-HIGH; draw from CSPRNG, recorded in audit | Executor (DR-10, DR-11) |
 | L-30 | **Unacknowledged release counter (NEW)** | per tenant, per epoch; recorded in audit, SHOULD alert on rate | Audit (DR-12) |
-| L-31 | **Signature suite floor (NEW)** | declared in signed bundle; forward-only; below-floor `alg` = critical alert | Executor (CR-4, CR-7) |
+| L-31 | **Signature suite floor (REVISED v1.3.15)** | declared in signed bundle; forward-only; an `alg` whose suite does not CONTAIN every primitive the floor names = critical alert | Executor (CR-4, CR-7) |
 
 ---
 
@@ -1155,7 +1195,7 @@ An implementation is **Door A Conformant** iff it satisfies every MUST/MUST NOT 
 
 1. **Grammar suite** — per schema: accepted canonical vectors; rejected vectors for every field boundary (length ±1, range ±1, pattern near-misses), unknown-field injection, duplicate keys at all depths, depth bombs, **Unicode confusables/bidi/zero-width (V-7)**, oversize pre-parse, **envelope/payload `task_type` mismatch (V-11)**.
 2. **Determinism suite** — golden-file replay: recorded (Proposal, bundle, Context) triples re-evaluate to byte-identical Decisions across versions and platforms.
-3. **Receipt suite** — Executor rejects: bad signature, wrong key epoch, expired, future-dated, spent nonce, proposal-hash mismatch, bundle-hash mismatch, **lower bundle epoch**, missing/insufficient/duplicate attestations, **reused `attestation_id`**, cross-tenant receipt, **a validly-signed receipt asserting `risk_level_floor_only` below the bundle-derived value (T-18), and a validly-signed receipt asserting `fidelity: "F-HIGH"` for a Proposal from an F-LOW-bound adapter.** The last two MUST fail closed with a critical alert, not merely be logged. **NEW (v1.3.4, NORMATIVE): a validly-signed receipt carrying genuine attestation signatures whose Attestation Objects bind a *different* `proposal_hash` than the executed proposal (Y1) MUST fail closed with a critical alert; a receipt whose transmitted `attestation_id` differs from the object-derived id (Y1b) MUST fail closed; a receipt with `expires_at − issued_at > 120 s` (Y2) MUST fail closed; a receipt whose body `operator` differs from `attestations[].obj.operator` MUST fail closed and MUST NOT be resolved in favour of the body (Y4); an Attestation Object in non-canonical CBOR MUST fail closed (AT-8a); a re-drive receipt whose `idempotency_key` differs from the Executor's ledger-derived value, or whose claimed `origin_nonce` differs from the pinned ledger binding, MUST fail closed (DS-6f, Z3); an Attestation Object carrying an unknown field or omitting any AT-1 field MUST be rejected rather than normalized (AT-8b, Z4).** **NEW (v1.3.6, §9.6):** a floor-HIGH action MUST NOT execute at verification time; release before `hold_window` MUST fail closed (DR-1); a notification service sharing a rendering code path with the Attestation Presentation Service MUST be rejected **even when it renders honestly from canonical bytes** (DR-2); incomplete or empty notification delivery MUST fail closed (DR-8); repudiation from a non-notified party MUST be refused (DR-5); a hold outliving receipt validity, or configured at or above the L-14 ceiling, MUST fail closed (DR-6). **NEW (v1.3.7):** an IRREVERSIBLE action released without acknowledgement MUST fail closed (DR-9); an acknowledgement from the operator MUST be refused (DR-9); a sampled REVERSIBLE action released without acknowledgement MUST fail closed (DR-10); a receipt asserting a reversibility class different from the recomputed one MUST fail closed (RV-3); an action class absent from `reversibility.json` MUST behave as IRREVERSIBLE (RV-1). **NEW (v1.3.8):** a structure whose `alg` ranks below the bundle floor MUST fail closed (CR-4); a hybrid signature missing any declared primitive, carrying any undeclared extra primitive, or carrying a forged value for one primitive alongside a genuine one, MUST fail closed (CR-3); a bare scalar signature MUST be refused (CR-2); an unknown suite identifier MUST fail closed (CR-1).
+3. **Receipt suite** — Executor rejects: bad signature, wrong key epoch, expired, future-dated, spent nonce, proposal-hash mismatch, bundle-hash mismatch, **lower bundle epoch**, missing/insufficient/duplicate attestations, **reused `attestation_id`**, cross-tenant receipt, **a validly-signed receipt asserting `risk_level_floor_only` below the bundle-derived value (T-18), and a validly-signed receipt asserting `fidelity: "F-HIGH"` for a Proposal from an F-LOW-bound adapter.** The last two MUST fail closed with a critical alert, not merely be logged. **NEW (v1.3.4, NORMATIVE): a validly-signed receipt carrying genuine attestation signatures whose Attestation Objects bind a *different* `proposal_hash` than the executed proposal (Y1) MUST fail closed with a critical alert; a receipt whose transmitted `attestation_id` differs from the object-derived id (Y1b) MUST fail closed; a receipt with `expires_at − issued_at > 120 s` (Y2) MUST fail closed; a receipt whose body `operator` differs from `attestations[].obj.operator` MUST fail closed and MUST NOT be resolved in favour of the body (Y4); an Attestation Object in non-canonical CBOR MUST fail closed (AT-8a); a re-drive receipt whose `idempotency_key` differs from the Executor's ledger-derived value, or whose claimed `origin_nonce` differs from the pinned ledger binding, MUST fail closed (DS-6f, Z3); an Attestation Object carrying an unknown field or omitting any AT-1 field MUST be rejected rather than normalized (AT-8b, Z4).** **NEW (v1.3.15):** a quorum threshold taken from any transmitted value rather than recomputed from the bundle's `quorum_k` MUST fail closed, and an Attestation Object whose `required_count` differs from `quorum_k` MUST fail closed independently of whether the quorum was met (AT-9, PB-6); a bundle whose attester registry maps two identities onto one verification key MUST be refused at load (PB-7). **NEW (v1.3.6, §9.6):** a floor-HIGH action MUST NOT execute at verification time; release before `hold_window` MUST fail closed (DR-1); a notification service sharing a rendering code path with the Attestation Presentation Service MUST be rejected **even when it renders honestly from canonical bytes** (DR-2); incomplete or empty notification delivery MUST fail closed (DR-8); repudiation from a non-notified party MUST be refused (DR-5); a hold outliving receipt validity, or configured at or above the L-14 ceiling, MUST fail closed (DR-6). **NEW (v1.3.7):** an IRREVERSIBLE action released without acknowledgement MUST fail closed (DR-9); an acknowledgement from the operator MUST be refused (DR-9); a sampled REVERSIBLE action released without acknowledgement MUST fail closed (DR-10); a receipt asserting a reversibility class different from the recomputed one MUST fail closed (RV-3); an action class absent from `reversibility.json` MUST behave as IRREVERSIBLE (RV-1). **NEW (v1.3.8):** a structure whose `alg` names a suite not containing every primitive of the bundle floor's suite MUST fail closed (CR-4); a hybrid signature missing any declared primitive, carrying any undeclared extra primitive, or carrying a forged value for one primitive alongside a genuine one, MUST fail closed (CR-3); a bare scalar signature MUST be refused (CR-2); an unknown suite identifier MUST fail closed (CR-1).
 4. **Composition suite** — accumulator thresholds trigger at N, not N−1; risk escalators fire on each declared condition independently and jointly; **permutation tests: shuffling the condition order yields identical risk (RK-3)**; **append-monotonicity tests**.
 5. **TOCTOU suite** — capability revoked between quorum and issuance voids the attestation (AT-4); **capability revoked between issuance and execution blocks a floor-HIGH execution (§9.3 step 9)**.
 6. **Adversarial suite** — known prompt-injection payloads embedded in every string field of every schema: 100% MUST be either rejected by grammar or demonstrably inert. **For F-LOW adapters, this suite tests containment, not prevention** — success is "injection cannot exceed the operator's capability envelope and cannot bypass confirmation," never "injection does not occur."
@@ -1169,6 +1209,13 @@ An implementation is **Door A Conformant** iff it satisfies every MUST/MUST NOT 
 ---
 
 ## 15. Security Considerations (Summary of Honest Limits)
+
+0. **RES-0 (NEW in v1.3.15): what §14's differential evidence cannot tell you.** Two classes of test in §14 compare independent readings and treat disagreement as the finding. Both are blind in the same direction, and CR-4 was the demonstration.
+
+   - **Implementation differential** (reference against a second implementation on a shared corpus) detects *divergence*. It is silent on a defect both implementations share, and the probability they share one is not small: the second is normally written by reading the first, so a misreading propagates with the code. CR-4's rank table was byte-for-byte agreed across both languages, asserted by a passing test, and wrong in both.
+   - **Prose differential** (§14 suite 6, two evaluators written from this text alone) detects *ambiguity in the text*. It is silent on a defect the text states clearly and wrongly. CR-4 said "ranks below"; two faithful readings would have agreed, and both would have been exploitable.
+
+   Neither method has any purchase on a requirement whose right-hand side is undefined (PB-6's predecessor) or whose comparison is undefined over its domain (CR-4's ordering). Those are found by classification (§14 suite 12, and note that the method found nothing here until its *enumeration* step was redone rather than re-affirmed), by adversarial review, or by an implementer noticing they cannot locate what a clause refers to. **A green differential run is evidence that this document has been read consistently. It is not evidence that it is right.**
 
 1. **The guarantee is anti-injection and anti-forgery, not anti-harm.** Domain semantics are not evaluated; dual-use valid inputs require §7.4 screening.
 
@@ -1205,7 +1252,7 @@ An implementation is **Door A Conformant** iff it satisfies every MUST/MUST NOT 
 ## Annex A — Fidelity Classes in Practice (Informative)
 
 | Property | F-HIGH | F-LOW |
-|----------|--------|-------|
+| ---------- | -------- | ------- |
 | Instruction injection into the Proposal | Grammatically impossible | **Possible by construction** |
 | Value conditioning of model output | Possible | Possible |
 | Blast radius of a successful injection | — | Operator's capability envelope: cannot mint capabilities, cannot exceed policy, cannot reach the Executor without a receipt |
@@ -1243,7 +1290,7 @@ Lemmas over finite enumerations (`RiskMax_*`, `TierMax_*`, and — per X4 — `F
 A clean verification run is only meaningful if the theorems constrain the model. Six mutants, two purposes:
 
 | ID | Mutation | Class | Result |
-|----|----------|-------|--------|
+| ---- | ---------- | ------- | -------- |
 | M1 | `EffectiveTier`: max → min | Semantic | **KILLED** — 5 errors (`FloorDominance` family) |
 | M2 | `RiskMax`: max → min | Semantic | **KILLED** — 6 errors |
 | M3 | `FloorDominance`: remove `TierMax_GeqLeft` hint | Proof-minimality | **SURVIVED** — theorem verifies without the hint. Not a soundness defect; an honesty defect (FG-7 class). Dispositioned: hint deleted, body discloses SMT discharge. See X4. |
@@ -1256,7 +1303,7 @@ Semantic mutants: 5/5 killed — the clean run is load-bearing. The proof-minima
 ### B.3 Theorems
 
 | # | Theorem | Spec ref | Status |
-|---|---------|----------|--------|
+| --- | --------- | ---------- | -------- |
 | 1 | `Eval` totality | §8.3.1 | **Verified.** Termination by `decreases ExprSize(e)`; boolean codomain by return type. **No separate lemma** — v1.2.0's `EvalTerminates` had postcondition `exists b :: Eval(e,ctx)==b`, a tautology satisfied by any total boolean function. |
 | 2 | `FloorDominance` | §8.3.2 TR-4 | **Verified.** The security-critical one. No raise value causes effective tier below floor. SMT-discharged over the 4×4 lattice (B.2a M3); killed by mutation M1. |
 | 3 | `Monotonicity_Extension` | RK-3 | **Verified.** Appending a raise condition cannot decrease evaluated risk. Body completed in v1.3.2 (statement unchanged). |
@@ -2071,7 +2118,7 @@ module ACP_RiskFunction_Proof {
 ## Annex C — Disposition of v1.2.0 Peer-Review Findings
 
 | ID | Finding (v1.2.0) | Disposition in v1.3.0 |
-|----|------------------|----------------------|
+| ---- | ------------------ | ---------------------- |
 | **C1** | Tier data in two mutually exclusive places; RK-5 protected a copy that did not feed evaluation | **Fixed by construction.** §8.3.2: floor in signed bundle, raise in Context Store, `effective = max`. One lattice, one integrity story. |
 | **C2** | §10 claimed Context Store compromise does not violate INV-1-HIGH; tier suppression showed it does | **Fixed by construction.** TR-4/TR-5 + `FloorDominance` (Annex B, Theorem 2). "HIGH-impact" now defined as floor-only-HIGH. §10 row rewritten. |
 | **C3** | §8.3.1 prohibited short-circuit evaluation; the artifact implemented it; differential testing could not detect a violation | **Claim retired.** §8.3.1 now requires result-order-independence, not evaluation-order constraint. Timing side channels explicitly out of scope (§4.2). Order-independence proved (Theorem 6). |
@@ -2103,7 +2150,7 @@ module ACP_RiskFunction_Proof {
 ### C.2 — Findings against v1.3.0
 
 | ID | Finding (v1.3.0) | Disposition in v1.3.1 |
-|----|------------------|----------------------|
+| ---- | ------------------ | ---------------------- |
 | **X1** | **Derived-risk forgery.** `risk_level_floor_only` and `fidelity` were transmitted in the receipt and consumed by the Executor to decide whether attestation was required. A single compromised KMS could assert `LOW` on a genuinely floor-T3 action with no attestations and execute it — a single-component break of INV-1-HIGH, and the same defect class as v1.2.0's C2 relocated from the Context Store to the receipt. | **Fixed by construction.** TR-8 requires Executor recomputation from the signed bundle and canonical Proposal; §9.3 steps 7/7a recompute and fail closed on disagreement; §9.2 marks the fields diagnostic; T-18 added; conformance suite 3 tests both forgeries; §10 KMS row corrected. Generalized as RES-8. |
 | **X2** | AQ-2 `cap_escalated` marking may create an adversary-influenceable queue channel. | **Open.** Added to §15 open problems. Not yet analysed. |
 
@@ -2112,7 +2159,7 @@ module ACP_RiskFunction_Proof {
 ### C.3 — Findings against v1.3.1, disposed in v1.3.2
 
 | ID | Finding (v1.3.1) | Disposition in v1.3.2 |
-|----|------------------|----------------------|
+| ---- | ------------------ | ---------------------- |
 | **X3** | **The published artifact did not verify.** The inline Annex B copy produced `45 verified, 6 errors` under its own stated command — four lemmas (`EvalRiskLevelAcc_ExtensionBound`, `Transposition_Invariance`, `Permutation_Invariance`, `BreadthFitsInt64`) had bodies insufficient for their statements. The same defect *shape* as v1.2.0's FG-6/FG-7 (artifact claims vs artifact behavior), caught this time because §1.1 had honestly labelled the artifact unexecuted. | **Fixed — body-only.** Seven helper lemmas added; all four failing bodies completed; signature-level diff shows additions only, every statement byte-identical. `62 verified, 0 errors` under Dafny 4.9.1 / Z3 4.12.1. Two independent verification passes converged on the same helper decomposition. Full record §1.1. |
 | **X4** | **Decorative proof hint.** `FloorDominance`'s body called `TierMax_GeqLeft`, but mutation testing (B.2a M3) showed the theorem verifies without it — the body overstated manual proof work, the FG-7 defect class recurring in the revision that fixed FG-7. | **Fixed.** Hint deleted; the body now discloses SMT case-enumeration discharge per B.2's convention. Found by, and only findable by, the negative-control method — Annex-C-driven review would never have looked. |
 | **X5** | **Version-string collision.** v1.3.1 was edited in place after publication (verification-status and Annex B changes under an unchanged version string), producing two documents labelled v1.3.1 with different content. A stale copy reaching a reviewer produced a false finding — the live demonstration of why SR-1 content-addresses schemas and PB-5 forbids epoch reuse. | **Fixed by rule.** This revision is v1.3.2 despite the small normative delta, and §1 now carries a release-integrity rule: revisions are immutable; any normative or Annex-B change, including verification status, increments the version. |
@@ -2120,7 +2167,7 @@ module ACP_RiskFunction_Proof {
 ### C.4 — Findings against v1.3.2, disposed (PROPOSED) in v1.3.3
 
 | ID | Finding (v1.3.2) | Disposition in v1.3.3 |
-|----|------------------|----------------------|
+| ---- | ------------------ | ---------------------- |
 | **Y1** | **Attestation misbinding — single-component INV-1-HIGH break.** The receipt carries attestation ids and signatures but not the signed Attestation Object, so §9.3 step 7b verifies signature validity but not binding to the executed proposal. A compromised KMS attaches a genuine quorum (raised for P₁) to a receipt for attacker-chosen floor-HIGH P₂; all Executor checks pass; P₂ executes. Third recurrence of the RES-8 class, in the attestation machinery X1's fix introduced. | **PROPOSED, UNCONFIRMED.** AT-8 (transmit full object), TR-10 (verify relations, not names), §9.3 step 7b rewritten to check `obj.proposal_hash == executed hash` and recompute the id. Mechanized in Annex D: `Y1_CurrentCheckAcceptsMisbinding` (defect real), `Y1_AttackBlocked` + `BindingSound` (fix sound), `Y1b_LedgerConsumesRealId` (second-order hole closed). Drafted by a party in the revision history; **suite 11 confirmation required before normative.** |
 | **Y1b** | Second-order: even with binding checked, consuming the *transmitted* id lets a KMS substitute a garbage id and preserve the real id's freshness, reopening T-14. | **PROPOSED.** Step 7b(v): recompute `attestation_id` from the object; never read it from the receipt. Mechanized (`Y1b_LedgerConsumesRealId`). |
 | **Y2** | Receipt validity *window length* is KMS-chosen; step 5 checked position, not size; L-14's 120 s lived only in the KMS-written value. Long-lived pre-positioned receipts. | **PROPOSED.** Step 5 adds `expires_at − issued_at ≤ 120 s`, Executor-enforced, fail-closed. |
@@ -2135,7 +2182,7 @@ module ACP_RiskFunction_Proof {
 Source: **ACP-REVIEW-002**, an independent adversarial review by a party with no authorship or revision history (the §14 suite 11 qualifying condition), which reproduced the Annex D artifact at its published hash, re-ran the published mutation control, and added three probes of its own.
 
 | ID | Finding / result | Disposition in v1.3.4 |
-|----|------------------|----------------------|
+| ---- | ------------------ | ---------------------- |
 | **Y1** | **Independently CONFIRMED.** The attack was reconstructed from the v1.3.3 text without reliance on ACP-AUDIT-001's prose. Annex D reproduced: `4 verified, 0 errors` at `sha256:152b97ee…`-era artifact `binding.dfy`; the published mutation control (removing binding clause (ii)) reproduced exactly. | **NORMATIVE.** AT-8, TR-10, step 7b promoted from PROPOSED. |
 | **Z0** | **Proof-strength defect in the fix's own model.** The published `Y1_AttackBlocked` confined the attacker to having observed a signature over *exactly one* message — unrealistic, since attesters sign many objects over their lifetime. | **FIXED.** Replaced by `Y1_AttackBlocked_Generalized` (attacker holds arbitrarily many observed signatures, none binding the executed proposal). Same axioms, same skeleton, verified. |
 | **Z0b** | **Vacuity risk.** `Y1_AttackBlocked` is a negative result; it would be worthless if `Verify_v133` were unsatisfiable. Not previously checked. | **FIXED.** `HonestPathAccepted` added as a non-vacuity witness. Independent axiom-consistency smoke test (`assert false`) correctly **fails**, confirming `H_Injective` + `Signed` are not contradictory. |
@@ -2144,7 +2191,7 @@ Source: **ACP-REVIEW-002**, an independent adversarial review by a party with no
 | **Y3** | **CONFIRMED**, and the most serious *open* item in v1.3.3: dispositioned OPEN with no draft text, on the only path that doubles a floor-HIGH non-idempotent action. | **FIXED — NEW, UNCONFIRMED.** DS-6 (action identity ≠ authorization identity), DS-1/DS-3 revised, L-25, T-20, suite 3 vectors. Mechanized: `Y3_RedriveDefeatsDedup` (defect), `Y3_Fixed_RedriveIsDedupped`, `Y3_Fixed_AuthorizationStillFresh`, `Y3_Fixed_DistinctActionsDistinctKeys`. **Drafted in this revision; requires independent confirmation before it is relied upon.** |
 | **Y4** | **CONFIRMED**, and found **dispositioned in prose but not implemented**: C.4 said `operator` folds into AT-8, but neither §8.6's AT-8 text nor §9.3 step 7b listed it. The fix did not exist in the normative sections. | **FIXED.** `operator` added to AT-1; step 7b(iii-a) takes operator from the verified object; receipt body `operator` marked diagnostic; `Y4_OperatorTamperDetected` added. *Disclosed:* the v1.3.3 model had no theorem keying on `operator`, so dropping it from the preimage killed nothing — the mutation gap was found by mutating the reviewer's own model. |
 | **Y5.2** | **RE-GRADED from informative minor to binding-path requirement.** AT-8 moved object hashing onto the binding path, where two canonicalizers means two ids for one object — a freshness defect in the mechanism Y1b closes. | **FIXED.** AT-8a: canonical CBOR for the Attestation Object, non-canonical encodings rejected. L-26 added. |
-| **Z1** | **NEW — MEDIUM.** §8.3.1 states no precedence or associativity for `&&`/`||`. Two evaluators written independently from the prose disagree on **493 of 10,000** generated cases (4.9%), minimal witness `action != 'deny' \|\| action == 'allow' && action == 'allow'`. Invisible to Annex B (quantifies over parsed `Expr`) and to B.7 item 4 (generates ASTs, not source text) — squarely the model↔production gap. | **FIXED.** EL-1 precedence and associativity rule; suite 8 parser vectors; `diff_prose.py` published as reference method; RES-10 added. **Residual CLOSED in v1.3.5** by `el1_migrate.py`: exhaustive per-bundle check over the truth-assignment space of each rule's atoms, reporting structural divergence, semantic divergence with a witness, and whether the resulting **risk grade** changes. Exit 1 = RK-5 review required before upgrade. |
+| **Z1** | **NEW — MEDIUM.** §8.3.1 states no precedence or associativity for `&&`/` | | `. Two evaluators written independently from the prose disagree on **493 of 10,000** generated cases (4.9%), minimal witness`action != 'deny' \|\| action == 'allow' && action == 'allow'`. Invisible to Annex B (quantifies over parsed`Expr`) and to B.7 item 4 (generates ASTs, not source text) — squarely the model↔production gap. | **FIXED.** EL-1 precedence and associativity rule; suite 8 parser vectors; `diff_prose.py` published as reference method; RES-10 added. **Residual CLOSED in v1.3.5** by `el1_migrate.py`: exhaustive per-bundle check over the truth-assignment space of each rule's atoms, reporting structural divergence, semantic divergence with a witness, and whether the resulting **risk grade** changes. Exit 1 = RK-5 review required before upgrade. |
 | **Z2** | **NEW — LOW.** The normative `risk_functions` example used `∩` and `≠ ∅`, operators absent from the §8.3.1 grammar: the specification's own reference bundle was not admissible under its own expression language. | **FIXED.** Example rewritten to `port in SENSITIVE_PORTS`; RK-2a requires registry admission to reject inexpressible conditions and to expand named constants before hashing. |
 | **Negative coverage** | Attacked and **not** broken: floor dominance under adversarial Context Store (TR-4); X1 re-attack (derived-risk forgery, closed by steps 7/7a); epoch rollback (RAD-3 high-water + CL-4 + 11.3(d)); nonce/attestation consumption for the *value* leg (CL-1/2/3). | Residual bounded rather than unexamined. |
 
@@ -2155,7 +2202,7 @@ Source: **ACP-REVIEW-002**, an independent adversarial review by a party with no
 Source: an adversarial pass over v1.3.4's **own newest machinery** (DS-6, AT-8a), per the standing rule that the next escaped defect lives in whatever the last fix introduced. Both findings are in fixes drafted one revision earlier.
 
 | ID | Finding (v1.3.4) | Disposition in v1.3.5 |
-|----|------------------|----------------------|
+| ---- | ------------------ | ---------------------- |
 | **Z3** | **Origin substitution — DS-6's own RES-8 defect.** DS-6b required verifying the claimed `origin_nonce` is "recorded as consumed in the ledger" — a **membership** test, not a **pinning** test. A compromised KMS names any other consumed nonce as origin; every check passes (fresh quorum, honest risk, valid AT-8 binding); the idempotency key moves; the target cannot dedup; the floor-HIGH action doubles. Classified **T** against no disclosed residual — a suite-12 conformance failure in the fix for Y3. Fourth recurrence of the class (C2 → X1 → Y1 → Z3). | **FIXED — NEW, UNCONFIRMED.** DS-6f: the ledger claims an immutable `proposal_hash → origin_nonce` binding atomically with the first receipt nonce; the Executor reads origin from the ledger; a receipt-carried value is diagnostic and must match or fail closed. CL-3 gains an origin-binding class with indefinite retention; L-27, T-22, suite 3 vector. Mechanized: `Z3_MembershipCheckDoesNotPinOrigin`, `Z3_Fixed_DistinctProposalsDistinctKeys`. |
 | **Z4** | **Encoding split — AT-8a fixed the canonicalizer, not the schema.** Given any optional Attestation Object field, present-as-null and omitted are **each** canonical CBOR, hash to two ids, and claim two ledger slots: one attestation consumed twice. T-14 amplification reopens through the mechanism Y1b closed. Canonicalization rules cannot close it — the ambiguity is in the field set. | **FIXED — NEW, UNCONFIRMED.** AT-8b: closed schema, every AT-1 field REQUIRED, no defaults, no extension points; unknown or missing field ⇒ reject, never normalize. Object extension becomes a breaking `receipt_version` change. L-26 extended, T-23, suite 3 vector. Mechanized: `Z4_OptionalFieldYieldsTwoIds`. |
 | **Z1 residual** | v1.3.4 specified no migration tooling for bundles authored under the ambiguous grammar. | **CLOSED.** `el1_migrate.py` — exhaustive over each rule's atom truth-assignment space; reports structural divergence, semantic divergence with witness, and whether the **risk grade** changes; exit 1 = RK-5 review required. Tested against an ambiguous bundle (correctly reports a MEDIUM→HIGH grade change) and its parenthesized form (correctly reports safe). |
@@ -2187,7 +2234,7 @@ Source: an adversarial pass over v1.3.4's **own newest machinery** (DS-6, AT-8a)
 *Skolemising the attacker.* `Broken` was first written `forall m :: exists sig :: Verifies(...)`. The nested existential gives the solver no trigger for the outer quantifier, so it could not be instantiated at a specific message and three proofs failed. It is now written with an explicit forgery function `Forge(p, k, m)`. This is a modelling improvement, not a weakening: `Forge` **is** the attacker's algorithm, and naming it is more honest than hiding it behind an existential.
 
 | Part | Lemma | Establishes |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | I–III | (13 lemmas, unchanged) | Y1/Y1b/Y4 binding, Y3/DS-6 delivery identity, Z3 origin pinning, Z4 encoding uniqueness. |
 | IV | `RV3_TrustedModeAcceptsDowngrade` → `RV3_ModeIndependentOfReceipt` | The v1.3.6 defect and its closure: release mode identical for every receipt. |
 | IV | `RV1_UnclassifiedNeverSilent` | An unclassified action can never release silently. |
@@ -2203,7 +2250,7 @@ Source: an adversarial pass over v1.3.4's **own newest machinery** (DS-6, AT-8a)
 **Mutation controls (all kill).**
 
 | Mutant | Observed |
-|--------|----------|
+| -------- | ---------- |
 | Parts I–III (binding clause, signature clause, DS-6 key, `operator`, DS-6f origin) | all kill, as v1.3.5 |
 | IV-M1 release mode reads the receipt (revert RV-3) | **5 errors** |
 | IV-M2 RV-1 default flipped to `REVERSIBLE` | **1 error** |

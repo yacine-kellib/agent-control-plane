@@ -22,7 +22,11 @@ Reproduce everything in one command:
 
 ---
 
-## Unreleased since v1.3.14 — INV-1-HIGH did not hold, and CR-4 was ordering the unorderable
+## Unreleased since v1.3.14 — INV-1-HIGH did not hold, CR-4 was ordering the unorderable, and the specification is why
+
+**Specification version moves to ACP-SPEC-001 v1.3.15** (from v1.3.13; there is
+no v1.3.14 — see below).
+
 
 **Read this before anything else in this file.** v1.3.14 as tagged and signed
 contains three defects in released code. Two are the same defect wearing
@@ -73,21 +77,54 @@ implementations and were wrong in both, which is the thing to remember about a
 differential test: agreement is evidence about consistency, never about
 correctness.
 
-Evidence: conformance 45 → 48, consolidated registry 74 → 77, executor mutants
-20 → 23 (33 across all suites), Rust tests 25 → 32. Every new check is
-mutation-proven load-bearing. A further check — requiring the attested
-`required_count` to equal `quorum_k` — was written, found to kill no mutant
-because the bundle hash already binds the threshold transitively, and removed.
+**The specification moves too — v1.3.13 → v1.3.15.** All three released defects
+were downstream of a gap in the normative text, so fixing only the reference
+would leave a second implementation free to rebuild them and be conformant while
+doing so. `PB-6` gives the quorum threshold a home in the signed bundle; `AT-9`
+makes it recomputed-only *and* requires the attestation's stated count to match;
+`PB-7` requires attester keys to be pairwise distinct and makes a violating
+registry an invalid bundle; `CR-4` is restated as containment; §9.3 step 7b(iii)
+and (vi) are rewritten to say which side is authoritative. There is no
+specification v1.3.14 and never will be — the package release v1.3.14 shipped
+with the document unchanged at v1.3.13, and minting a spec v1.3.14 now would put
+two artifacts behind one version string, which is the X5 collision this document
+wrote a rule against. §1 says so where a reader will find it.
+
+**A correction inside the correction, and the more useful half.** The first pass
+at ACP-28 recomputed the threshold and *deleted* the check comparing the
+attestation's stated `required_count` against it, arguing that the bundle hash
+already binds the threshold transitively so an equality test kills no mutant.
+Every step of that is true and the conclusion is wrong: it enumerated only
+attacks that **lower** the threshold. Raising the stated count is not an attack
+on INV-1-HIGH at all — it is an attack on **consent**. Attesters shown "3
+approvals required" sign on that basis; executing after two removes a reviewer
+they were relying on, with every signature valid and the invariant intact. It
+has its own attack and its own mutant, and AT-9 now mandates both halves and
+says explicitly that neither substitutes for the other.
+
+Restoring it then *masked* the threshold mutant — the fourth masking recorded
+here — which was resolved by admitting that `need_roles = b.quorum_k` raises
+nothing and is therefore not a check but a choice of data source. The two
+branches that can refuse are AT-9's equality and AT-3's comparison; both are
+mutation-proven, and `a_AT3_partial_quorum` (one genuine approval, honestly
+stating two) is the only quorum attack here that no earlier check catches.
+
+*The general form, twice demonstrated in one fix:* **"this check is redundant"
+is a claim about the attacks you enumerated, not about the check.**
+
+Evidence: conformance 45 → 50, consolidated registry 74 → 79, executor mutants
+20 → 24 (34 across all suites), Rust tests 25 → 32. Every check that can refuse
+is mutation-proven load-bearing.
 
 The CR-4 mutant is the first in this repository that does not delete anything:
 it swaps the set comparison for a scalar one. Every previous mutant asked "is
 this check load-bearing?" and none could ask "does this check mean the right
 thing?" — which is why a present, load-bearing, wrong CR-4 survived four
-releases. Recorded in `dossier/05-TEST-EVIDENCE.md` as a limit of the method.
+releases. Recorded in `dossier/05-TEST-EVIDENCE.md` as a limit of the method,
+alongside a new §15 RES-0 in the specification stating what differential
+evidence cannot tell you: the rank table was byte-identical across two
+implementations and a passing differential test asserted their agreement.
 
-**Not done, and it needs the author.** ACP-SPEC-001 §9.3 step 7b and AT-3 do not
-say where the threshold comes from. That ambiguity is what permitted ACP-28, and
-closing it is a normative edit under the X5 release rule, not a reference fix.
 `dossier/05-TEST-EVIDENCE.md` also carried a stale conformance total (44/36
 against a suite printing 45); corrected in the same pass.
 

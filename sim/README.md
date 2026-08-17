@@ -4,7 +4,7 @@ An end-to-end simulation of an agentic research pipeline: four program contexts,
 
 > **Illustrative.** This models a company *shaped like* an AI-driven drug design firm, built from public information. It describes no organisation's internal systems and claims no knowledge of any. Every number, tier and threshold is a placeholder a real deployment must re-derive with its own scientists and risk owners.
 
-Companion to ACP-SPEC-001 v1.3.13 and Annex D.
+Companion to ACP-SPEC-001 v1.3.15 and Annex D.
 
 ---
 
