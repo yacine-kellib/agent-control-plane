@@ -360,7 +360,7 @@ The dossier is the argument; the spec is the normative source. Read `06` before 
 | [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md) | Running and presenting the demo | — |
 | [`dossier/annexes/D-research-pipeline.md`](dossier/annexes/D-research-pipeline.md) | Annex D — worked example in an agentic research pipeline | — |
 | [`spec/ACP-SPEC-001.md`](spec/ACP-SPEC-001.md) | The full normative specification | 3 h |
-| [`RELEASE.md`](RELEASE.md) | What changed in v1.3.14 | — |
+| [`RELEASE.md`](RELEASE.md) | What changed in package release v1.3.14 — spec unchanged at v1.3.13 | — |
 
 ---
 
