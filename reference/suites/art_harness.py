@@ -25,10 +25,9 @@ WHAT IT IS NOT, AND READ THIS BEFORE ANY NUMBER IT PRINTS.
 
   2. THE CORPUS SHIPPED HERE IS NOT ART. It is a small fixture set written in
      ART's shape so that this file is testable today, offline, with no key and
-     no network — the same discipline as `llm_agent_suite.py`. Until
-     `load_corpus()` is pointed at the published file, NOTHING here is a claim
-     about ART. The harness prints its corpus provenance on every run so a
-     reader cannot mistake one for the other.
+     no network — the same discipline as `llm_agent_suite.py`. NOTHING here is
+     a claim about ART. The harness prints its corpus provenance on every run
+     so a reader cannot mistake one for the other.
 
   3. IT COVERS THE TOOL-USE SUBSET ONLY. The arena spans tool-use, coding and
      GUI/computer-use agents. Only tool-use maps onto a typed Proposal under
@@ -357,7 +356,7 @@ def load_corpus(path: str | None = None):
     if path is None:
         return FIXTURES, "FIXTURES (hand-written, NOT ART)"
     raise NotImplementedError(
-        "the published ART corpus is not wired yet. Implement the field mapping "
+        "no external corpus is wired yet. Implement the field mapping "
         "here — id, subset, behaviour, injection, intended tool call — and "
         "nowhere else; every consumer downstream reads only AttackCase.")
 
