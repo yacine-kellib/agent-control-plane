@@ -154,6 +154,53 @@ claimed=$(grep -ohE 'covers [0-9]+ files' README.md RELEASE.md | grep -ohE '[0-9
 [ "$claimed" = "$covered" ]
 chk $? "every published file count equals the signer's ($claimed vs $covered)"
 
+printf '\n\033[1m== published mutant counts match the suites ==\033[0m\n'
+
+# The same defect as the file count above, found the same way and one release
+# later: README's front page said "30 mutation controls" in one paragraph and
+# "34 of them: 24 executor, 6 acknowledgement, 4 audit" four lines below, while
+# the suites held 25 + 6 + 4 = 35. Two published numbers that disagreed with the
+# code AND with each other, on the front page, under a heading claiming the
+# mutation results are the ones worth reading.
+#
+# Counted by parsing the MUTANTS lists rather than by running them: the suites
+# fork a subprocess per mutant and take minutes, and this assertion is about
+# what is published, not about whether the mutants still die. The gate already
+# asserts the latter.
+read -r m_ex m_ack m_aud <<EOF
+$(python3 - <<'PY'
+import ast
+out = []
+for f in ("reference/suites/mutate_executor.py",
+          "reference/suites/ack_suite.py",
+          "reference/suites/audit_suite.py"):
+    n = 0
+    for node in ast.walk(ast.parse(open(f).read())):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.List):
+            if any(isinstance(t, ast.Name) and t.id == "MUTANTS" for t in node.targets):
+                n = len(node.value.elts)
+    out.append(str(n))
+print(" ".join(out))
+PY
+)
+EOF
+m_total=$(( m_ex + m_ack + m_aud ))
+[ "$m_total" -gt 0 ]; chk $? "the MUTANTS lists parse (${m_ex}+${m_ack}+${m_aud}=${m_total})"
+
+# The split, published as one sentence, so a partial edit cannot satisfy it.
+split=$(grep -ohE '[0-9]+ of them: [0-9]+ executor, [0-9]+ acknowledgement, [0-9]+ audit' README.md)
+[ -n "$split" ]; chk $? "README publishes the mutant split"
+set -- $(printf '%s' "$split" | grep -oE '[0-9]+')
+[ "$1" = "$m_total" ] && [ "$2" = "$m_ex" ] && [ "$3" = "$m_ack" ] && [ "$4" = "$m_aud" ]
+chk $? "the published split equals the suites ($1/$2/$3/$4 vs $m_total/$m_ex/$m_ack/$m_aud)"
+
+# The other paragraph, which drifted independently of the one above. Asserting
+# only one of them is how they came to disagree.
+controls=$(grep -ohE '[0-9]+ mutation controls' README.md | grep -oE '[0-9]+')
+[ -n "$controls" ]; chk $? "README publishes a mutation-control total"
+[ "$controls" = "$m_total" ]
+chk $? "every published mutant total agrees ($controls vs $m_total)"
+
 printf '\n\033[1m== published fingerprint matches the shipped key ==\033[0m\n'
 
 # v1.3.13 shipped a README whose release-key fingerprint came from a superseded

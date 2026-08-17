@@ -52,11 +52,11 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ./tools/verify.sh
 ```
 
-Abridged output. A complete run prints 18 result lines across five numbered sections:
+Abridged output. A complete run prints 19 result lines across five numbered sections:
 
 ```
 == 1. Integrity ==
-  OK   130 files match MANIFEST.sha256
+  OK   136 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -71,11 +71,11 @@ Abridged output. A complete run prints 18 result lines across five numbered sect
   ...
 ```
 
-Fourteen suite lines in all, spanning 10 numbered suites, and 30 mutation controls across three of them.
+Fourteen suite lines in all, spanning 10 numbered suites, and 35 mutation controls across three of them.
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
-**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 34 of them: 24 executor, 6 acknowledgement, 4 audit.
+**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 35 of them: 25 executor, 6 acknowledgement, 4 audit.
 
 Two gates, and the difference matters:
 
