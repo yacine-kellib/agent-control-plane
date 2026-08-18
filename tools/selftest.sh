@@ -97,10 +97,10 @@ hasnot '1\. Integrity'      "--suites skips integrity (no release key needed)"
 hasnot 'Manifest signature' "--suites skips signature"
 has    'Formal proofs'      "--suites still runs the proof step"
 
-# 17 = 1 prerequisites + 1 proofs + 14 suite lines + 1 harness. The prereq line at
-# verify.sh:21 is easy to forget; an assertion of 14 fails against a healthy run.
+# 18 = 1 prerequisites + 1 proofs + 15 suite lines + 1 harness. The prereq line at
+# verify.sh:21 is easy to forget; an assertion of 15 fails against a healthy run.
 n=$(echo "$OUT" | strip_ansi | grep -cE '^  (OK|FAIL)')
-[ "$n" -eq 17 ]; chk $? "--suites reports 17 result lines: prereqs + proofs + 14 suites + harness (got $n)"
+[ "$n" -eq 18 ]; chk $? "--suites reports 18 result lines: prereqs + proofs + 15 suites + harness (got $n)"
 
 nf=$(echo "$OUT" | strip_ansi | grep -cE '^  FAIL')
 [ "$nf" -eq 0 ]; chk $? "--suites has no failing line (got $nf)"
@@ -301,6 +301,24 @@ else
   OUT=$(python3 tools/check-rust-signatures.py 2>&1); rc=$?
   [ $rc -eq 0 ]; chk $? "Python verifies every Rust signature (got $rc)"
   has 'verified [1-9][0-9]* Rust-signed identities' "the cross-language check is non-vacuous"
+fi
+
+printf '\n\033[1m== Python and Rust agree on a bundle ==\033[0m\n'
+
+# ACP-38 and ACP-39's acceptance criteria. `verify.sh --suites` runs each
+# implementation against itself; this runs them against EACH OTHER, on the same
+# directory, comparing the tree hash, the verdict, and WHICH refusal fired.
+# Two implementations that both refuse for different reasons agree on nothing
+# useful -- and checks running in the wrong order is precisely how that happens.
+#
+# Needs both toolchains, which is why it is here rather than in the gate.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; bundle differential not checked\n'
+else
+  cargo build -q -p acp-bundle-cli 2>/dev/null
+  OUT=$(python3 tools/check-bundle-differential.py 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "python and rust agree on every bundle case (got $rc)"
+  has 'agree on [1-9][0-9]* bundles' "the bundle differential is non-vacuous"
 fi
 
 printf '\n\033[1m== published Rust test count matches the workspace ==\033[0m\n'

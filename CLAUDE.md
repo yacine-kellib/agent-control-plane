@@ -13,9 +13,9 @@ That framing drives most of the rules below. A change that makes a number in the
 ## Commands
 
 ```bash
-./tools/verify.sh --suites         # proofs + 14 suites + harness — THE PER-COMMIT GATE, no key needed
+./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (61 assertions)
+./tools/selftest.sh                # tests the tooling itself (63 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 
 # individual suites — run from reference/suites/, they use flat imports
@@ -30,6 +30,7 @@ PYTHONPATH=../src python3 partition_integration.py # 6/6
 PYTHONPATH=../src python3 cbor_suite.py           # 8/8
 PYTHONPATH=../src python3 research_bundle.py --attacks  # 4/4  Annex D domain attacks
 PYTHONPATH=../src python3 llm_agent_suite.py       # 44/44  the live-agent client — no API key, no network
+PYTHONPATH=../src python3 bundle_suite.py          # 27/27  the policy bundle: walk, tree hash, verify-on-read
 PYTHONPATH=../src python3 art_harness.py           # a HARNESS, not a suite: it reports findings and
                                                    # fails only if it is broken or vacuous. Corpus is
                                                    # fixtures until load_corpus() is wired to real ART.
@@ -54,7 +55,7 @@ Dependencies: `cryptography` and `dilithium-py`. Since v1.3.14 **`sim/` needs th
 
 `./tools/verify.sh` sections 1–2 are integrity and Ed25519 signature. **Only the key holder can make them green**, because regenerating the manifest requires the offline release key. Between releases they are expected to be red.
 
-- **`--suites`** — proofs + 14 suite lines + the external-corpus harness. No key. Green at every commit. A clean run prints **17** result lines (1 prerequisites + 1 proofs + 14 suites + 1 harness).
+- **`--suites`** — proofs + 15 suite lines + the external-corpus harness. No key. Green at every commit. A clean run prints **18** result lines (1 prerequisites + 1 proofs + 15 suites + 1 harness).
 - **full** — the above plus integrity and signature. Green at a tagged release.
 
 **Never "fix" a red integrity line by regenerating `MANIFEST.sha256`.** A regenerated manifest whose signature no longer verifies is strictly worse than a stale one, and nobody but the key holder can repair it.
@@ -140,7 +141,7 @@ The prose is deliberately self-critical and states limits before strengths — `
 
 ## Testing the tooling
 
-Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, that `--suites` prints 17 result lines with no failures, that a mutation suite whose mutants cannot import reports ERROR rather than KILL, and that every file count published in prose equals the number the signer actually covers. Three real defects have been found by writing those assertions.
+Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, that `--suites` prints 18 result lines with no failures, that a mutation suite whose mutants cannot import reports ERROR rather than KILL, and that every file count published in prose equals the number the signer actually covers. Three real defects have been found by writing those assertions.
 
 ## Current state
 
@@ -150,6 +151,6 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 142 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 145 files across ten roots.
 
 Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 52 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.

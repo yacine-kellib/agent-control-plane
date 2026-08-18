@@ -96,6 +96,12 @@ run ack_suite.py            "6/6"        "Suite 9  ack mutation" --mutate
 run audit_suite.py          "11/11"      "Suite 7  audit/anchor/accumulator"
 run audit_suite.py          "4/4"        "Suite 7  audit mutation" --mutate
 run llm_agent_suite.py      "44/44"      "Suite 10 live-agent client"
+# The bundle is the rule store the whole control plane reads from, so it gets a
+# gate line the day it lands. sim/bundle.py was load-bearing with NO gate line
+# for several releases and silently dropped three fields from a hash (ACP-35);
+# the cross-language half needs cargo and runs from selftest.sh instead, so this
+# gate stays runnable with Python alone.
+run bundle_suite.py         "27/27"      "Suite 11 policy bundle (PB-1..PB-8)"
 # NOT numbered as a suite, deliberately. Its corpus is fixtures until the
 # published ART file is wired, so calling it "Suite 11" would let a reader
 # count it as external evidence it does not yet carry. What it asserts today is
