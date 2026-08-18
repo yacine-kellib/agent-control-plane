@@ -4,6 +4,7 @@ members = [
     "crates/acp-core",
     "crates/acp-crypto",
     "crates/acp-bundle",
+    "crates/acp-bundle-cli",
     "crates/acp-conformance",
     "services/executor",
     "services/policy",

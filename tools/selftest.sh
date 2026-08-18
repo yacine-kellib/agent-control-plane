@@ -345,6 +345,113 @@ PY
   has 'checked [1-9][0-9]* published count' "the Rust count check is non-vacuous (found at least one)"
 fi
 
+printf '\n\033[1m== acp-bundle CLI: the release signer discipline, applied to bundles ==\033[0m\n'
+
+# Mirrors the sign-release.sh assertions above, on the bundle signer. The rules
+# are the same rules and were paid for once already: list and sign must agree,
+# an unrecognised file type must HALT, and a failed signing must leave the
+# previous SIGNATURE byte-identical rather than truncated or missing.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; bundle signer not checked\n'
+else
+  cargo build -q -p acp-bundle-cli 2>/dev/null
+  BIN=./target/debug/acp-bundle
+  BDIR=$(mktemp -d)
+  KEYS=$(mktemp -d)
+  mkdir -p "$BDIR/attesters"
+  cat > "$BDIR/manifest.json" <<'JSON'
+{"schema_version":"1","bundle_epoch":7,"created_at":"2026-01-01T00:00:00Z",
+ "author":{"id":"ana","display_name":"Ana"},
+ "reviewer":{"id":"bo","display_name":"Bo"},
+ "expires_at":"2027-01-01T00:00:00Z","min_suite":"hybrid-ed25519-mldsa65",
+ "custody":{"tier":"T1","classical":"x","pq":"y"}}
+JSON
+  echo '{"payments":"T3"}' > "$BDIR/floors.json"
+  echo '{"schema_version":"1","quorum_k":2,"attesters":{"ana":{"classical":"ka","pq":"pa"},"bo":{"classical":"kb","pq":"pb"}}}' \
+    > "$BDIR/attesters/registry.json"
+
+  # Keys come from the Python reference's derivation, so the signer is exercised
+  # against the same key material every other cross-language check uses.
+  python3 - "$KEYS" <<'PY' >/dev/null 2>&1
+import sys, json
+sys.path.insert(0, "reference/src")
+from acp_crypto import HybridKey
+from cryptography.hazmat.primitives import serialization as ser
+out = sys.argv[1]
+k = HybridKey(b"bundle-signing-key")
+ed_sk = k.ed_sk.private_bytes(ser.Encoding.Raw, ser.PrivateFormat.Raw, ser.NoEncryption())
+ed_pk = k.ed_sk.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw)
+json.dump({"ed25519_sk_hex": ed_sk.hex(), "mldsa65_sk_hex": k.ml_sk.hex()}, open(f"{out}/key.json", "w"))
+json.dump({"ed25519_pk_hex": ed_pk.hex(), "mldsa65_pk_hex": k.ml_pk.hex()}, open(f"{out}/pub.json", "w"))
+PY
+
+  OUT=$("$BIN" list "$BDIR" 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "list exits 0 with no key (got $rc)"
+  has 'attesters/registry\.json' "list covers the attester registry (PB-KEY)"
+  LIST_HASH=$(echo "$OUT" | grep -o 'sha256:[0-9a-f]*')
+
+  OUT=$("$BIN" sign "$BDIR" --key "$KEYS/key.json" 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "sign exits 0 (got $rc)"
+  SIGN_HASH=$(echo "$OUT" | grep -o 'sha256:[0-9a-f]*')
+  [ -n "$LIST_HASH" ] && [ "$LIST_HASH" = "$SIGN_HASH" ]
+  chk $? "list and sign agree on the tree hash"
+
+  OUT=$("$BIN" verify "$BDIR" --pubkey "$KEYS/pub.json" --now 2026-08-18T00:00:00Z 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "a freshly signed bundle verifies (got $rc)"
+  has '^OK Normal$' "and serves at full strength inside its validity window"
+
+  # A FAILED SIGNING MUST NOT DESTROY THE LAST VALID SIGNATURE -- the defect the
+  # release signer hit once. Build into .tmp, move only after the bytes exist.
+  BEFORE=$(shasum "$BDIR/SIGNATURE" | cut -d' ' -f1)
+  echo '{"ed25519_sk_hex":"00","mldsa65_sk_hex":"00"}' > "$KEYS/bad.json"
+  OUT=$("$BIN" sign "$BDIR" --key "$KEYS/bad.json" 2>&1); rc=$?
+  [ $rc -ne 0 ]; chk $? "an unusable key makes sign fail (got $rc)"
+
+  # THE PREVIOUS ASSERTION ALONE IS VACUOUS, and was, until a mutant proved it:
+  # a bad key is rejected BEFORE anything is written, so a signer writing
+  # straight to SIGNATURE passes it too. Removing the .tmp-and-move left the
+  # whole block green, which is the "green run that means nothing" this file
+  # exists to prevent.
+  #
+  # The failure has to land AFTER the signature is produced, at the write. A
+  # read-only directory does that: creating SIGNATURE.tmp is refused, while an
+  # existing SIGNATURE stays writable through its own mode -- so a direct writer
+  # truncates the last valid signature and a .tmp writer cannot touch it. That
+  # asymmetry is the whole control, and it is what this now measures.
+  chmod 500 "$BDIR"
+  OUT=$("$BIN" sign "$BDIR" --key "$KEYS/key.json" 2>&1); rc=$?
+  chmod 700 "$BDIR"
+  [ $rc -ne 0 ]; chk $? "sign fails when it cannot write into the bundle (got $rc)"
+  AFTER=$(shasum "$BDIR/SIGNATURE" | cut -d' ' -f1)
+  [ "$BEFORE" = "$AFTER" ]
+  chk $? "SIGNATURE is byte-identical after a write that failed mid-signing"
+  [ ! -e "$BDIR/SIGNATURE.tmp" ]; chk $? "no .tmp file is left behind"
+
+  # HALT, not skip. A silently skipped file is unsigned content inside a signed
+  # bundle, which is the thing the signature exists to deny.
+  echo '#!/bin/sh' > "$BDIR/helper.sh"
+  OUT=$("$BIN" list "$BDIR" 2>&1); rc=$?
+  [ $rc -ne 0 ]; chk $? "an unrecognised file type makes list halt (got $rc)"
+  has 'unrecognised file type' "and says which file, rather than skipping it"
+  OUT=$("$BIN" sign "$BDIR" --key "$KEYS/key.json" 2>&1); rc=$?
+  [ $rc -ne 0 ]; chk $? "sign halts on it too, so list and sign cannot disagree"
+  rm -f "$BDIR/helper.sh"
+
+  # PB-2 at signing time, where the author can still fix it.
+  python3 - "$BDIR" <<'PY' >/dev/null 2>&1
+import json, sys
+p = f"{sys.argv[1]}/manifest.json"
+m = json.load(open(p))
+m["reviewer"] = m["author"]
+json.dump(m, open(p, "w"))
+PY
+  OUT=$("$BIN" sign "$BDIR" --key "$KEYS/key.json" 2>&1); rc=$?
+  [ $rc -ne 0 ]; chk $? "sign refuses when author == reviewer (PB-2) (got $rc)"
+  has 'PB-2' "and names the clause"
+
+  rm -rf "$BDIR" "$KEYS"
+fi
+
 printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 
 # README.md and CLAUDE.md both publish how many assertions this script makes.

@@ -1,0 +1,25 @@
+[package]
+name = "acp-bundle-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "acp-bundle"
+path = "src/main.rs"
+
+[dependencies]
+acp-bundle = { path = "../acp-bundle" }
+acp-crypto.workspace = true
+# BundleEpoch, for --high-water on the verify path.
+acp-core.workspace = true
+# Key files and the SIGNATURE envelope. Not a bundle model -- see acp-bundle's
+# note; this reads two hex fields out of a key file and writes three into a
+# signature.
+serde_json = "1"
+
+# Deliberately NOT depended on:
+#   clap — the argument surface is three subcommands and six flags, and the
+#     parser below is forty lines. A signing tool for an air-gapped host is a
+#     place to keep the dependency tree short enough to read.

@@ -21,6 +21,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "acp-bundle-cli"
+version = "0.0.0"
+dependencies = [
+ "acp-bundle",
+ "acp-core",
+ "acp-crypto",
+ "serde_json",
+]
+
+[[package]]
 name = "acp-conformance"
 version = "0.0.0"
 dependencies = [

@@ -150,6 +150,18 @@ pub struct VerifyingKeys {
 }
 
 impl VerifyingKeys {
+    /// Assemble an identity from public bytes.
+    ///
+    /// This is how a verifier loads the key it was configured with
+    /// out-of-band — from a file placed by an operator, not from a bundle.
+    /// Both halves are required and neither has a default: an identity missing
+    /// its post-quantum key is not a weaker identity, it is a different one,
+    /// and defaulting it to empty would let CR-3's second leg verify against
+    /// nothing.
+    pub fn from_parts(classical: [u8; 32], pq: Vec<u8>) -> Self {
+        VerifyingKeys { classical, pq }
+    }
+
     pub fn classical(&self) -> &[u8; 32] {
         &self.classical
     }

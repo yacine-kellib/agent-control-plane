@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 14 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (46 assertions)
+./tools/selftest.sh                # tests the tooling itself (61 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 
 # individual suites — run from reference/suites/, they use flat imports
@@ -150,6 +150,6 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 140 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 142 files across ten roots.
 
 Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 52 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.
