@@ -29,8 +29,8 @@
 //!
 //! The file also carries the other half of the vector-corpus premise. A vector
 //! is meant to declare a **seed** and let each implementation derive its own
-//! keypair — `spec/vectors/CLASSIFICATION.md` rests 47 of 85 extractable cases
-//! on that — and it only works if two implementations derive the same one. They
+//! keypair — `spec/vectors/CLASSIFICATION.md` rests 47 of its 48 extractable
+//! cases on that — and it only works if two implementations derive the same one. They
 //! do. What is portable, though, is the seed **plus the declared derivation**,
 //! not the seed: an implementation that hashes the bare seed, or picks its own
 //! domain separators, derives a different identity and refuses every signature
@@ -238,7 +238,7 @@ fn derive_from_seed(seed: &str) -> (Vec<u8>, Vec<u8>) {
 fn rust_derives_the_public_keys_python_derived_from_the_same_seed() {
     // `spec/vectors/CLASSIFICATION.md` rests the entire extractable corpus on
     // this: a vector declares a seed, each implementation derives locally, and
-    // 47 of 85 cases become shared data. Until this test ran, "in any
+    // 47 of the 48 cases become shared data. Until this test ran, "in any
     // implementation" had been checked across Python processes only — the same
     // two libraries twice, which cannot detect a disagreement between
     // libraries. `dilithium-py` and `fips204` both cite FIPS 204 Algorithm 6,

@@ -9,8 +9,10 @@ A shared conformance corpus expresses **input → verdict**. It hands an impleme
 set of bytes and asks what it decides. That is a real and useful thing to check across
 languages, and it is a **minority of the evidence this repository actually relies on**.
 
-**Of 85 cases in the four suites, 47 could become shared data and 38 could not.** The
-whole audit suite is in the second group: **0 of 11.** On top of those 38 sit **35
+**Of 86 cases in the four suites, 48 could become shared data and 38 could not.** The
+audit suite is almost entirely in the second group: **11 of 12**, the exception being
+the AU-1 chain derivation added in v1.3.15, which is expressible but not yet
+extractable — see the canonicalisation note in `CLASSIFICATION.md`. On top of those 38 sit **35
 mutation cases**, which no data file can ever carry.
 
 Passing every vector in the corpus is therefore a **partial** claim. An implementation
@@ -140,8 +142,8 @@ expresses: the anchor must fail *between* two points in one release.
 ## Obligation 5 — the audit layer, in full
 
 Beyond the three anchor-reachability cases above, the remaining audit cases assert counts
-and orderings over sequences. **All 11 audit cases are obligations**; these are the other
-seven.
+and orderings over sequences. **11 of the 12 audit cases are obligations** — every one that asserts a count, an
+ordering or an environment; these are the other seven.
 
 | Case | Rule | What must be shown |
 | --- | --- | --- |
@@ -154,8 +156,8 @@ seven.
 | `t_AU8_genesis_survives_chain_destruction` | `AU-8` | A destroyed tenant chain still leaves evidence in the anchor. |
 | `t_reconciliation_clean_on_honest_run` | — | An honest run reconciles with no findings. |
 
-**8 cases here; 11 across the suite**, the other three being the anchor-reachability cases
-in Obligation 4. An implementation may pass every vector in the corpus while having no
+**8 cases here; 12 across the suite** — the other three being the anchor-reachability
+cases in Obligation 4, plus the one vector-expressible case (AU-1's chain derivation). An implementation may pass every vector in the corpus while having no
 audit chain at all.
 
 ---
@@ -212,7 +214,7 @@ cautions carry over with it:
 | 7 — mutation suites | *(35 mutants, no case rows)* |
 | **Total cases** | **38** |
 
-Vector-expressible: **47**. Obligations: **38**. Mutants, additionally: **35**.
+Vector-expressible: **48**. Obligations: **38**. Mutants, additionally: **35**.
 
 ---
 

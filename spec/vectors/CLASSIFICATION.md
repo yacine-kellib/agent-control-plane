@@ -1,6 +1,6 @@
 # Vector classification — which suite cases can become shared data, and which cannot
 
-**Against ACP-SPEC-001 v1.3.15 · 85 cases across four suites · ACP-1 (VEC-1)**
+**Against ACP-SPEC-001 v1.3.15 · 86 cases across four suites · ACP-1 (VEC-1)**
 
 This file classifies every case in the four suites that a shared vector corpus could
 plausibly cover. It is the derivation behind [`OBLIGATIONS.md`](OBLIGATIONS.md); read that
@@ -43,12 +43,12 @@ feature — that is a VEC-2 input, not a hedge.
 ## What the corpus cannot carry, and what replaces it
 
 **Signatures are not transportable, so no vector carries one.** This is not new — CLAUDE.md
-has said so since v1.3.14 — but it is load-bearing here, because 66 of the 85 cases involve
+has said so since v1.3.14 — but it is load-bearing here, because 66 of the 86 cases involve
 a signed artifact. If it had no answer, the extractable count would be near zero rather
-than 47.
+than 48.
 
 That 66 is the whole set minus the two suites that build no signed artifact at all: the
-8 canonical-CBOR cases, which are literal bytes with no keys anywhere, and the 11 audit
+8 canonical-CBOR cases, which are literal bytes with no keys anywhere, and the 12 audit
 cases, which construct held actions directly. Every case in the conformance and
 acknowledgement suites signs something.
 
@@ -214,9 +214,10 @@ decision goes that way; if it does not, all 14 become obligations.
 
 ---
 
-## Suite 7 — audit, anchor, accumulator (11 cases)
+## Suite 7 — audit, anchor, accumulator (12 cases)
 
-**None of the eleven is vector-expressible, and this is the clearest result in the file.**
+**Eleven of the twelve are not vector-expressible, and that was the clearest result in
+the file until a twelfth case was added for a reason worth recording.**
 The audit layer's claims are all of the form *"after this sequence, the count is N"*,
 *"the anchor was published before the release"*, or *"the chain reconciles against the
 anchor"*. Every one fails test (2) or (3), and several also fail (1) because the
@@ -235,8 +236,19 @@ discriminator is whether an external anchor service is reachable.
 | `t_AU8_genesis_survives_chain_destruction` | obligation | Destroys a chain and checks the anchor still holds evidence. |
 | `t_AU8_genesis_anchor_down_fails_closed` | obligation | Tenant construction with the anchor down. |
 | `t_reconciliation_clean_on_honest_run` | obligation | Full cycle, then reconciliation returns no findings. |
+| `t_AU1_clause_derives_the_implementation_head` | **vector** | The exception, and the only case here that is a pure function: records in, chain heads out. No anchor service, no ordering, no counter — it derives AU-1 and AU-8 from the clause text and compares. Needs the schema to carry an **expected digest** (Suite 5's `t1` already expects a stated value, so this is not a new kind) **and a declared canonicalisation**, which is the load-bearing one: see the note below. |
 
-**0 vector · 11 obligation.**
+**1 vector · 11 obligation.**
+
+*The note.* This case is expressible but **not yet extractable**, and the obstacle is
+not the schema. A shared vector would carry a literal digest, and a digest binds to
+whatever produced it — while `reference/src/acp_executor.py:canon()` is sorted-key JSON
+*modelling* the canonical CBOR AT-8a actually requires, as its own docstring says. So a
+vector extracted today would encode the model rather than the clause, and a conformant
+implementation hashing real RFC 8949 bytes would fail it while being right. That is the
+same shape as the defect this case exists to catch, one level up, so it is recorded here
+rather than discovered during extraction. **VEC-2 input: extract this case only after the
+audit chain hashes canonical CBOR, or declare the canonicalisation in the vector.**
 
 ---
 
@@ -247,8 +259,8 @@ discriminator is whether an external anchor service is reachable.
 | Conformance (Suite 1) | 52 | 29 | 23 |
 | Canonical CBOR (Suite 5) | 8 | 7 | 1 |
 | Signed acknowledgement (Suite 9) | 14 | 11 | 3 |
-| Audit / anchor / accumulator (Suite 7) | 11 | 0 | 11 |
-| **Total** | **85** | **47** | **38** |
+| Audit / anchor / accumulator (Suite 7) | 12 | 1 | 11 |
+| **Total** | **86** | **48** | **38** |
 
 Plus **35 mutation cases** — 25 executor, 6 ack, 4 audit — which are obligations by
 definition and get no per-case rows: a mutant deletes a line of the implementation's own
@@ -256,8 +268,10 @@ source, and no data file can ask another implementation to do that. They are the
 repository's evidence that its checks are load-bearing, and that evidence does not
 transfer. VEC-6 must ask each implementation to produce its own.
 
-**47 of 85 cases, or 55%, could become shared data.** Every one of the 47 depends on the
-seed-declaration mechanism above; eight further depend on a declared signature-mutation
+**48 of 86 cases, or 56%, could become shared data.** Forty-seven of the 48 depend on the
+seed-declaration mechanism above; the forty-eighth is AU-1's chain derivation, which
+carries no key material at all and is blocked on the canonicalisation note in Suite 7
+instead; eight further depend on a declared signature-mutation
 vocabulary; eleven further depend on a `pending_release` precondition block; and one needs
 a bundle-load verdict class. None of that is built.
 

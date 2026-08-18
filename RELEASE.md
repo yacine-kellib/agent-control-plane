@@ -68,9 +68,10 @@ divergence begins. Suite 7 is **11/11 → 12/12**.
 
 Why eleven passing cases and four killed mutants missed it: every one of them tests the
 chain against **itself** — consistent, tamper-evident, rewrite-detecting. None compared it
-to AU-1. `spec/vectors/CLASSIFICATION.md` records the audit suite as **0 of 11
-vector-expressible**, so the one suite with no shared-corpus path is the one whose formula
-drifted. Consistency evidence is not conformance evidence.
+to AU-1. `spec/vectors/CLASSIFICATION.md` recorded the audit suite as **0 of 11
+vector-expressible**, so the one suite with no shared-corpus path was the one whose formula
+drifted. It now reads 1 of 12: the new case is the only pure function in the suite, and the
+file records why it is expressible but not yet extractable. Consistency evidence is not conformance evidence.
 
 ### `CL-7` was two different normative rules, and both were already cited
 
@@ -255,7 +256,7 @@ sized to avoid it.
 
 ---
 
-## Unreleased since v1.3.14 — 47 of 85 suite cases could be shared data; the rest cannot
+## Unreleased since v1.3.14 — 48 of 86 suite cases could be shared data; the rest cannot
 
 `spec/vectors/` gains its first two files, and neither is a vector. **ACP-1 (VEC-1)**
 classified every case in the four suites the shared conformance corpus would cover —
@@ -263,7 +264,7 @@ classified every case in the four suites the shared conformance corpus would cov
 tests: is the discriminating input serialisable, is the decision reached in one call,
 and is the expected outcome a verdict rather than state.
 
-**47 are vector-expressible. 38 are not, and the audit suite is 0 of 11.** On top of
+**48 are vector-expressible. 38 are not, and the audit suite is 11 of 12 obligations.** On top of
 those sit the 35 mutation cases, which delete a line of the implementation's own source
 and can never travel as data.
 
