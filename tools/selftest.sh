@@ -470,6 +470,105 @@ PY
   rm -rf "$BDIR" "$KEYS"
 fi
 
+printf '\n\033[1m== codegen: the committed types still match the schemas ==\033[0m\n'
+
+# `spec/` is the only normative source, and CLAUDE.md has said since the
+# polyglot restructure that the Rust and TypeScript wire types are GENERATED
+# from `spec/schemas/bundle/`, never hand-written -- a hand-written type is a
+# second definition of an object the spec already defines, and two definitions
+# of one object is the encoding-split defect at the source level. That sentence
+# is only true while the COMMITTED output still matches the schemas, so it is
+# asserted rather than believed.
+#
+# It lives in selftest.sh and not in verify.sh because "the generator's output
+# is current" is a claim about the tooling, not about ACP, and because the gate
+# is asserted at exactly 18 result lines four blocks above.
+OUT=$(./tools/codegen.sh --check 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "codegen --check exits 0 on the committed output (got $rc)"
+has 'generated types are current' "and reports the generated types as current"
+
+# THE ASSERTION ABOVE IS VACUOUS ON ITS OWN: a --check that compared nothing, or
+# compared the regenerated text against itself, prints the same green line. The
+# precedent is one block up in this very file -- "an unusable key makes sign
+# fail" passed for a signer that wrote straight to SIGNATURE, because a bad key
+# was rejected BEFORE any write happened, so the .tmp-and-move discipline it
+# claimed to cover was never exercised. So drift is MANUFACTURED here, on every
+# run, and the red is measured rather than assumed.
+#
+# The edit is a single trailing space, which is the smallest edit that proves
+# the comparison is byte-for-byte rather than structural -- a generator diffed
+# on parsed shape would not see it. Confirmed by running it before relying on
+# it: exit 1, naming crates/acp-core/src/generated.rs.
+#
+# Trap covers INT/TERM as well as EXIT, like the SCRATCH block above. A
+# generated file left edited on disk by an interrupted self-test would put a
+# hand-modified generated.rs into the release path, which is a far worse outcome
+# than having no test here at all.
+GENFILE=crates/acp-core/src/generated.rs
+GENBAK=$(mktemp)
+cp "$GENFILE" "$GENBAK"
+# Idempotent, like cleanup_scratch above: a trapped INT restores and drops the
+# backup, and the EXIT trap then fires on the way out with nothing left to do.
+restore_generated() { [ -s "$GENBAK" ] && cp "$GENBAK" "$GENFILE"; }
+trap 'restore_generated; rm -f "$GENBAK"' INT TERM EXIT
+printf ' ' >> "$GENFILE"
+
+OUT=$(./tools/codegen.sh --check 2>&1); rc=$?
+[ $rc -eq 1 ]; chk $? "one trailing space in a generated file is DRIFT, exit 1 (got $rc)"
+has 'crates/acp-core/src/generated\.rs has drifted' "and names the file that drifted"
+
+restore_generated
+trap - INT TERM EXIT
+cmp -s "$GENBAK" "$GENFILE"
+chk $? "the generated file is byte-identical again after the restore"
+rm -f "$GENBAK"
+
+printf '\n\033[1m== codegen halts rather than guessing a fail-safe default ==\033[0m\n'
+
+# `x-acp-absent` carries the fail-safe rule AS DATA rather than as prose:
+# floors absent => T3 (RK-1), reversibility absent => IRREVERSIBLE (RV-1),
+# notice_targets absent => refuse (DR-13), risk_functions absent => refuse at
+# 8.4-3. A generator meeting a lookup table with no such rule has to return
+# SOMETHING, and every off-the-shelf generator returns `Option<T>`, and an
+# `Option` gets an `unwrap_or` -- which is precisely how "absent" becomes
+# "permissive", the defect class this specification exists to prevent. So the
+# generator HALTS, the same posture sign-release.sh takes on an unrecognised
+# file type. The halt IS the control, and this is what proves it exists.
+#
+# EXIT 2 EXACTLY, not merely non-zero. Drift (1) and halt (2) are deliberately
+# distinct because they want opposite responses: drift means "regenerate", halt
+# means "a schema is under-specified and you must state the intent". A test that
+# accepted any non-zero code would report the control as present when the
+# schemas had merely drifted.
+#
+# On a COPY, in a mktemp -d. spec/schemas/bundle/ is signed normative content,
+# and a self-test that edits a normative source to make its point is the same
+# move as regenerating MANIFEST.sha256 to turn an integrity line green.
+sdir=$(mktemp -d)
+cp spec/schemas/bundle/*.json "$sdir/"
+
+# The control first. Copying the schemas elsewhere could itself halt the
+# generator -- a $ref that only resolves in its own directory would do it -- and
+# then the exit 2 below would fire for a reason that has nothing to do with the
+# missing rule. A test that passes for the wrong reason is what this file exists
+# to prevent, so the untouched copy is required to generate cleanly first.
+OUT=$(./tools/codegen.sh --schemas "$sdir" --check 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "an untouched copy of the schemas generates cleanly (got $rc)"
+
+python3 - "$sdir" <<'PY'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1]) / "floors.schema.json"
+s = json.loads(p.read_text())
+del s["properties"]["floors"]["x-acp-absent"]   # RK-1's "absent => T3", removed
+p.write_text(json.dumps(s, indent=2))
+PY
+
+OUT=$(./tools/codegen.sh --schemas "$sdir" --check 2>&1); rc=$?
+[ $rc -eq 2 ]; chk $? "a lookup table with no x-acp-absent rule HALTS, exit 2 (got $rc)"
+has 'x-acp-absent' "and names the missing rule instead of guessing a default"
+
+[ -n "$sdir" ] && rm -rf "$sdir"
+
 printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 
 # README.md and CLAUDE.md both publish how many assertions this script makes.
