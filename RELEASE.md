@@ -116,10 +116,34 @@ would pass a refusal for the wrong reason. Three assertions added, all proved by
 them against a decoy. The real key is never an argument to a test: a test that can reach
 the signing key is the defect it is testing for.
 
-What this does **not** fix is disclosed rather than implied. The key is still on the
-working disk, unencrypted, and it has been readable by every agent session in this
-repository since it was generated — including the session that made this fix. Prevention
-is not remediation, and rotation remains open on `ACP-16`.
+### The location was never the fix — the encryption is
+
+The ticket asked for the key to be moved to removable media. That answer was accepted too
+quickly and is wrong on its own: a USB stick protects a key only while it is *unplugged*,
+which is every moment except the one where it is actually used. Mounted at `/Volumes/…` it
+is exactly as readable as `$HOME` was, and it adds a stick to forget to remove.
+
+The real defect was one argument: `load_pem_private_key(..., password=None)`. An
+unencrypted PEM is usable by any process running as this user, and **no directory changes
+that**. `keygen` now refuses to produce anything else — `BestAvailableEncryption`, a
+12-character minimum, confirmed twice, and it will not run without a terminal rather than
+silently emitting an unencrypted key. The plaintext key exists only in memory, for the
+seconds it signs. Where the file sits stops mattering.
+
+`sign` prompts **only** when the key is actually encrypted, and only on a TTY. Both halves
+are load-bearing. It branches on `TypeError` ("encrypted, no password") and never on the
+`ValueError` an unparseable file raises, so the existing "unparseable key fails" assertion
+keeps failing for its own reason rather than stopping at a prompt. And a prompt reached
+from selftest, CI or cron would hang forever — **a gate that hangs is worse than one that
+fails, because it reports nothing at all.** Asserted with a pipe for stdin, exactly as
+automation sees it. Unencrypted keys still load, so the tooling does not break the
+existing release to force the rotation.
+
+What this does **not** fix is disclosed rather than implied. Encryption is prevention, not
+remediation: the *current* key has sat unencrypted since 2026-08-10, readable by every
+agent session in this repository — including the one that made this fix — and it signed
+the manifest `main` ships. Rotation remains open on `ACP-16`, and rotating is cheapest
+now, while no adopter has recorded the published fingerprint.
 
 ### `sync-counts.sh` destroyed a dossier file and reported success
 

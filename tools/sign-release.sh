@@ -97,10 +97,26 @@ keygen)
   python3 - "$KEY" <<'PY'
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization as ser
-import hashlib, os, sys
+import getpass, hashlib, os, sys
+
+# ACP-16. The key is encrypted AT REST, and that -- not its directory -- is what
+# closes this. An unencrypted PEM is usable by any process running as this user
+# wherever it sits; removable media only protects it while unplugged, which is
+# every moment except the one where it is actually used. Encrypted, the file is
+# inert without the passphrase and the plaintext key exists only in memory, for
+# the seconds it signs.
+if not sys.stdin.isatty():
+    sys.exit("keygen needs a terminal to read a passphrase, and will not "
+             "generate an unencrypted key")
+pw = getpass.getpass("passphrase for the new release key: ")
+if len(pw) < 12:
+    sys.exit("passphrase too short (12 characters minimum)")
+if pw != getpass.getpass("confirm passphrase: "):
+    sys.exit("passphrases differ -- nothing written")
+
 sk = Ed25519PrivateKey.generate()
 priv = sk.private_bytes(ser.Encoding.PEM, ser.PrivateFormat.PKCS8,
-                        ser.NoEncryption())
+                        ser.BestAvailableEncryption(pw.encode()))
 pub = sk.public_key().public_bytes(ser.Encoding.PEM,
                                    ser.PublicFormat.SubjectPublicKeyInfo)
 path = sys.argv[1]
@@ -108,12 +124,15 @@ with open(path, "wb") as f: f.write(priv)
 os.chmod(path, 0o600)
 open("release-key.pub", "wb").write(pub)
 raw = sk.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw)
-print(f"private key : {path}  (chmod 600 — keep it on offline media)")
+print(f"private key : {path}  (chmod 600, passphrase-encrypted)")
 print(f"public key  : release-key.pub  (ships with the dossier)")
 print(f"fingerprint : SHA256:{hashlib.sha256(raw).hexdigest()[:32]}")
 print("\nPublish that fingerprint out of band -- on the repository README, in\n"
       "the talk, in the review brief. A public key shipped only inside the\n"
       "package it authenticates proves nothing.")
+print("\nStore the passphrase in a password manager you actually back up. The\n"
+      "key is inert without it, and no copy of it exists anywhere else -- lose\n"
+      "it and every signature this key produces becomes unreproducible.")
 PY
   ;;
 list)
@@ -137,9 +156,24 @@ sign)
   trap 'rm -f MANIFEST.sha256.tmp MANIFEST.sha256.sig.tmp' EXIT
   covered_files | xargs sha256sum > MANIFEST.sha256.tmp
   python3 - "$KEY" <<'PY'
-import sys
+import getpass, sys
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-sk = load_pem_private_key(open(sys.argv[1], "rb").read(), password=None)
+
+data = open(sys.argv[1], "rb").read()
+try:
+    # Unencrypted keys still load, so a pre-ACP-16 key keeps working and the
+    # rotation is not forced by the tooling breaking.
+    sk = load_pem_private_key(data, password=None)
+except TypeError:
+    # TypeError means "encrypted, no password given" -- distinct from the
+    # ValueError an unparseable file raises, which must keep failing WITHOUT a
+    # prompt. Prompting is TTY-only: selftest drives this path with a bogus key
+    # and a prompt in a non-interactive context hangs forever instead of
+    # failing. A gate that hangs is worse than a gate that fails.
+    if not sys.stdin.isatty():
+        sys.exit("key is passphrase-encrypted and stdin is not a terminal")
+    sk = load_pem_private_key(
+        data, password=getpass.getpass(f"passphrase for {sys.argv[1]}: ").encode())
 open("MANIFEST.sha256.sig.tmp", "wb").write(
     sk.sign(open("MANIFEST.sha256.tmp", "rb").read()))
 PY

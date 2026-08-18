@@ -83,6 +83,28 @@ OUT=$(./tools/sign-release.sh sign /tmp/acp_bogus_key.pem 2>&1); rc=$?
 [ $rc -ne 0 ]; chk $? "unparseable key fails (got $rc)"
 rm -f /tmp/acp_bogus_key.pem
 
+# ACP-16. A passphrase-encrypted key must FAIL, not block, when there is no
+# terminal to read the passphrase from. This is the assertion that keeps the
+# gate runnable: `sign` prompts on a TTY, and a prompt reached from selftest,
+# CI or cron would hang forever. A gate that hangs is worse than one that
+# fails, because it reports nothing at all. Stdin is a pipe here, so isatty()
+# is false exactly as it would be under automation.
+ENCKEY=$(mktemp)
+python3 - "$ENCKEY" <<'PY'
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization as ser
+import sys
+k = Ed25519PrivateKey.generate()
+open(sys.argv[1], "wb").write(k.private_bytes(
+    ser.Encoding.PEM, ser.PrivateFormat.PKCS8,
+    ser.BestAvailableEncryption(b"selftest-throwaway-passphrase")))
+PY
+OUT=$(printf '' | ./tools/sign-release.sh sign "$ENCKEY" 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "an encrypted key with no terminal fails instead of hanging (got $rc)"
+printf '%s' "$OUT" | grep -q 'not a terminal'
+chk $? "and says why, rather than failing as an unparseable key"
+rm -f "$ENCKEY"
+
 after=$(sha256sum MANIFEST.sha256 | awk '{print $1}')
 [ "$before" = "$after" ]; chk $? "MANIFEST.sha256 is byte-identical after both failures"
 [ ! -f MANIFEST.sha256.tmp ]; chk $? "no .tmp manifest left behind"
