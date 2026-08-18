@@ -65,7 +65,7 @@ Abridged output. A complete run prints 19 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 80/80
+  OK   ALL attacks (consolidated registry) — RESULT: 81/81
   OK   Suite 1  conformance — RESULT: 52/52 — CONFORMANT
   OK   Suite 2  executor mutation — RESULT: 25/25 killed
   ...

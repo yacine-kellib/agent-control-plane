@@ -105,7 +105,7 @@ Every input consumed for a control decision is classified: **recomputed** by the
 | Ledger partition semantics | **9/9** — CL-6 holds |
 | Executor × distributed ledger integration | **6/6** |
 | Canonical CBOR encoding | **8/8** |
-| Audit, anchoring, accumulators (AC-5/AU-6/AU-7/AU-8) | **11/11**, mutants **4/4** |
+| Audit, anchoring, accumulators (AC-5/AU-6/AU-7/AU-8) | **12/12**, mutants **4/4** |
 
 The mutation controls are what give the rest its weight: a passing test suite proves nothing until you show it can fail. Every check was deleted one at a time, and the corresponding attack must then succeed.
 

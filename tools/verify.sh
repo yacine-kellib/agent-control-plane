@@ -83,7 +83,7 @@ run() { # run <script> <expected-substring> <label> [args]
   o=$(python3 "$s" "$@" 2>&1 | grep -E '^RESULT' | tail -1)
   echo "$o" | grep -q "$e"; chk $? "$l — ${o:-no RESULT line}"
 }
-run attack_registry.py      "80/80"      "ALL attacks (consolidated registry)"
+run attack_registry.py      "81/81"      "ALL attacks (consolidated registry)"
 run attack_registry.py      "4/4"        "Composition ack x ledger" --compose
 run conformance.py          "52/52"      "Suite 1  conformance"
 run mutate_executor.py      "25/25"      "Suite 2  executor mutation"
@@ -93,7 +93,7 @@ run cbor_suite.py           "8/8"        "Suite 5  canonical CBOR"
 run class_findings.py       "/4"         "Suite 8  classification findings"
 run ack_suite.py            "14/14"      "Suite 9  signed acknowledgement"
 run ack_suite.py            "6/6"        "Suite 9  ack mutation" --mutate
-run audit_suite.py          "11/11"      "Suite 7  audit/anchor/accumulator"
+run audit_suite.py          "12/12"      "Suite 7  audit/anchor/accumulator"
 run audit_suite.py          "4/4"        "Suite 7  audit mutation" --mutate
 run llm_agent_suite.py      "44/44"      "Suite 10 live-agent client"
 # The bundle is the rule store the whole control plane reads from, so it gets a

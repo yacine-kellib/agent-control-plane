@@ -9,12 +9,12 @@ deleted and the corresponding attack must then succeed (mutation section).
 Run:  python3 audit_suite.py            # tests
       python3 audit_suite.py --mutate   # mutation harness (4 mutants)
 """
-import os, shutil, subprocess, sys, tempfile, time
+import hashlib, os, shutil, subprocess, sys, tempfile, time
 
 import conformance as C
 from acp_executor import (Executor, FailClosed, CriticalAlert,
                             PendingRelease, RenderedSummary,
-                            render_from_canonical)
+                            canon, render_from_canonical)
 from acp_audit import AnchorService, AuditChain, Accumulators, AuditedReleaseGate
 
 
@@ -214,6 +214,53 @@ def t_reconciliation_clean_on_honest_run():
     return not f, "checks (g) and (h) hold"
 
 
+def t_AU1_clause_derives_the_implementation_head():
+    """
+    ACP-57. The only executable consumer of AU-1, written because there was
+    none: the clause specified `SHA-256(chain_hash_{n-1} || canonical(record_n))`
+    while acp_audit.py hashed the canonical two-key map {prev, record}. Those
+    disagree from record 1, and they disagreed for four releases without one
+    suite going red -- the other ten cases here test the chain against ITSELF
+    (consistent, tamper-evident, rewrite-detecting), which is consistency
+    evidence and never conformance evidence.
+
+    Derived below from the clause text alone. It deliberately does NOT import
+    acp_audit._h: re-using the implementation's hash helper would make this
+    agree with any formula either side adopts, which is the vacuous check the
+    defect already demonstrated. Drift on EITHER side turns it red.
+    """
+    anchor = AnchorService()
+    now = 1_700_000_000.0
+    chain = AuditChain("tenant-au1", bundle_epoch=7, schema_version="1.3.15",
+                       anchor=anchor, now=now)
+
+    # AU-1 notation: H(x) = "sha256:" + lowercase hex of SHA-256(canonical(x)),
+    # fed forward AS THAT STRING -- the type AU-1 left unpinned until v1.3.15.
+    def H(x):
+        return "sha256:" + hashlib.sha256(canon(x)).hexdigest()
+
+    # AU-8: chain_hash_0 = H({tenant_id, created_at, bundle_epoch, schema_version})
+    want = [H({"tenant_id": "tenant-au1", "created_at": now,
+               "bundle_epoch": 7, "schema_version": "1.3.15"})]
+
+    for r in ({"seq": 1, "event": "decision", "outcome": "executed"},
+              {"seq": 2, "event": "release", "outcome": "executed"},
+              {"seq": 3, "event": "decision", "outcome": "refused"}):
+        chain.append(r)
+        # AU-1: chain_hash_n = H({"prev": chain_hash_{n-1}, "record": record_n})
+        want.append(H({"prev": want[-1], "record": r}))
+
+    if chain.heads != want:
+        i = next(k for k, (a, b) in enumerate(zip(chain.heads, want)) if a != b)
+        return False, f"clause and implementation diverge at head {i}"
+    # AU-3a is a claim about an INDEPENDENT party, and the party that verifies
+    # an anchor recomputes rather than replays. So the clause must derive the
+    # RECONCILER's head too, not only the writer's.
+    if chain.recompute_heads() != want:
+        return False, "AU-1 matches append() but not recompute_heads()"
+    return True, f"{len(want)} heads incl. AU-8 genesis"
+
+
 TESTS = [
     ("honest release: anchor first, count once", t_honest_release_counts_once),
     ("DS-3 re-drive increments once", t_redrive_increments_once),
@@ -226,6 +273,8 @@ TESTS = [
     ("AU-8 genesis outlives chain destruction", t_AU8_genesis_survives_chain_destruction),
     ("AU-8 genesis anchor down fails closed", t_AU8_genesis_anchor_down_fails_closed),
     ("reconciliation (g)+(h) clean", t_reconciliation_clean_on_honest_run),
+    ("AU-1 clause derives implementation head [AU-3a]",
+     t_AU1_clause_derives_the_implementation_head),
 ]
 
 

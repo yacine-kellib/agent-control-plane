@@ -23,10 +23,10 @@ That framing drives most of the rules below. A change that makes a number in the
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
 PYTHONPATH=../src python3 conformance.py          # 52/52
-PYTHONPATH=../src python3 attack_registry.py      # 80/80  (--compose → 4/4)
+PYTHONPATH=../src python3 attack_registry.py      # 81/81  (--compose → 4/4)
 PYTHONPATH=../src python3 mutate_executor.py      # 25/25  deletes each check, asserts the attack succeeds
 PYTHONPATH=../src python3 ack_suite.py            # 14/14  (--mutate → 6/6)
-PYTHONPATH=../src python3 audit_suite.py          # 11/11  (--mutate → 4/4)
+PYTHONPATH=../src python3 audit_suite.py          # 12/12  (--mutate → 4/4)
 PYTHONPATH=../src python3 partition_suite.py      # 9/9
 PYTHONPATH=../src python3 partition_integration.py # 6/6
 PYTHONPATH=../src python3 cbor_suite.py           # 8/8

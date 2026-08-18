@@ -72,7 +72,7 @@ python3 reference/suites/cbor_suite.py            # expected: 8/8 AT-8a HOLDS
 python3 reference/suites/class_findings.py        # expected: T-32 reproduced; T-31 closed in v1.3.12
 python3 reference/suites/ack_suite.py             # expected: 14/14 T-31 CLOSED
 python3 reference/suites/ack_suite.py --mutate    # expected: 6/6 killed
-python3 reference/suites/audit_suite.py           # expected: 11/11 AC-5/AU-6/AU-7/AU-8 HOLD
+python3 reference/suites/audit_suite.py           # expected: 12/12 AC-5/AU-6/AU-7/AU-8 HOLD
 python3 reference/suites/audit_suite.py --mutate  # expected: 4/4 killed
 python3 reference/suites/llm_agent_suite.py       # expected: 44/44 client checks
 python3 reference/src/acp_crypto.py          # performance measurement

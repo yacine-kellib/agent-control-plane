@@ -22,6 +22,83 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — the audit chain the specification described was not the one anybody built
+
+Two defects in `spec/ACP-SPEC-001.md` itself, both found by reading the document after the
+phase-8 work was finished, and both of the same shape as the schema defects below:
+**normative text with no executable consumer.** That makes three instances in one day.
+
+### AU-1's formula and the reference's disagreed, so AU-3a did not hold
+
+`ACP-57`. §11.2 specified the audit chain as:
+
+```
+chain_hash_n = SHA-256(chain_hash_{n-1} ‖ canonical(record_n))
+```
+
+`reference/src/acp_audit.py` has always computed the canonical encoding of the two-key map
+`{prev, record}`. Different preimage, different chain from record 1 onward.
+
+The consequence is not that an implementer fails to match. **AU-3a is normative** — "every
+anchor MUST be independently verifiable by any party holding the anchor public keys" — and
+AU-4 classifies a head that fails to extend a previously anchored head as a *critical
+integrity alert*. A third party implementing AU-1 literally recomputes a different head on
+an **honest, untampered** chain and raises that alert. The normative text routed an honest
+verifier into this system's own critical-alert channel, with no attacker present, and at
+the verifier the result is indistinguishable from the tampering AU-4 exists to detect.
+
+A second ambiguity sat inside the first: AU-1 never typed `chain_hash_{n-1}`. The reference
+feeds forward the 71-character `"sha256:…"` string; `‖` invites raw digest bytes. Two
+readings of one clause before the map-versus-concatenation difference is reached.
+
+**The specification moved, not the code** — against the default, so the reasoning is
+published rather than assumed. `canonical()` is this repository's *one* encoding rule
+(AT-8a, Suite 5, 8 cases). `‖` is a *second* one: a framing discipline no canonicaliser
+expresses, no suite exercises and no vector can carry. That is the encoding-split defect
+this document exists to prevent, sitting in the clause that defines tamper-evidence.
+Routing the whole preimage through `canonical()` deletes the second rule instead of
+documenting it. AU-1 and AU-8 now share one pinned hash notation.
+
+**What closes it is not the edit.** Suite 7 gains a case that derives a head from the
+clause as written — its own `H`, not an import of `acp_audit._h`, because re-using the
+implementation's helper would agree with whatever either side adopts — and asserts equality
+with both `append()` and `recompute_heads()`. Verified by reintroducing the old
+concatenation: the suite goes red naming **head 1**, which is where the ticket predicted the
+divergence begins. Suite 7 is **11/11 → 12/12**.
+
+Why eleven passing cases and four killed mutants missed it: every one of them tests the
+chain against **itself** — consistent, tamper-evident, rewrite-detecting. None compared it
+to AU-1. `spec/vectors/CLASSIFICATION.md` records the audit suite as **0 of 11
+vector-expressible**, so the one suite with no shared-corpus path is the one whose formula
+drifted. Consistency evidence is not conformance evidence.
+
+### `sync-counts.sh` destroyed a dossier file and reported success
+
+Found while propagating 11/11 → 12/12, and disclosed because it is the more dangerous
+defect of the three. The script substitutes with `sed` using `|` as its delimiter; a
+replacement string written for a **markdown table row** carried an unescaped `|`, `sed`
+failed, and the script wrote the empty result over a 134-line file while printing `SYNC`.
+The damage was caught by reading `git diff --stat`, not by any check.
+
+Its guard was "did the bytes change?", which answers *yes* to a `sed` that produced garbage.
+Two guards now sit in front of the write: a failed `sed` halts, and — since every one of
+these substitutions is in-line — a change in **line count** halts. Both exit `2`, distinct
+from `1` for drift, and neither writes. Both were proved by firing them: the malformed
+pattern that caused the damage, and a replacement injecting a newline. A tool that silently
+destroys the prose it exists to keep accurate is worse than the drift it removes.
+
+Suite 7's count is now **derived** by `sync-counts.sh` across all seven sites that publish
+it, rather than hand-maintained. It had been hand-work, and hand-work on published counts
+has already recurred twice.
+
+The consolidated attack registry is derived for the same reason, and it is the sharper case:
+`attack_registry.py` iterates `audit_suite.TESTS` wholesale, so **one new case in suite 7 moved
+the registry 80/80 → 81/81** and turned the gate red on a line nothing had edited. That coupling
+was invisible until it failed. Both counts are now re-derived by running the suites, across
+eleven published sites in total.
+
+---
+
 ## Unreleased since v1.3.14 — four defects in `spec/schemas/`, found by reading it for the first time
 
 `spec/schemas/bundle/` held seven normative JSON Schema files. **Nothing in the

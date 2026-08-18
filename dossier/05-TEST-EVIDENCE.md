@@ -81,7 +81,7 @@ Two evaluators written from the **specification text alone**, then diffed. Produ
 
 `reference/suites/el1_migrate.py` closes the residual: exhaustive per-bundle check, with a witness and the resulting risk-grade impact.
 
-## Suite 7 — Audit, anchoring and accumulators (11/11, 4/4 mutants)
+## Suite 7 — Audit, anchoring and accumulators (12/12, 4/4 mutants)
 
 `python3 reference/suites/audit_suite.py` and `python3 reference/suites/audit_suite.py --mutate`
 
@@ -89,7 +89,9 @@ Closes the §06 row "normative text written, mechanism not implemented". AC-5, A
 
 T-28, T-29 and T-30 are replayed as live attacks: repudiated and timed-out Decisions increment nothing and a victim operator is never locked out; a floor-HIGH release with an unreachable anchor fails closed; a post-anchor chain rewrite is detected by reconciliation; an anchoring outage suspends DR-10 sampling so the ATTEST cap cannot compound with DR-9 into approver saturation. AU-8 genesis is anchored at tenant creation and survives destruction of the entire chain. Reconciliation checks §11.3 (g) and (h).
 
-**Three defects were found while building this suite**, and they are the finding, not the 11/11:
+**The twelfth case is a different kind of check, and it was added late.** The eleven above test the chain against *itself* — that it is consistent, tamper-evident and detects a rewrite. None of them compared it to **AU-1**, the clause that defines it, and for four releases the clause and the code specified different chains: AU-1 said `SHA-256(chain_hash_{n-1} ‖ canonical(record_n))` while `acp_audit.py` hashed the canonical two-key map `{prev, record}`. Because AU-3a requires an anchor to be verifiable by an *independent* party, that gap meant an honest third-party verifier recomputed a different head on a healthy chain and raised AU-4's critical integrity alert. The twelfth case derives a head from the clause as written — its own hash function, deliberately not an import of the implementation's, since sharing the helper would make it agree with any formula either side adopted — and asserts equality with both `append()` and `recompute_heads()`. Confirmed non-vacuous by reintroducing the concatenation: it fails, naming head 1. **Consistency evidence is not conformance evidence**, and eleven passing cases plus four killed mutants were the former.
+
+**Three defects were found while building this suite**, and they are the finding, not the 12/12:
 
 - **Anchor-then-mutate.** The first implementation anchored the release record as `pending` and then set it to `executed`. The anchor committed to a superseded chain and reconciliation failed. This is the CL-7 shape — mutate after the commitment point — reintroduced one layer up, by an author who had just read the CL-7 fix. Fixed by anchoring only the terminal record.
 - **A masked mutant.** The first AC-5 mutant claimed to isolate the counter, but the T-28 repudiation attack is blocked upstream by DR-4 and never reaches it. Structurally identical to the X1 and B-1a masking in Suite 2. Re-isolated on the re-drive path, the only one that calls the counter twice.
@@ -118,7 +120,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (80/80, 4/4)
+## Suite 10 — consolidated registry and composition (81/81, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

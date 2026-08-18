@@ -146,7 +146,7 @@ Essential distinction, so the green results are not over-read:
 |------|---------------|
 | Bindings, action identity, origin pinning, encoding, release mode, hybrid composition | **Mechanically proven** + mutants + non-vacuity |
 | 50 vectors, partition, integration | **Empirically verified** — covers attacks that were conceived of |
-| **AC-5, AU-7, AU-8, revised AU-6** | **Implemented and tested in v1.3.11** (`acp_audit.py`, Suite 7: 11/11, 4/4 mutants). T-28/29/30 replayed as live attacks. Newest machinery in the dossier and therefore the most likely site of the next defect; inside RR-1 like everything after DS-6. |
+| **AC-5, AU-7, AU-8, revised AU-6** | **Implemented and tested in v1.3.11** (`acp_audit.py`, Suite 7: 12/12, 4/4 mutants). T-28/29/30 replayed as live attacks. Newest machinery in the dossier and therefore the most likely site of the next defect; inside RR-1 like everything after DS-6. |
 | Production cryptography | Real Ed25519 and ML-DSA-65 in both implementations since v1.3.14, but the Python one is a reference implementation — **forbidden in production** (§8.4). Carrier is not COSE (RES-C1); SLH-DSA is declared and absent (RES-C2). |
 
 ## Deployment constraints derived from measurement

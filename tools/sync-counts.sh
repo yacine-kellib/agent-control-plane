@@ -57,7 +57,24 @@ sync() {
     # '|' as the delimiter, not '/': several of these patterns contain a
     # slash ("32/32", "bundle_suite.py"), which silently terminated the
     # expression early and produced "bad flag in substitute command".
-    after=$(sed -E "s|$pattern|$replacement|g" "$f")
+    if ! after=$(sed -E "s|$pattern|$replacement|g" "$f" 2>/dev/null); then
+      printf '  \033[31mHALT\033[0m  %-28s sed failed on %s\n' "$label" "$f"
+      exit 2
+    fi
+    # Every substitution here is IN-LINE, so the line count is invariant. This
+    # assertion exists because the check below is "did the bytes change?", which
+    # answers YES to a sed that produced garbage: a '|' in a replacement string
+    # closed the expression early and this script wrote a 134-line dossier file
+    # back as one blank line, printing SYNC. A destructive edit that reports
+    # success is worse than the drift the script exists to remove, so it halts
+    # (exit 2, distinct from 1 = drift) rather than writing.
+    if [ "$(printf '%s\n' "$after" | wc -l)" -ne "$(wc -l < "$f")" ]; then
+      printf '  \033[31mHALT\033[0m  %-28s %s: line count would change\n' "$label" "$f"
+      printf '        (%s -> %s) — the pattern or replacement is malformed;\n' \
+        "$(wc -l < "$f")" "$(printf '%s\n' "$after" | wc -l)"
+      printf '        refusing to write. Nothing was modified.\n'
+      exit 2
+    fi
     if [ "$after" != "$(cat "$f")" ]; then
       moved=$((moved + 1))
       DRIFT=1
@@ -92,6 +109,24 @@ printf '  rust tests         %s   (cargo test --workspace)\n' "$RUST"
 BUNDLE=$(cd reference/suites && PYTHONPATH=../src python3 bundle_suite.py 2>/dev/null \
   | grep -oE 'RESULT: [0-9]+/[0-9]+' | grep -oE '[0-9]+/[0-9]+')
 printf '  suite 11           %s (bundle_suite.py)\n' "$BUNDLE"
+
+# Suite 7 joined this script when ACP-57 added the AU-1 conformance case and
+# moved 11/11 -> 12/12 across SEVEN published sites. Suite 11 needed two. The
+# dossier replays this one by name, and README's "if a claim here does not
+# replay on your machine, don't believe it" is only true if that number is
+# derived rather than remembered.
+AUDIT=$(cd reference/suites && PYTHONPATH=../src python3 audit_suite.py 2>/dev/null \
+  | grep -oE 'RESULT: [0-9]+/[0-9]+' | grep -oE '[0-9]+/[0-9]+')
+printf '  suite 7            %s (audit_suite.py)\n' "$AUDIT"
+
+# The consolidated registry iterates `audit_suite.TESTS` (and cbor's, ack's and
+# class_findings') wholesale, so it is DOWNSTREAM of suite 7: adding the AU-1
+# case moved it 80 -> 81 and turned the gate red on a line nobody had touched.
+# Deriving it is the only way that coupling stays visible -- the alternative is
+# discovering it from a FAIL after every suite edit.
+REGISTRY=$(cd reference/suites && PYTHONPATH=../src python3 attack_registry.py 2>/dev/null \
+  | grep -oE 'RESULT: [0-9]+/[0-9]+' | grep -oE '[0-9]+/[0-9]+')
+printf '  attack registry    %s (attack_registry.py)\n' "$REGISTRY"
 
 # selftest LAST: it runs the gate and is the slowest, and its own assertion
 # count is what we publish. The printed TOTAL already includes the
@@ -137,6 +172,61 @@ if [ -n "$BUNDLE" ]; then
   sync "suite 11 (verify.sh)" "$BUNDLE" \
     'run bundle_suite\.py( +)"[0-9]+/[0-9]+"' "run bundle_suite.py\\1\"$BUNDLE\"" \
     tools/verify.sh
+fi
+
+if [ -n "$AUDIT" ]; then
+  sync "suite 7 (CLAUDE.md)" "$AUDIT" \
+    'audit_suite\.py( +)# [0-9]+/[0-9]+' "audit_suite.py\\1# $AUDIT" \
+    CLAUDE.md
+  # The label is part of the pattern on purpose: verify.sh runs audit_suite.py
+  # TWICE, and a pattern matching only the script name would rewrite the
+  # --mutate line's 4/4 to the test count and green a gate that checks nothing.
+  sync "suite 7 (verify.sh)" "$AUDIT" \
+    'run audit_suite\.py( +)"[0-9]+/[0-9]+"( +)"Suite 7  audit/anchor' \
+    "run audit_suite.py\\1\"$AUDIT\"\\2\"Suite 7  audit/anchor" \
+    tools/verify.sh
+  # Anchored on the mutant count rather than on the table's cell boundary:
+  # the row is a markdown table and every '|' in it is this sed's delimiter.
+  sync "suite 7 (dossier tables)" "$AUDIT" \
+    '\*\*[0-9]+/[0-9]+\*\*, mutants \*\*4/4\*\*' \
+    "**$AUDIT**, mutants **4/4**" \
+    dossier/01-EXECUTIVE-SUMMARY.md
+  sync "suite 7 (dossier prose)" "$AUDIT" \
+    'accumulators \([0-9]+/[0-9]+, 4/4 mutants\)' \
+    "accumulators ($AUDIT, 4/4 mutants)" \
+    dossier/05-TEST-EVIDENCE.md
+  sync "suite 7 (finding-not-count)" "$AUDIT" \
+    'not the [0-9]+/[0-9]+:' "not the $AUDIT:" \
+    dossier/05-TEST-EVIDENCE.md
+  sync "suite 7 (residual risk)" "$AUDIT" \
+    'Suite 7: [0-9]+/[0-9]+, 4/4 mutants' "Suite 7: $AUDIT, 4/4 mutants" \
+    dossier/06-RESIDUAL-RISK.md
+  sync "suite 7 (reproduction)" "$AUDIT" \
+    'audit_suite\.py( +)# expected: [0-9]+/[0-9]+' \
+    "audit_suite.py\\1# expected: $AUDIT" \
+    dossier/07-REPRODUCTION.md
+fi
+
+if [ -n "$REGISTRY" ]; then
+  sync "registry (CLAUDE.md)" "$REGISTRY" \
+    'attack_registry\.py( +)# [0-9]+/[0-9]+' "attack_registry.py\\1# $REGISTRY" \
+    CLAUDE.md
+  # Label-anchored for the same reason the suite 7 line above is: verify.sh
+  # runs attack_registry.py TWICE, and the bare-script pattern rewrote the
+  # --compose line's 4/4 to the registry total. It was caught by reading the
+  # file after the sync, which is not a control -- hence this comment.
+  sync "registry (verify.sh)" "$REGISTRY" \
+    'run attack_registry\.py( +)"[0-9]+/[0-9]+"( +)"ALL attacks' \
+    "run attack_registry.py\\1\"$REGISTRY\"\\2\"ALL attacks" \
+    tools/verify.sh
+  sync "registry (README sample)" "$REGISTRY" \
+    '\(consolidated registry\) — RESULT: [0-9]+/[0-9]+' \
+    "(consolidated registry) — RESULT: $REGISTRY" \
+    README.md
+  sync "registry (dossier)" "$REGISTRY" \
+    'consolidated registry and composition \([0-9]+/[0-9]+, 4/4\)' \
+    "consolidated registry and composition ($REGISTRY, 4/4)" \
+    dossier/05-TEST-EVIDENCE.md
 fi
 
 printf '\n\033[1m== Result ==\033[0m\n'
