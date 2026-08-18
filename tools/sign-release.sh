@@ -189,7 +189,18 @@ except TypeError:
     except (EOFError, OSError):
         sys.exit("key is passphrase-encrypted and there is no terminal to "
                  "read the passphrase from")
-    sk = load_pem_private_key(data, password=pw.encode())
+    try:
+        sk = load_pem_private_key(data, password=pw.encode())
+    except ValueError:
+        # A wrong passphrase is the ONE failure here a user will actually hit,
+        # and it was reporting itself as two stacked tracebacks -- the TypeError
+        # from the password=None probe above, chained to a ValueError from the
+        # retry. That reads like a crash in the signer rather than a typo, on
+        # the one command whose output has to be unambiguous. `from None` breaks
+        # the chain so the probe is not shown as an error; it is control flow.
+        raise SystemExit(
+            f"incorrect passphrase for {sys.argv[1]} — nothing was written, "
+            "and the previous manifest and signature are untouched.") from None
 open("MANIFEST.sha256.sig.tmp", "wb").write(
     sk.sign(open("MANIFEST.sha256.tmp", "rb").read()))
 PY
