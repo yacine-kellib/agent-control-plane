@@ -6,3 +6,14 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+# src/generated.rs is emitted by tools/codegen.sh from spec/schemas/bundle/ and
+# derives Serialize/Deserialize. The strict types carry deny_unknown_fields
+# where the schema says additionalProperties: false; the Raw projections are
+# deliberately lenient, and the file says why.
+serde.workspace = true
+
+[dev-dependencies]
+# The generated types are deserialised in the fail-safe-default tests: the
+# accessor with the `unwrap_or` in it is the thing worth testing, and testing
+# it means parsing a real document rather than building a struct literal.
+serde_json = "1"
