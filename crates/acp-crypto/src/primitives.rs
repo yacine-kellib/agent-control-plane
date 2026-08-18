@@ -32,7 +32,12 @@ pub const MLDSA65_SIG_LEN: usize = fips204::ml_dsa_65::SIG_LEN;
 /// Algorithm 2 signs `0x00 || len(ctx) || ctx || m`, so a context here that the
 /// signer did not use is a different message and every signature would be
 /// refused. Changing this is a wire-format change on both sides at once.
-const MLDSA_CTX: &[u8] = &[];
+///
+/// `pub(crate)` so [`crate::custody`] signs with the same context this module
+/// verifies with. Two constants would be two wire formats, and the failure
+/// would present as "our own signatures do not verify" — which is the shape of
+/// a defect nobody looks for in a context string.
+pub(crate) const MLDSA_CTX: &[u8] = &[];
 
 /// Verify one Ed25519 signature.
 pub fn verify_ed25519(public_key: &[u8], message: &[u8], signature: &[u8]) -> PrimitiveVerdict {

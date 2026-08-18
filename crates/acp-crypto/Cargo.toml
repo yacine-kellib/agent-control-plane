@@ -11,17 +11,23 @@ publish.workspace = true
 # that nothing could produce.
 ed25519-dalek = "3.0"
 fips204 = "0.4"
+# Identity, not hashing-in-general: `VerifyingKeys::fingerprint` is SHA-256 over
+# both public halves, which is what an attester registry entry is keyed by
+# (PB-KEY) and what `acp-bundle` puts inside the tree hash. It also re-executes
+# the Python reference's seed-to-key derivation for the cross-language fixtures.
+sha2 = "0.10"
+
+[features]
+# T2 and T3 custody, DECLARED AND NOT IMPLEMENTED, in the same posture as the
+# `slhdsa128s` suite: a build without them refuses the tier rather than
+# downgrading to one it can operate. Enabling either without writing the backend
+# would be worse than leaving it off, because a deployment would then believe
+# its key is in a KMS or an HSM while it sits in process memory.
+default = []
+kms = []
+hsm = []
 
 [dev-dependencies]
 # Cross-language fixture only: the vector is emitted by the Python reference.
 serde_json = "1"
 hex = "0.4"
-# Re-executes the Python reference's seed-to-key derivation, which is SHA-256
-# domain separation over the seed. Without it the corpus premise that "a vector
-# names seeds, not keys" stays a Python-only observation.
-#
-# A dev-dependency rather than a dependency, deliberately: a seed is
-# test-and-simulation key material, and offering derivation from the library
-# would read as an endorsement of derived keys in a deployment, which
-# `acp_crypto.HybridKey` is careful not to give.
-sha2 = "0.10"

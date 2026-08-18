@@ -22,10 +22,17 @@
 //! a committed fixture. Two crates naming the same standard does not make their
 //! bytes interchangeable; carrying bytes across is the only thing that shows it.
 //!
-//! Still absent: signing. This crate can verify and cannot produce, so the
-//! opposite direction — Python verifying a Rust signature — is an obligation
-//! nobody has discharged. That is rule-store step 3, the `Signer` trait and its
-//! custody tiers.
+//! - [`custody`] — the `Signer` trait, the key material behind it, and the
+//!   custody tiers T0–T3. This crate can now produce as well as verify, so the
+//!   opposite direction — **Python verifying a Rust signature** — is no longer
+//!   an undischarged obligation: `tools/check-rust-signatures.py` carries the
+//!   bytes across and `tools/selftest.sh` runs it. T2 and T3 are declared and
+//!   not implemented, behind the `kms` and `hsm` features, and refuse rather
+//!   than downgrade.
+//!
+//! A custody tier is never read from the artifact being verified — it is a
+//! property of a key, configured out-of-band, held by `custody::TrustedKeys`.
+//! That is RES-8, and `custody.rs` opens with why the API is shaped around it.
 //!
 //! NEVER REINTRODUCE A SYMMETRIC PRIMITIVE, not even behind a test feature.
 //! Through v1.3.13 the reference used HMAC-SHA256 on the argument that
@@ -35,9 +42,14 @@
 //! INV-1-HIGH did not hold against the adversary it names, and no protocol
 //! test could have found it.
 
+pub mod custody;
 pub mod primitives;
 pub mod suite;
 
+pub use custody::{
+    CustodyError, CustodyTier, Environment, HybridSignature, KeyMaterial, OfflineSigner, Signer,
+    TrustedKeys, VerifyingKeys,
+};
 pub use primitives::{verify_ed25519, verify_mldsa65};
 pub use suite::{Primitive, Suite};
 

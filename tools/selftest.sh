@@ -284,6 +284,24 @@ PY
 [ $rc -eq 0 ]; chk $? "every published HybridKey fingerprint matches the derivation (got $rc)"
 has 'checked [1-9][0-9]* published derivation' "the derivation check is non-vacuous (found at least one)"
 
+printf '\n\033[1m== Python verifies what the Rust signer produced ==\033[0m\n'
+
+# The reverse of tests/python_interop.rs, and the half that was missing until
+# custody.rs existed: that test proves the Rust VERIFIER accepts a correct
+# signature, which says nothing about whether the Rust SIGNER makes one.
+#
+# It runs here rather than in cargo because it needs both toolchains. It runs
+# SOMEWHERE because sim/bundle.py was load-bearing with no gate line for
+# several releases and silently dropped three fields from a hash (ACP-35); an
+# assertion nothing executes is that shape exactly.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; Rust-signs/Python-verifies not checked\n'
+else
+  OUT=$(python3 tools/check-rust-signatures.py 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "Python verifies every Rust signature (got $rc)"
+  has 'verified [1-9][0-9]* Rust-signed identities' "the cross-language check is non-vacuous"
+fi
+
 printf '\n\033[1m== published Rust test count matches the workspace ==\033[0m\n'
 
 # README and CLAUDE.md both published "Rust: 7 tests" while the workspace ran

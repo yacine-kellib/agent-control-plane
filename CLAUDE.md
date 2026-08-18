@@ -42,7 +42,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 49 tests
+cargo check --workspace && cargo test --workspace   # Rust: 64 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
@@ -84,7 +84,9 @@ docs/          working documents — deliberately OUTSIDE the signed roots
 
 The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`. Keep sys.path manipulation in the runner, not in library code.
 
-**Most of `crates/`, `services/`, `orchestrator/` and `deploy/` is scaffold.** Every service `main()` exits non-zero so a scaffold cannot be mistaken for a running control plane. What is genuinely implemented: the fail-safe defaults in `acp-core`, and CR-3 hybrid composition in `acp-crypto`.
+**Most of `crates/`, `services/`, `orchestrator/` and `deploy/` is scaffold.** Every service `main()` exits non-zero so a scaffold cannot be mistaken for a running control plane. What is genuinely implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3, with T2/T3 declared-not-implemented behind the `kms`/`hsm` features); and the canonical tree hash in `acp-bundle`.
+
+**Rust signs now, so both differential directions are checked.** `tests/python_interop.rs` verifies Python's signatures in Rust; `tools/check-rust-signatures.py` verifies Rust's in Python, and `selftest.sh` runs it — a cross-language claim that no gate executes is the `sim/bundle.py` shape that let `ResearchBundle.hash()` drop three fields for several releases.
 
 ## Rules specific to this repository
 
@@ -148,6 +150,6 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 136 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 139 files across ten roots.
 
 Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 52 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.

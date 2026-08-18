@@ -56,7 +56,7 @@ Abridged output. A complete run prints 19 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   136 files match MANIFEST.sha256
+  OK   139 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -388,7 +388,7 @@ tools/         verify.sh sign-release.sh selftest.sh
 Other languages, if you want to run them:
 
 ```bash
-cargo check --workspace && cargo test --workspace   # Rust: 49 tests
+cargo check --workspace && cargo test --workspace   # Rust: 64 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
@@ -413,7 +413,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 136 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 139 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56

@@ -20,10 +20,12 @@
 //! fixture that nothing regenerates is a fixture that can silently stop
 //! describing the code, which is why the generator is checked in beside it.
 //!
-//! One asymmetry worth stating: this proves Rust accepts what Python produced.
-//! It does not prove the reverse, because Rust cannot sign yet — there is no
-//! `Signer` in this crate. That is rule-store step 3, and until it lands the
-//! Python-verifies-Rust direction is an obligation nobody has discharged.
+//! One asymmetry worth stating: this proves Rust accepts what Python produced,
+//! which shows the Rust verifier is permissive enough to accept a correct
+//! signature and nothing about whether the Rust signer makes one. The reverse
+//! direction now exists — `acp_crypto::custody` can sign — and is checked by
+//! `tools/check-rust-signatures.py`, which `tools/selftest.sh` runs. It lives
+//! there rather than here because it needs both toolchains in one process tree.
 //!
 //! The file also carries the other half of the vector-corpus premise. A vector
 //! is meant to declare a **seed** and let each implementation derive its own
