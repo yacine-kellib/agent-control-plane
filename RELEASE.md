@@ -11,7 +11,7 @@ allowed to differ, and are.
 **Date:** August 2026
 **Package:** `spec/` + `dossier/` + `reference/` + `crates/` + `services/` + `packages/` + `orchestrator/` + `sim/` + `deploy/` + `tools/`
 **Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig`
-**Release key fingerprint:** `SHA256:2a60320791802d39dbc6fb321f1628b9` *(verify out of band)*
+**Release key fingerprint:** `SHA256:636caed2e7bd9172eeaa8bd75482ec2b` *(verify out of band)*
 
 Reproduce everything in one command:
 
@@ -129,7 +129,7 @@ The published fingerprint moves with it:
 | | fingerprint |
 | --- | --- |
 | superseded | `SHA256:c6334fda…` |
-| **current** | `SHA256:2a60320791802d39dbc6fb321f1628b9` |
+| **current** | `SHA256:636caed2e7bd9172eeaa8bd75482ec2b` |
 
 `README.md` calls that value *"the out-of-band half"* of the integrity claim, so changing
 it is not free — it invalidates any copy a reader has recorded. **It is free now**, and
@@ -142,6 +142,23 @@ The new key is `BEGIN ENCRYPTED PRIVATE KEY` — generated encrypted, never writ
 clear at any point. The old key was retained until the new one produced a verifying
 signature, because a rotation that destroys the only working signer before proving its
 replacement is an outage, not a control.
+
+*A sequencing correction, recorded because it cost a full cycle.* The first attempt
+published the new fingerprint **before** anything had proved the new key was usable — and
+it was not. `keygen` asks for the passphrase twice and compares, so a passphrase that
+arrives wrong *the same way twice* passes that check and encrypts the key with a string
+nobody holds. That is what happened: an 80-character generated passphrase reached `keygen`
+as something other than what the password manager stored, most likely auto-type against a
+non-US keyboard layout rather than a clipboard paste. The confirm prompt cannot catch this,
+because it compares the input to itself.
+
+The fix is ordering, not more prompts. **Prove the stored passphrase decrypts the key —
+reading it back fresh from the password manager — before publishing the fingerprint.** A
+round trip through the manager is the only check that tests what a future signer will
+actually have; comparing two reads inside one session tests nothing but consistency. The
+same distinction as the audit chain above: consistency evidence is not conformance
+evidence. Nothing had to be unwound, because the only published artifact was a fingerprint
+in unreleased prose.
 
 ### The location was never the fix — the encryption is
 

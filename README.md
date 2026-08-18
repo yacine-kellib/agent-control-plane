@@ -416,7 +416,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 `MANIFEST.sha256` covers 150 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
-Release key fingerprint: SHA256:2a60320791802d39dbc6fb321f1628b9
+Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```
 
 ```bash
