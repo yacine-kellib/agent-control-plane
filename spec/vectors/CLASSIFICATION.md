@@ -63,9 +63,25 @@ HybridKey(b"k1").public().fingerprint
   == "sha256:38a223bddb2ee525211f7353bc4f578bf025996eeee3a550dc7ead5d0fdce7eb"
 ```
 
-Verified across two processes while writing this. That property is required by
-`sim.supervise` for an unrelated reason and CLAUDE.md forbids removing it; the corpus now
-depends on it too.
+Verified across two processes while writing this — which is weaker than the sentence
+above it claimed. Two Python processes are the same two libraries run twice, and cannot
+detect a disagreement *between* libraries; "in any implementation" was an extrapolation.
+It has since been carried across. `crates/acp-crypto/tests/python_interop.rs` derives from
+the same seeds with `fips204` and `ed25519-dalek`, and gets Python's public key bytes back
+on both halves, `k1`'s fingerprint `38a223bd…` included. So the claim holds — but it holds
+because two crate stacks implement FIPS 204 Algorithm 6 and RFC 8032 faithfully, not
+because a seed is self-describing.
+
+That distinction is the corpus's problem, not the crypto's. **A vector that names a seed
+and not the derivation names nothing.** `sha256(seed || "ed")` and `sha256(seed ||
+"mldsa")` are wire format: an implementation that hashes the bare seed, or chooses its own
+domain separators, derives a different identity and refuses every signature in the vector
+— which at the verifier is indistinguishable from a forgery, and in a corpus report is
+indistinguishable from a conformance failure it did not commit. VEC-2 must publish the
+derivation beside the seed, and the seed alone is not a portable input.
+
+That property is required by `sim.supervise` for an unrelated reason and CLAUDE.md forbids
+removing it; the corpus now depends on it too.
 
 This leaves a real limit. ML-DSA signing is hedged, so a vector can say *"sign this object
 with the key from seed `k1`"* but never *"the signature is these bytes"*. Cases whose

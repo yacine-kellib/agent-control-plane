@@ -238,6 +238,94 @@ PY
 [ $rc -eq 0 ]; chk $? "every SHA256: fingerprint in tracked .md matches release-key.pub (got $rc)"
 has 'checked [1-9][0-9]* fingerprint' "the fingerprint check is non-vacuous (found at least one)"
 
+printf '\n\033[1m== published key fingerprints match what the code derives ==\033[0m\n'
+
+# spec/vectors/CLASSIFICATION.md publishes a WORKED EXAMPLE -- HybridKey(b"k1")
+# derives fingerprint sha256:38a223bd... -- as the anchor for the claim that a
+# vector may name a seed instead of a key. The Rust test
+# `the_fingerprint_is_the_same_on_both_sides` recomputes that value, but it
+# compares against the committed FIXTURE, not against the prose, and its comment
+# claimed the two "cannot drift apart silently". They could: corrupting the
+# published hex left cargo test and this script green, which is how this block
+# came to exist. The number is derivable from the code, so by this repository's
+# own rule it is checked by a command rather than by proofreading.
+#
+# The block above checks SHA256: (the release key, uppercase, 32 hex). This one
+# checks sha256: (a HybridKey identity, lowercase, 64 hex). Neither pattern
+# matches the other's literals, so the older assertion reporting "got 0" was not
+# covering this file at all.
+OUT=$(python3 - <<'PY' 2>&1
+import pathlib, re, subprocess, sys
+sys.path.insert(0, "reference/src")
+from acp_crypto import HybridKey
+
+# Targets the published construct exactly, so an unrelated sha256: literal (a
+# tree hash, a digest in an example) is not swept in and does not have to be
+# excluded by a deny-list that would rot.
+CLAIM = re.compile(
+    r'HybridKey\(b"([^"]+)"\)\s*\.public\(\)\s*\.fingerprint\s*=*\s*"?(sha256:[0-9a-f]{64})')
+
+files = subprocess.run(["git", "ls-files", "*.md"],
+                       capture_output=True, text=True).stdout.split()
+seen, bad = 0, []
+for f in files:
+    for seed, published in CLAIM.findall(pathlib.Path(f).read_text(encoding="utf-8")):
+        seen += 1
+        actual = HybridKey(seed.encode()).public().fingerprint()
+        if published != actual:
+            bad.append(f"{f} publishes {published} for seed {seed!r}, code derives {actual}")
+
+print(f"checked {seen} published derivation(s)")
+for b in bad:
+    print(f"  {b}")
+sys.exit(1 if bad or seen == 0 else 0)
+PY
+); rc=$?
+[ $rc -eq 0 ]; chk $? "every published HybridKey fingerprint matches the derivation (got $rc)"
+has 'checked [1-9][0-9]* published derivation' "the derivation check is non-vacuous (found at least one)"
+
+printf '\n\033[1m== published Rust test count matches the workspace ==\033[0m\n'
+
+# README and CLAUDE.md both published "Rust: 7 tests" while the workspace ran
+# 47. Nobody had touched the number since the crates were scaffolded, and no
+# command checked it -- the same shape as the mutation-count drift (ACP-42) and
+# the release-key fingerprint before it. Every count this repository publishes
+# is load-bearing evidence, so it is asserted rather than proofread.
+#
+# Skipped, with a notice, when cargo is absent -- the same treatment Dafny gets
+# in verify.sh. A skipped check announces itself; a silently-passing one does
+# not, and this file exists to catch exactly that difference.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; Rust test count not checked\n'
+else
+  OUT=$(python3 - <<'PY' 2>&1
+import re, subprocess, sys
+
+run = subprocess.run(["cargo", "test", "--workspace"],
+                     capture_output=True, text=True)
+actual = sum(int(n) for n in re.findall(r"^test result: ok\. (\d+) passed",
+                                        run.stdout, re.M))
+
+files = subprocess.run(["git", "ls-files", "*.md"],
+                       capture_output=True, text=True).stdout.split()
+seen, bad = 0, []
+for f in files:
+    for published in re.findall(r"cargo test --workspace\s*#\s*Rust: (\d+) tests",
+                                open(f, encoding="utf-8").read()):
+        seen += 1
+        if int(published) != actual:
+            bad.append(f"{f} publishes {published}, workspace runs {actual}")
+
+print(f"workspace runs {actual}, checked {seen} published count(s)")
+for b in bad:
+    print(f"  {b}")
+sys.exit(1 if bad or seen == 0 or actual == 0 else 0)
+PY
+  ); rc=$?
+  [ $rc -eq 0 ]; chk $? "every published Rust test count equals the workspace (got $rc)"
+  has 'checked [1-9][0-9]* published count' "the Rust count check is non-vacuous (found at least one)"
+fi
+
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then echo "  tooling self-test passed."
 else echo "  tooling self-test FAILED."; fi

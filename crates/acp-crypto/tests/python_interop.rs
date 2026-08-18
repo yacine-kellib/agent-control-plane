@@ -24,8 +24,18 @@
 //! It does not prove the reverse, because Rust cannot sign yet — there is no
 //! `Signer` in this crate. That is rule-store step 3, and until it lands the
 //! Python-verifies-Rust direction is an obligation nobody has discharged.
+//!
+//! The file also carries the other half of the vector-corpus premise. A vector
+//! is meant to declare a **seed** and let each implementation derive its own
+//! keypair — `spec/vectors/CLASSIFICATION.md` rests 47 of 85 extractable cases
+//! on that — and it only works if two implementations derive the same one. They
+//! do. What is portable, though, is the seed **plus the declared derivation**,
+//! not the seed: an implementation that hashes the bare seed, or picks its own
+//! domain separators, derives a different identity and refuses every signature
+//! in the vector. So the separators are asserted here rather than assumed.
 
 use acp_crypto::{PrimitiveVerdict, verify_ed25519, verify_mldsa65};
+use sha2::{Digest, Sha256};
 
 const FIXTURE: &str = include_str!("vectors/python_signatures.json");
 
@@ -186,21 +196,116 @@ fn a_truncated_signature_is_refused_rather_than_padded() {
     }
 }
 
+fn sha256(parts: &[&[u8]]) -> [u8; 32] {
+    let mut h = Sha256::new();
+    for p in parts {
+        h.update(p);
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&h.finalize());
+    out
+}
+
+/// `reference/src/acp_crypto.py:HybridKey.__init__`, re-executed here.
+///
+/// Three lines of Python against a different crate stack: SHA-256 with a
+/// per-primitive domain separator, then RFC 8032 from the raw scalar and FIPS
+/// 204 `KeyGen_internal` from the 32-byte xi.
+///
+/// The separators `b"ed"` and `b"mldsa"` are wire format, not taste. That is
+/// the limit this whole file puts on the seed mechanism: a corpus that names a
+/// seed and not the derivation names nothing, because a second implementation
+/// hashing the bare seed lands on a different identity and every signature in
+/// the vector fails closed against it — indistinguishable, at the verifier,
+/// from a forgery.
+fn derive_from_seed(seed: &str) -> (Vec<u8>, Vec<u8>) {
+    use fips204::traits::{KeyGen, SerDes};
+
+    let ed_pk = ed25519_dalek::SigningKey::from_bytes(&sha256(&[seed.as_bytes(), b"ed"]))
+        .verifying_key()
+        .to_bytes()
+        .to_vec();
+
+    let (ml_pk, _sk) =
+        fips204::ml_dsa_65::KG::keygen_from_seed(&sha256(&[seed.as_bytes(), b"mldsa"]));
+
+    (ed_pk, ml_pk.into_bytes().to_vec())
+}
+
 #[test]
-fn the_python_fingerprint_is_recorded_for_the_cross_language_anchor() {
-    // The fingerprint covers BOTH public halves, so it is the value that says
-    // two implementations derived the same identity from the same seed. Rust
-    // cannot compute it yet — that needs the canonical tree encoding from
-    // rule-store step 4 — so this asserts only that the anchor is present and
-    // well-formed, and names what will consume it. An assertion that a string
-    // is non-empty is not evidence of agreement, and is not offered as any.
+fn rust_derives_the_public_keys_python_derived_from_the_same_seed() {
+    // `spec/vectors/CLASSIFICATION.md` rests the entire extractable corpus on
+    // this: a vector declares a seed, each implementation derives locally, and
+    // 47 of 85 cases become shared data. Until this test ran, "in any
+    // implementation" had been checked across Python processes only — the same
+    // two libraries twice, which cannot detect a disagreement between
+    // libraries. `dilithium-py` and `fips204` both cite FIPS 204 Algorithm 6,
+    // and citing a standard is not evidence of agreeing on its bytes.
     let (_, keys) = load();
     for k in &keys {
-        assert!(
-            k.fingerprint.starts_with("sha256:") && k.fingerprint.len() == 71,
-            "malformed fingerprint for seed {:?}: {:?}",
-            k.seed,
-            k.fingerprint
+        let (ed_pk, ml_pk) = derive_from_seed(&k.seed);
+        assert_eq!(
+            hex::encode(&ed_pk),
+            hex::encode(&k.ed_pk),
+            "Ed25519 public key diverged for seed {:?}: RFC 8032 from a raw scalar is not portable",
+            k.seed
+        );
+        assert_eq!(
+            hex::encode(&ml_pk),
+            hex::encode(&k.ml_pk),
+            "ML-DSA-65 public key diverged for seed {:?}: FIPS 204 KeyGen_internal is not portable",
+            k.seed
+        );
+    }
+}
+
+#[test]
+fn the_locally_derived_key_verifies_the_signature_python_made_with_it() {
+    // Key agreement on its own is a comparison against a fixture, and a fixture
+    // is a claim about what Python did once. This closes the loop the corpus
+    // will actually walk: derive from the declared seed, then verify a
+    // signature nothing in the derivation ever saw.
+    let (message, keys) = load();
+    for k in &keys {
+        let (ed_pk, ml_pk) = derive_from_seed(&k.seed);
+        assert_eq!(
+            verify_ed25519(&ed_pk, &message, &k.ed_sig),
+            PrimitiveVerdict::Valid,
+            "locally derived Ed25519 key refused Python's signature for seed {:?}",
+            k.seed
+        );
+        assert_eq!(
+            verify_mldsa65(&ml_pk, &message, &k.ml_sig),
+            PrimitiveVerdict::Valid,
+            "locally derived ML-DSA-65 key refused Python's signature for seed {:?}",
+            k.seed
+        );
+    }
+}
+
+#[test]
+fn the_fingerprint_is_the_same_on_both_sides() {
+    // `HybridPub.fingerprint` covers BOTH halves, so it is the single value
+    // that says two implementations derived one identity rather than two that
+    // happen to share a leg.
+    //
+    // WHAT THIS DOES NOT CHECK, because the first version of this comment said
+    // it did: `spec/vectors/CLASSIFICATION.md` publishes the `k1` fingerprint in
+    // prose, and the claim was that recomputing it here kept the published
+    // number and the code from drifting apart. It does not — the comparison is
+    // against the committed fixture, not against the prose. Corrupting the
+    // published hex left this test and `tools/selftest.sh` green, which is the
+    // experiment that found the overclaim. The prose is now covered by
+    // selftest's "published key fingerprints match what the code derives"; this
+    // test covers Rust against the fixture, which is a different pair.
+    let (_, keys) = load();
+    for k in &keys {
+        let (ed_pk, ml_pk) = derive_from_seed(&k.seed);
+        let fp = format!("sha256:{}", hex::encode(sha256(&[&ed_pk, &ml_pk])));
+        assert_eq!(
+            fp, k.fingerprint,
+            "fingerprint diverged for seed {:?}",
+            k.seed
         );
     }
 }

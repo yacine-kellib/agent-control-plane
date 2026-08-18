@@ -37,6 +37,7 @@ dependencies = [
  "fips204",
  "hex",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

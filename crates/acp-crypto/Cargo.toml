@@ -16,3 +16,12 @@ fips204 = "0.4"
 # Cross-language fixture only: the vector is emitted by the Python reference.
 serde_json = "1"
 hex = "0.4"
+# Re-executes the Python reference's seed-to-key derivation, which is SHA-256
+# domain separation over the seed. Without it the corpus premise that "a vector
+# names seeds, not keys" stays a Python-only observation.
+#
+# A dev-dependency rather than a dependency, deliberately: a seed is
+# test-and-simulation key material, and offering derivation from the library
+# would read as an endorsement of derived keys in a deployment, which
+# `acp_crypto.HybridKey` is careful not to give.
+sha2 = "0.10"
