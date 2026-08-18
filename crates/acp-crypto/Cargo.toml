@@ -18,11 +18,21 @@ fips204 = "0.4"
 sha2 = "0.10"
 
 [features]
-# T2 and T3 custody, DECLARED AND NOT IMPLEMENTED, in the same posture as the
-# `slhdsa128s` suite: a build without them refuses the tier rather than
-# downgrading to one it can operate. Enabling either without writing the backend
+# `kms` — T2 custody, IMPLEMENTED (ACP-61). Turns on `custody::KmsSigner` and
+# the `KmsBackend` trait a deployment implements against its own KMS. Off by
+# default because a build that cannot reach a KMS should not be able to name
+# the tier: the refusal then happens at compile time rather than at the first
+# production signature.
+#
+# `hsm` — T3 custody, DECLARED AND NOT IMPLEMENTED, in the same posture as the
+# `slhdsa128s` suite: a build without it refuses the tier rather than
+# downgrading to one it can operate. Enabling it without writing the backend
 # would be worse than leaving it off, because a deployment would then believe
-# its key is in a KMS or an HSM while it sits in process memory.
+# its key is in an HSM while it sits in process memory.
+#
+# `tools/selftest.sh` runs `--features kms` and asserts it yields MORE tests
+# than the default build. Without that, T2's tests would be compiled out of
+# every command any gate runs and would pass forever by not existing.
 default = []
 kms = []
 hsm = []

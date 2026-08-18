@@ -50,6 +50,12 @@ pub use custody::{
     CustodyError, CustodyTier, Environment, HybridSignature, KeyMaterial, OfflineSigner, Signer,
     TrustedKeys, VerifyingKeys,
 };
+/// T2 custody. Exported only where the feature that implements it is on, so a
+/// build without a KMS backend cannot name the type and then discover at
+/// runtime that the tier is unavailable — the refusal happens at compile time,
+/// which is where an unavailable tier should be least convenient to ignore.
+#[cfg(feature = "kms")]
+pub use custody::{KmsBackend, KmsSigner};
 pub use primitives::{verify_ed25519, verify_mldsa65};
 pub use suite::{Primitive, Suite};
 

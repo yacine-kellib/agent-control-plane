@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (78 assertions)
+./tools/selftest.sh                # tests the tooling itself (80 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
@@ -87,7 +87,9 @@ docs/          working documents — deliberately OUTSIDE the signed roots
 
 The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`. Keep sys.path manipulation in the runner, not in library code.
 
-**Most of `crates/`, `services/`, `orchestrator/` and `deploy/` is scaffold.** Every service `main()` exits non-zero so a scaffold cannot be mistaken for a running control plane. What is genuinely implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3, with T2/T3 declared-not-implemented behind the `kms`/`hsm` features); and the canonical tree hash in `acp-bundle`.
+**Most of `crates/`, `services/`, `orchestrator/` and `deploy/` is scaffold.** Every service `main()` exits non-zero so a scaffold cannot be mistaken for a running control plane. What is genuinely implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3 — **T2 implemented** behind the `kms` feature as `KmsSigner`, T3 still declared-not-implemented behind `hsm`); and the canonical tree hash in `acp-bundle`.
+
+**T2's tests run only under `--features kms`, and that is a gate line, not a build flag.** `cargo test --workspace` uses default features, so the tier would be compiled out of the only Rust command any gate runs and its tests would pass forever by not existing — the same defect as an unrun mutant reporting SURVIVE. `selftest.sh` runs the feature build and asserts it yields **more** tests than the default one. Any future tier or primitive added behind a feature needs the same treatment, or it is unchecked by construction.
 
 **Rust signs now, so both differential directions are checked.** `tests/python_interop.rs` verifies Python's signatures in Rust; `tools/check-rust-signatures.py` verifies Rust's in Python, and `selftest.sh` runs it — a cross-language claim that no gate executes is the `sim/bundle.py` shape that let `ResearchBundle.hash()` drop three fields for several releases.
 
@@ -159,7 +161,7 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 150 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 151 files across ten roots.
 
 **Phase 8 is done (ACP-44).** `tools/codegen.sh` generates the Rust and TypeScript wire types from `spec/schemas/bundle/` and is the first thing that ever read those files — it found four defects on its first pass, one a live quorum bypass (ACP-53: PB-7 compared whole registry entries, so changing a `role` string let one key holder satisfy a k=2 quorum alone). **The fail-safe defaults live in the schema as `x-acp-absent` data**, not in a generator table, and the generator halts rather than guessing when a lookup table has no rule. `x-acp-ordered` is applied only where an order is declared — `SuiteId` gets no `Ord`, because CR-4 is containment and not rank. `tools/sync-counts.sh` re-derives every published count, which had been hand-work and had already recurred twice (ACP-42, ACP-43).
 

@@ -414,6 +414,48 @@ PY
   has 'checked [1-9][0-9]* published count' "the Rust count check is non-vacuous (found at least one)"
 fi
 
+printf '\n\033[1m== custody T2: the tier tests run in some build (ACP-61) ==\033[0m\n'
+
+# `cargo test --workspace` above builds with default features, and T2 lives
+# behind `kms`. So the tier that ACP-61 added is compiled out of the only Rust
+# command any gate runs, and its tests would pass forever by not existing --
+# which is the same defect as an unrun mutant reporting SURVIVE, and the reason
+# the mutation suites strip PYTHONPATH from their subprocess.
+#
+# Two assertions, and the second is the load-bearing one. Passing is cheap; a
+# feature build with the tests deleted also passes. So the count under `kms`
+# must EXCEED the count without it, which is false the moment the T2 tests stop
+# existing or stop being gated on the feature that names them.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; custody T2 not checked\n'
+else
+  OUT=$(python3 - <<'PY' 2>&1
+import re, subprocess, sys
+
+def count(args):
+    r = subprocess.run(["cargo", "test", "-p", "acp-crypto", *args],
+                       capture_output=True, text=True)
+    n = sum(int(x) for x in re.findall(r"^test result: ok\. (\d+) passed",
+                                       r.stdout, re.M))
+    return r.returncode, n, r.stdout
+
+rc, with_kms, out = count(["--features", "kms"])
+_,  without,  _   = count([])
+
+print(f"kms build runs {with_kms}, default runs {without}")
+if rc != 0:
+    print("  the --features kms build did not pass")
+if with_kms <= without:
+    print("  the kms feature added no tests -- T2 is unchecked in every build")
+if "kms::" not in out:
+    print("  no test in the kms module ran")
+sys.exit(1 if rc != 0 or with_kms <= without or "kms::" not in out else 0)
+PY
+  ); rc=$?
+  [ $rc -eq 0 ]; chk $? "custody T2 tests pass under --features kms (got $rc)"
+  has 'kms build runs [1-9][0-9]*' "the T2 check is non-vacuous (tests actually ran)"
+fi
+
 printf '\n\033[1m== acp-bundle CLI: the release signer discipline, applied to bundles ==\033[0m\n'
 
 # Mirrors the sign-release.sh assertions above, on the bundle signer. The rules

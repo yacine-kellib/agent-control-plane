@@ -62,13 +62,29 @@
 //! living in the one file where getting it wrong is unrecoverable. `age` and
 //! `gpg` are the mechanism; this module is what happens after they run.
 //!
-//! T2 and T3 are **declared and not implemented**, behind the `kms` and `hsm`
-//! features, and they fail closed exactly as `pq-slh` does in [`crate::suite`]:
-//! asking for a tier this build cannot provide is
-//! [`CustodyError::TierUnavailable`], never a silent downgrade to a tier it
-//! can. A downgrade would be the interesting failure — a deployment believing
-//! its key is in an HSM while it sits in process memory — so it is the one the
-//! type system is arranged to prevent.
+//! **T2 is implemented** as of ACP-61, behind the `kms` feature: see
+//! [`KmsSigner`]. **T3 is still declared and not implemented**, behind `hsm`,
+//! and fails closed exactly as `pq-slh` does in [`crate::suite`]: asking for a
+//! tier this build cannot provide is [`CustodyError::TierUnavailable`], never a
+//! silent downgrade to a tier it can. A downgrade would be the interesting
+//! failure — a deployment believing its key is in an HSM while it sits in
+//! process memory — so it is the one the type system is arranged to prevent.
+//!
+//! What T2 implements is the **custody policy**, not a cloud SDK: the key never
+//! enters this process, the public key is checked against the operator's
+//! configuration rather than adopted from the KMS, every declared primitive
+//! must be KMS-held or the tier is refused, and a returned signature is
+//! verified before it is handed back. The transport to a particular cloud is a
+//! [`KmsBackend`] the deployment writes, on the same principle that `age` and
+//! `gpg` — not this crate — decrypt T0 and T1 key files.
+//!
+//! **Why ACP-61 existed at all**, recorded because the gap was invisible until
+//! someone asked what would sign a receipt in production: T0 refuses production
+//! and T1 wipes its key after one signature, so before T2 there was no
+//! implemented tier that could sign a production receipt *twice*. The KMS in
+//! the deployment architecture signs every accepted transaction. Phase 9 would
+//! have emitted Decision Receipts that no conformant deployment could sign,
+//! and every gate would have stayed green while it did.
 
 use crate::primitives::MLDSA_CTX;
 use crate::suite::{Primitive, Suite};
@@ -478,6 +494,236 @@ const fn rank(t: CustodyTier) -> u8 {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// T2 — cloud KMS, non-exportable (ACP-61)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One non-exportable key, held by a KMS, for exactly one primitive.
+///
+/// This crate deliberately does **not** depend on a cloud SDK, for the same
+/// reason it does not define a key-file format for T0 and T1: a bespoke
+/// re-implementation of a solved problem, living in the one file where getting
+/// it wrong is unrecoverable. The deployment implements this trait against its
+/// own KMS; what lives here is the **custody policy**, which is the part with
+/// security content.
+///
+/// # What "non-exportable" buys, and what it costs
+///
+/// T2's whole claim is that the private key never enters this process. That is
+/// a *structural* property of [`KmsSigner`] — it has no [`KeyMaterial`] field
+/// and no constructor that accepts one — rather than a promise in a comment.
+/// The cost is that every signature is a network call to a service that can be
+/// slow, throttled, or wrong, so every method here returns [`CustodyError`] and
+/// none of them may be unwrapped.
+///
+/// # Both halves must be KMS-held or the tier is not T2
+///
+/// A hybrid identity whose classical key sits in a KMS and whose post-quantum
+/// key sits in process memory is **not** a T2 identity, and calling it one is
+/// precisely the failure this module's header names: *"a deployment believing
+/// its key is in an HSM while it sits in process memory."* A custody tier
+/// describes the weakest half, never the strongest. [`KmsSigner::new`]
+/// therefore requires a backend for **every** primitive the suite declares and
+/// refuses to construct otherwise.
+///
+/// This is reachable today rather than aspirational: AWS KMS carries both
+/// `ML_DSA_65` (signing algorithm `ML_DSA_SHAKE_256`) and `ED25519_SHA_512`,
+/// and [`crate::primitives::MLDSA_CTX`] is empty, which is what a KMS that
+/// exposes no context parameter will use. A backend for a KMS that signs
+/// ML-DSA under a *non-empty* context produces signatures this crate will not
+/// verify — which `sign` catches before returning rather than at the verifier,
+/// see below.
+#[cfg(feature = "kms")]
+pub trait KmsBackend: Send + Sync {
+    /// Which primitive this key signs. One backend, one primitive.
+    fn primitive(&self) -> Primitive;
+
+    /// The public half, **as the KMS reports it**.
+    ///
+    /// Not trusted. [`KmsSigner::new`] compares it against the identity the
+    /// operator configured and refuses on mismatch — see the RES-8 note there.
+    fn public_key(&self) -> Result<Vec<u8>, CustodyError>;
+
+    /// Sign `message`, returning the raw signature bytes for this primitive.
+    ///
+    /// Raw, not DER: `ed25519-dalek` wants 64 bytes and `fips204` wants 3309.
+    /// A backend that returns a wrapped encoding is a misconfiguration, and
+    /// [`KmsSigner::sign`] is arranged to find it.
+    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CustodyError>;
+}
+
+/// A signer whose private key never enters this process: tier T2.
+///
+/// Contrast [`OfflineSigner`], which holds [`KeyMaterial`] and is refused for
+/// T2 for exactly that reason.
+#[cfg(feature = "kms")]
+pub struct KmsSigner {
+    suite: Suite,
+    public: VerifyingKeys,
+    backends: Vec<Box<dyn KmsBackend>>,
+}
+
+#[cfg(feature = "kms")]
+impl KmsSigner {
+    /// Build a T2 signer over one backend per primitive the suite declares.
+    ///
+    /// `expected` is the identity **the operator configured this signing host
+    /// with**, out-of-band. It is not read from the KMS.
+    ///
+    /// # THE RES-8 CHECK, and why it is a check and not an assignment
+    ///
+    /// The obvious implementation asks each backend for its public key and
+    /// builds the identity from the answers. That is the defect class this
+    /// document has hit five times: the public key is a security-determining
+    /// value, the bundle publishes it (PB-KEY) and `acp-bundle` puts it inside
+    /// the tree hash, so a KMS that answered with a key it controls would have
+    /// its own identity signed into the registry — and every later verification
+    /// would succeed against the wrong key while looking perfect.
+    ///
+    /// So the operator states the identity and this constructor **compares**.
+    /// A backend whose reported key differs is [`CustodyError::Backend`], never
+    /// an adoption. The distinction is the entire content of RES-8, and it is
+    /// one line away from being lost.
+    ///
+    /// # CR-3 is conjunctive here too
+    ///
+    /// Every primitive the suite declares must have exactly one backend, and a
+    /// backend for a primitive the suite does *not* declare is refused rather
+    /// than ignored. An `any`-shaped construction would let a deployment
+    /// configure a hybrid suite, supply only the classical backend, and sign
+    /// bundles with the post-quantum leg quietly missing — the downgrade the
+    /// hybrid suite exists to prevent, arriving through configuration instead
+    /// of through the wire.
+    pub fn new(
+        suite: Suite,
+        expected: VerifyingKeys,
+        backends: Vec<Box<dyn KmsBackend>>,
+    ) -> Result<Self, CustodyError> {
+        if !CustodyTier::T2.is_available() {
+            // Unreachable under this `cfg`, and kept because `is_available` is
+            // the one place the tier table is enforced and this is one edit
+            // away from being the only caller that skips it.
+            return Err(CustodyError::TierUnavailable);
+        }
+        if suite.primitives().iter().any(|p| !p.is_implemented()) {
+            return Err(CustodyError::SuiteUnsupported);
+        }
+
+        let declared = suite.primitives();
+        for backend in &backends {
+            if !declared.contains(&backend.primitive()) {
+                return Err(CustodyError::Backend(
+                    "a KMS backend was supplied for a primitive the suite does not declare",
+                ));
+            }
+        }
+        for prim in declared {
+            let matching = backends.iter().filter(|b| b.primitive() == *prim).count();
+            if matching != 1 {
+                // Zero is the downgrade; two is an ambiguity about which key
+                // the identity names. Both refuse.
+                return Err(CustodyError::Backend(
+                    "each primitive the suite declares needs exactly one KMS backend",
+                ));
+            }
+        }
+
+        for backend in &backends {
+            let reported = backend.public_key()?;
+            let configured: &[u8] = match backend.primitive() {
+                Primitive::Classical => expected.classical(),
+                Primitive::Pq => expected.pq(),
+                Primitive::PqSlh => return Err(CustodyError::SuiteUnsupported),
+            };
+            if reported != configured {
+                return Err(CustodyError::Backend(
+                    "KMS public key does not match the identity this host was configured with",
+                ));
+            }
+        }
+
+        Ok(KmsSigner {
+            suite,
+            public: expected,
+            backends,
+        })
+    }
+}
+
+#[cfg(feature = "kms")]
+impl Signer for KmsSigner {
+    fn suite(&self) -> Suite {
+        self.suite
+    }
+
+    fn tier(&self) -> CustodyTier {
+        CustodyTier::T2
+    }
+
+    fn verifying_keys(&self) -> &VerifyingKeys {
+        &self.public
+    }
+
+    /// Sign, then **verify the result before returning it**.
+    ///
+    /// The verification is not defensive decoration. A KMS is configured by
+    /// hand — key spec, signing algorithm, message type, encoding — and every
+    /// one of those can be individually plausible and jointly wrong: a DER
+    /// wrapper where raw bytes are expected, `ED25519_PH_SHA_512` where
+    /// `ED25519_SHA_512` was meant, an ML-DSA context this crate does not use.
+    /// Each produces a well-formed signature that fails verification.
+    ///
+    /// Without this check the failure surfaces at a *verifier*, after the
+    /// bundle has been published and the epoch consumed, where it is
+    /// indistinguishable from a forgery — and PB-5 forbids re-serving an epoch,
+    /// so the recovery is a new epoch rather than a retry. Catching it here
+    /// costs one verification per signature on a path that has just made a
+    /// network call, and turns an unrecoverable publication into a refusal.
+    fn sign(&self, message: &[u8], env: Environment) -> Result<HybridSignature, CustodyError> {
+        use crate::primitives::{verify_ed25519, verify_mldsa65};
+        use crate::PrimitiveVerdict;
+
+        if !CustodyTier::T2.permits(env) {
+            // T2 permits production, so this never fires today. It is here
+            // because the tier table is the control and a signer that consults
+            // it cannot drift from it — see the T0 mutant.
+            return Err(CustodyError::TierForbidsProduction);
+        }
+
+        let mut parts = Vec::new();
+        for prim in self.suite.primitives() {
+            let backend = self
+                .backends
+                .iter()
+                .find(|b| b.primitive() == *prim)
+                // `new` established this; refused rather than unwrapped,
+                // because a panic here is a denial of service on the signing
+                // host and `new`'s check is one edit from being its only guard.
+                .ok_or(CustodyError::Backend("no KMS backend for a declared primitive"))?;
+
+            let bytes = backend.sign(message)?;
+
+            let verdict = match prim {
+                Primitive::Classical => verify_ed25519(self.public.classical(), message, &bytes),
+                Primitive::Pq => verify_mldsa65(self.public.pq(), message, &bytes),
+                Primitive::PqSlh => return Err(CustodyError::SuiteUnsupported),
+            };
+            if verdict != PrimitiveVerdict::Valid {
+                return Err(CustodyError::Backend(
+                    "the KMS returned a signature that does not verify under the configured key",
+                ));
+            }
+
+            parts.push((*prim, bytes));
+        }
+
+        Ok(HybridSignature {
+            suite: self.suite,
+            parts,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -713,5 +959,287 @@ mod tests {
             k.public().fingerprint(),
             "sha256:38a223bddb2ee525211f7353bc4f578bf025996eeee3a550dc7ead5d0fdce7eb"
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // T2 — cloud KMS (ACP-61)
+    //
+    // These run only under `--features kms`, which `tools/selftest.sh`
+    // supplies. A tier whose tests are excluded from every build that runs is
+    // a tier nobody checks, and that is the shape of the defect this ticket
+    // exists to close.
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[cfg(feature = "kms")]
+    mod kms {
+        use super::*;
+
+        /// A KMS that happens to run in this process.
+        ///
+        /// It stands in for the network, not for the custody property: the
+        /// point of T2 is that [`KmsSigner`] has nowhere to put a key, and
+        /// that is true whatever the backend does. A test double that held no
+        /// key could not sign, and one that signs correctly is what lets the
+        /// *negative* cases below be about the thing being tested.
+        struct FakeKms {
+            prim: Primitive,
+            key: KeyMaterial,
+            /// Corrupt the signature before returning it — a stand-in for
+            /// every way a KMS can be plausibly misconfigured.
+            corrupt: bool,
+            /// Report a public key other than the one that signs.
+            reported: Option<Vec<u8>>,
+            fail: bool,
+        }
+
+        impl FakeKms {
+            fn new(prim: Primitive, seed: &[u8]) -> Self {
+                FakeKms {
+                    prim,
+                    key: KeyMaterial::from_seed(seed),
+                    corrupt: false,
+                    reported: None,
+                    fail: false,
+                }
+            }
+        }
+
+        impl KmsBackend for FakeKms {
+            fn primitive(&self) -> Primitive {
+                self.prim
+            }
+
+            fn public_key(&self) -> Result<Vec<u8>, CustodyError> {
+                if let Some(r) = &self.reported {
+                    return Ok(r.clone());
+                }
+                Ok(match self.prim {
+                    Primitive::Classical => self.key.public().classical().to_vec(),
+                    Primitive::Pq => self.key.public().pq().to_vec(),
+                    Primitive::PqSlh => return Err(CustodyError::SuiteUnsupported),
+                })
+            }
+
+            fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CustodyError> {
+                use ed25519_dalek::Signer as _;
+                use fips204::traits::Signer as _;
+                if self.fail {
+                    return Err(CustodyError::Backend("the KMS was unavailable"));
+                }
+                let mut bytes = match self.prim {
+                    Primitive::Classical => self.key.ed.sign(message).to_bytes().to_vec(),
+                    Primitive::Pq => self
+                        .key
+                        .ml
+                        .try_sign(message, MLDSA_CTX)
+                        .map_err(|_| CustodyError::Backend("signing failed"))?
+                        .to_vec(),
+                    Primitive::PqSlh => return Err(CustodyError::SuiteUnsupported),
+                };
+                if self.corrupt {
+                    bytes[0] ^= 0xff;
+                }
+                Ok(bytes)
+            }
+        }
+
+        fn hybrid_backends(seed: &[u8]) -> Vec<Box<dyn KmsBackend>> {
+            vec![
+                Box::new(FakeKms::new(Primitive::Classical, seed)),
+                Box::new(FakeKms::new(Primitive::Pq, seed)),
+            ]
+        }
+
+        fn identity(seed: &[u8]) -> VerifyingKeys {
+            KeyMaterial::from_seed(seed).public().clone()
+        }
+
+        #[test]
+        fn a_t2_signature_verifies_and_the_tier_is_t2() {
+            // The floor. If this fails nothing below means anything.
+            let s = KmsSigner::new(HYBRID, identity(b"k1"), hybrid_backends(b"k1"))
+                .expect("a matching identity and one backend per primitive");
+            assert_eq!(s.tier(), CustodyTier::T2);
+            let sig = s.sign(b"bundle tree hash", Environment::Production).unwrap();
+            let pk = s.verifying_keys();
+
+            // Both legs, through the verifying path that already existed —
+            // and then through CR-3's conjunctive composition, because a
+            // signature whose halves each verify individually is not yet a
+            // hybrid signature.
+            let c = verify_ed25519(
+                pk.classical(),
+                b"bundle tree hash",
+                sig.part(Primitive::Classical).unwrap(),
+            );
+            let q = verify_mldsa65(pk.pq(), b"bundle tree hash", sig.part(Primitive::Pq).unwrap());
+            assert_eq!(c, PrimitiveVerdict::Valid);
+            assert_eq!(q, PrimitiveVerdict::Valid);
+            assert!(
+                verify_hybrid(
+                    HYBRID,
+                    &[(Primitive::Classical, c), (Primitive::Pq, q)],
+                )
+                .is_ok()
+            );
+        }
+
+        #[test]
+        fn t2_signs_for_production_and_t0_still_does_not() {
+            // ACP-61's reason for existing: T0 refuses production and T1 wipes
+            // after one signature, so before T2 there was no tier that could
+            // sign a production receipt more than once. Both halves are
+            // asserted together so a change that relaxes T0 to "fix" the gap
+            // fails here rather than passing quietly.
+            let t2 = KmsSigner::new(HYBRID, identity(b"k1"), hybrid_backends(b"k1")).unwrap();
+            assert!(t2.sign(b"m", Environment::Production).is_ok());
+            assert!(t2.sign(b"m", Environment::Production).is_ok(), "T2 is not consumed by use");
+
+            let t0 = signer(CustodyTier::T0);
+            assert_eq!(
+                t0.sign(b"m", Environment::Production),
+                Err(CustodyError::TierForbidsProduction)
+            );
+        }
+
+        #[test]
+        fn a_kms_reporting_a_key_the_operator_did_not_configure_is_refused() {
+            // RES-8, and the single most important test in this module. The
+            // KMS is the party being verified; its claim about which key it
+            // holds is not evidence. `acp-bundle` puts the attester registry
+            // inside the tree hash, so adopting this answer would sign the
+            // KMS's own identity into the registry and every later
+            // verification would succeed against the wrong key.
+            let mut rogue = FakeKms::new(Primitive::Classical, b"k1");
+            rogue.reported = Some(identity(b"attacker").classical().to_vec());
+            let backends: Vec<Box<dyn KmsBackend>> =
+                vec![Box::new(rogue), Box::new(FakeKms::new(Primitive::Pq, b"k1"))];
+
+            let r = KmsSigner::new(HYBRID, identity(b"k1"), backends);
+            assert!(
+                matches!(r, Err(CustodyError::Backend(_))),
+                "a KMS key that differs from the configured identity was adopted"
+            );
+        }
+
+        #[test]
+        fn a_hybrid_suite_with_only_the_classical_backend_is_refused() {
+            // CR-3 conjunctive, arriving through configuration rather than
+            // through the wire. An `any`-shaped construction here would let a
+            // deployment declare hybrid and sign with the post-quantum leg
+            // missing, which is the downgrade the suite exists to prevent.
+            let backends: Vec<Box<dyn KmsBackend>> =
+                vec![Box::new(FakeKms::new(Primitive::Classical, b"k1"))];
+            assert!(matches!(
+                KmsSigner::new(HYBRID, identity(b"k1"), backends),
+                Err(CustodyError::Backend(_))
+            ));
+        }
+
+        #[test]
+        fn a_backend_for_an_undeclared_primitive_is_refused_not_ignored() {
+            // The mirror of the case above, and the reason `new` checks both
+            // directions: silently ignoring an extra backend would let a
+            // deployment believe a primitive is covered when the suite never
+            // asked for it.
+            let ed_only = Suite::Ed25519;
+            let backends: Vec<Box<dyn KmsBackend>> = vec![
+                Box::new(FakeKms::new(Primitive::Classical, b"k1")),
+                Box::new(FakeKms::new(Primitive::Pq, b"k1")),
+            ];
+            assert!(matches!(
+                KmsSigner::new(ed_only, identity(b"k1"), backends),
+                Err(CustodyError::Backend(_))
+            ));
+        }
+
+        #[test]
+        fn two_backends_for_one_primitive_are_refused() {
+            // Not pedantry: two keys for one primitive is an ambiguity about
+            // which key the identity names, and the constructor's public-key
+            // check would pass on whichever it happened to compare.
+            let backends: Vec<Box<dyn KmsBackend>> = vec![
+                Box::new(FakeKms::new(Primitive::Classical, b"k1")),
+                Box::new(FakeKms::new(Primitive::Classical, b"k1")),
+                Box::new(FakeKms::new(Primitive::Pq, b"k1")),
+            ];
+            assert!(matches!(
+                KmsSigner::new(HYBRID, identity(b"k1"), backends),
+                Err(CustodyError::Backend(_))
+            ));
+        }
+
+        #[test]
+        fn a_signature_that_does_not_verify_is_caught_at_the_signer() {
+            // The sign-then-verify control. A misconfigured KMS — DER wrapper,
+            // Ed25519ph instead of Ed25519, a non-empty ML-DSA context —
+            // returns a well-formed signature that fails verification. Without
+            // this the failure surfaces at a verifier, after publication, where
+            // it is indistinguishable from a forgery; and PB-5 forbids
+            // re-serving the epoch, so recovery is a new epoch rather than a
+            // retry.
+            let mut bad = FakeKms::new(Primitive::Classical, b"k1");
+            bad.corrupt = true;
+            let backends: Vec<Box<dyn KmsBackend>> =
+                vec![Box::new(bad), Box::new(FakeKms::new(Primitive::Pq, b"k1"))];
+            let s = KmsSigner::new(HYBRID, identity(b"k1"), backends).unwrap();
+            assert!(
+                matches!(
+                    s.sign(b"m", Environment::Production),
+                    Err(CustodyError::Backend(_))
+                ),
+                "an unverifiable signature was returned to the caller"
+            );
+        }
+
+        #[test]
+        fn an_unavailable_kms_fails_closed() {
+            // No cached key, no fallback tier, no partial signature. The
+            // interesting failure would be a signer that degraded to something
+            // it could do locally, which is why there is nothing local to
+            // degrade to.
+            let mut down = FakeKms::new(Primitive::Pq, b"k1");
+            down.fail = true;
+            let backends: Vec<Box<dyn KmsBackend>> = vec![
+                Box::new(FakeKms::new(Primitive::Classical, b"k1")),
+                Box::new(down),
+            ];
+            let s = KmsSigner::new(HYBRID, identity(b"k1"), backends).unwrap();
+            assert_eq!(
+                s.sign(b"m", Environment::Production),
+                Err(CustodyError::Backend("the KMS was unavailable"))
+            );
+        }
+
+        #[test]
+        fn an_in_memory_key_still_cannot_wear_a_t2_label() {
+            // The property T2 actually sells. `KmsSigner` has no field that
+            // could hold a key; `OfflineSigner` has one and is refused the
+            // label even in a build where T2 is available — which is this
+            // build. Deleting that branch is the mutant for "a deployment
+            // believing its key is in a KMS while it sits in process memory".
+            assert!(CustodyTier::T2.is_available());
+            assert_eq!(
+                OfflineSigner::new(CustodyTier::T2, HYBRID, KeyMaterial::from_seed(b"k1"))
+                    .err(),
+                Some(CustodyError::TierUnavailable)
+            );
+        }
+
+        #[test]
+        fn implementing_t2_did_not_quietly_make_t3_available() {
+            // ACP-61 acceptance item 5, asserted in the build where it could
+            // plausibly regress. `kms` does not imply `hsm`, but the two tiers
+            // sit in one `match` arm apart, and the interesting failure is the
+            // silent one: T3 becoming available because the arm below it was
+            // edited. A deployment under a FIPS mandate would then hold its key
+            // in a KMS while believing it is in an HSM.
+            assert!(!CustodyTier::T3.is_available());
+            assert_eq!(
+                OfflineSigner::new(CustodyTier::T3, HYBRID, KeyMaterial::from_seed(b"k1"))
+                    .err(),
+                Some(CustodyError::TierUnavailable)
+            );
+        }
     }
 }

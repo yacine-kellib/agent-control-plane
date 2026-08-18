@@ -22,6 +22,78 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — no implemented custody tier could sign a production receipt
+
+`ACP-61`. Found by asking what would sign a Decision Receipt in production, which nothing
+had asked, because phase 9 had not started and the tier table looked complete.
+
+`crates/acp-crypto/src/custody.rs` declared four tiers and implemented two. **T0 refuses
+production** by design — that refusal is what makes the tier table a control rather than a
+description. **T1 wipes its key after one signature**, which is what "air-gapped host, key
+zeroized after use" means written as code. **T2 and T3 were declared and not implemented.**
+
+The KMS in the deployment architecture signs the receipt for *every accepted transaction*,
+so it is necessarily online and repeated. T0 cannot. T1 can do it once. So there was no
+implemented tier that could sign a production receipt twice, and every phase from 9 onward
+assumes a signed receipt exists.
+
+**Nothing was red.** The gate passed, the tier table read as a considered ladder, and the
+gap was one question away from being invisible for as long as nobody asked it. That is the
+same shape as `sim/bundle.py` dropping three fields from a hash for several releases: a
+load-bearing artifact with no gate line.
+
+### What T2 implements, and what it deliberately does not
+
+The **custody policy**, not a cloud SDK. `KmsSigner` has no field that could hold a key and
+no constructor that accepts one, so "the private key never enters this process" is
+structural rather than promised. The transport to a particular cloud is a `KmsBackend` the
+deployment writes — the same division as T0 and T1, where `age` and `gpg`, not this crate,
+decrypt the key file. A bespoke re-implementation of a solved problem, in the one file where
+getting it wrong is unrecoverable, is what that division exists to avoid.
+
+Three checks carry the security content, and each was verified by deletion:
+
+- **The public key is compared, never adopted.** The obvious implementation asks each backend
+  for its key and builds the identity from the answers — and the bundle publishes that key
+  (PB-KEY) with `acp-bundle` placing it inside the tree hash, so a KMS answering with a key
+  it controls would sign its own identity into the registry and every later verification
+  would succeed against the wrong key. **RES-8**, for the sixth time if it had shipped. The
+  operator states the identity; the constructor compares.
+- **CR-3 is conjunctive in configuration too.** Every primitive the declared suite requires
+  must have exactly one backend. Zero is the downgrade the hybrid suite exists to prevent,
+  arriving through configuration instead of through the wire; two is an ambiguity about which
+  key the identity names. Both refuse. A backend for a primitive the suite does *not* declare
+  is refused rather than ignored.
+- **A signature is verified before it is returned.** A KMS is configured by hand — key spec,
+  signing algorithm, message type, encoding — and each can be individually plausible and
+  jointly wrong. Without this the failure surfaces at a verifier, after publication, where it
+  is indistinguishable from a forgery; and PB-5 forbids re-serving an epoch, so the recovery
+  is a new epoch rather than a retry.
+
+A hybrid identity's tier is that of its **weakest** half, so `KmsSigner` refuses to construct
+unless both halves are KMS-held. This is reachable rather than aspirational: AWS KMS carries
+`ML_DSA_65` under `ML_DSA_SHAKE_256` and `ED25519_SHA_512`, and this crate's ML-DSA context
+is empty, which is what a KMS exposing no context parameter uses.
+
+**T3 remains declared and not implemented**, and a test in the `kms` build asserts that
+implementing T2 did not quietly make it available — the interesting failure being a
+deployment under a FIPS mandate holding its key in a KMS while believing it is in an HSM.
+
+### The gate line, because a tier nobody runs is a tier nobody checks
+
+T2 lives behind the `kms` feature, and `cargo test --workspace` builds with default features.
+Its tests would therefore have been compiled out of the only Rust command any gate runs, and
+would have passed forever by not existing — the same defect as an unrun mutant reporting
+SURVIVE. `tools/selftest.sh` now runs `--features kms` and asserts the count **exceeds** the
+default build's, which goes red the moment the T2 tests stop existing or stop being gated on
+the feature that names them. Verified by compiling them out and watching it fail.
+
+### Not closed
+
+Encryption at rest for T0 and T1 key files is still absent and still disclosed. No signature
+produced by a real KMS has been verified by the Python reference — `KmsBackend` is exercised
+by a test double, and the cross-language differential covers `OfflineSigner` only.
+
 ## Unreleased since v1.3.14 — the audit chain the specification described was not the one anybody built
 
 Two defects in `spec/ACP-SPEC-001.md` itself, both found by reading the document after the
