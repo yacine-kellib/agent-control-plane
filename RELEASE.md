@@ -72,6 +72,29 @@ to AU-1. `spec/vectors/CLASSIFICATION.md` records the audit suite as **0 of 11
 vector-expressible**, so the one suite with no shared-corpus path is the one whose formula
 drifted. Consistency evidence is not conformance evidence.
 
+### `CL-7` was two different normative rules, and both were already cited
+
+`ACP-56`. §9.3.1 defined CL-7 twice: "ledger writes are check-then-mutate" (v1.3.9) and
+"every claim operation MUST be audited" (older). The v1.3.9 insertion landed *above* CL-6
+and took an id already in use two lines below it, so the list read CL-5, CL-7, CL-6, CL-7.
+
+The ambiguity was **live, not latent**: §1 cites CL-7 as check-then-mutate twice, while
+§10's threat table cited "CL-7 auditing" meaning the other rule. A reader resolving the id
+in one place got the wrong clause in the other, and "CL-7 satisfied" was unfalsifiable —
+an implementation could satisfy either and cite the clause honestly.
+
+No code defect; `reference/src/acp_ledger.py` implements check-then-mutate and Suites 3 and
+4 cover it. What was damaged is the **citation graph**, which `spec/vectors/OBLIGATIONS.md`
+keys obligations to. The **older** rule was renumbered **CL-8** and the list reordered — the
+v1.3.9 id is cited in released prose and in this file, and an id already published is the
+one that must not move.
+
+**The class fix, not the instance:** `tools/selftest.sh` now asserts that every clause id in
+the document is defined exactly once, across every family and not just `CL-*`. Run against
+the spec as committed before this change it names `CL-7`; against the corrected document it
+is clean. It manufactures a collision on every run and requires the detector to name it, so
+a regex that silently stops matching cannot pass as a clean document.
+
 ### `sync-counts.sh` destroyed a dossier file and reported success
 
 Found while propagating 11/11 → 12/12, and disclosed because it is the more dangerous

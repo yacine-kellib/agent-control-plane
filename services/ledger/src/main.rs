@@ -1,4 +1,4 @@
-//! Single-use nonce ledger with quorum across replicas (CL-1..CL-7).
+//! Single-use nonce ledger with quorum across replicas (CL-1..CL-8).
 //!
 //! CL-6 is the property that costs something and must not be traded away:
 //! on loss of majority the ledger **fails closed**, stopping HIGH actions.

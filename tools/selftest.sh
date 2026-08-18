@@ -576,6 +576,49 @@ printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 # which is the same defect as the mutation counts and the Rust test count, in
 # the file whose entire job is catching that defect.
 #
+printf '\n\033[1m== spec: clause ids are defined exactly once ==\033[0m\n'
+
+# v1.3.15 defined CL-7 TWICE -- "ledger writes are check-then-mutate" (v1.3.9)
+# and "every claim operation MUST be audited" (older) -- because the v1.3.9
+# insertion landed above CL-6 and took an id already in use two lines below it.
+# Both meanings were cited in the document simultaneously, which made a
+# conformance claim of "CL-7 satisfied" unfalsifiable: an implementation could
+# satisfy either and cite the clause honestly.
+#
+# It was found by READING. Nothing in this repository could have found it by
+# running, and `spec/vectors/OBLIGATIONS.md` keys per-implementation
+# obligations to these ids -- a corpus cannot express "passes CL-7" while CL-7
+# names two rules. So the check is on the CLASS: every clause family in the
+# document, not the CL-* instance that happened to collide.
+dupe_ids() {
+  grep -oE '^[[:space:]]*-[[:space:]]+\*\*[A-Z]{2,4}-[0-9]+[a-z]?' "$1" \
+    | grep -oE '[A-Z]{2,4}-[0-9]+[a-z]?' | sort | uniq -d
+}
+
+D=$(dupe_ids spec/ACP-SPEC-001.md)
+if [ -z "$D" ]; then
+  ok "every clause id in ACP-SPEC-001 is defined exactly once"
+else
+  bad "clause ids defined more than once: $(echo "$D" | tr '\n' ' ')"
+fi
+
+# THE ASSERTION ABOVE IS VACUOUS ON ITS OWN. A detector whose regex matched
+# nothing -- a changed bullet style, a renamed file -- reports the same green
+# line as a document with no duplicates, and that is the exact failure this
+# block was written to answer. So a collision is MANUFACTURED on every run and
+# the detector must name it. The sabotage is a copy: the real spec is never
+# written to, because a restore step that fails leaves the normative source
+# corrupted.
+SPECCOPY=$(mktemp); cp spec/ACP-SPEC-001.md "$SPECCOPY"
+printf -- '- **CL-6.** manufactured collision — selftest\n' >> "$SPECCOPY"
+D=$(dupe_ids "$SPECCOPY")
+if [ "$D" = "CL-6" ]; then
+  ok "and the detector names a manufactured duplicate (CL-6) rather than passing"
+else
+  bad "manufactured CL-6 collision was NOT detected (got '$(echo "$D" | tr '\n' ' ')')"
+fi
+rm -f "$SPECCOPY"
+
 # THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
 # is TOTAL+1 as measured here, and a reader counting OK lines gets the same
 # figure. An off-by-one would be a wrong published number arriving by exactly

@@ -422,7 +422,7 @@ Release key fingerprint: SHA256:c6334fda510760d9125e94ce8c900e56
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (71 assertions)
+./tools/selftest.sh               # tests the tooling itself (73 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.
