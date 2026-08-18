@@ -15,15 +15,32 @@ acp-crypto.workspace = true
 # verify.rs needs BundleEpoch (PB-5) -- the newtype with no `Ord`, so a `>=`
 # that would accept a replay of the current epoch is not reachable by a slip.
 acp-core.workspace = true
-# Reads the handful of SECURITY fields out of the signed manifest and registry
-# bytes: bundle_epoch, expires_at, author/reviewer id, quorum_k, attester keys.
+# Carries the signed manifest and registry as documents. verify.rs no longer
+# COERCES anything out of them -- there is not an `as_str`/`as_u64`/`as_object`
+# left in the crate. Every field it reads goes through `verify::promoted`, which
+# deserialises one named field into the type the schema declares for it, and a
+# test compares those types against the generated projections field by field so
+# the two cannot drift apart in silence.
 #
-# This is NOT the typed bundle model, and must not grow into one. The schemas in
-# spec/schemas/bundle/ are the normative source and the Rust types come from
-# codegen -- a hand-written struct here would be a second definition of one
-# object. Reading five named fields fail-closed is field access; defining the
-# shape of the bundle is what waits for tools/codegen.sh.
+# There is still no hand-written bundle struct here and there must never be one:
+# spec/schemas/bundle/ is the normative source, the Rust types come from
+# tools/codegen.sh, and a struct written here would be a second definition of an
+# object the specification already defines.
+#
+# Nor is a whole-document `RawManifest`/`RawAttesterRegistry` deserialise the
+# answer, which is worth writing down because it looks like the tidier one.
+# serde fails the WHOLE struct on any wrongly-typed member, so it would (a)
+# collapse every distinct absence into one Malformed, when these refusals are
+# distinguishable by design and the cross-language differential asserts the
+# name, and (b) start refusing bundles this verifier accepts today over fields
+# no verifier reads -- `custody` above all, which the schema classifies T and
+# which every fixture in this repository writes in a shape the strict type
+# rejects. verify.rs's module doc carries the long form.
 serde_json = "1"
+# The `Deserialize` trait itself, for that promotion. No derive is used here --
+# deriving a struct is precisely what this crate must not do; the types are
+# acp-core's generated ones and serde's own scalars and maps.
+serde.workspace = true
 
 # Deliberately NOT depended on yet:
 #   ciborium / serde — the encoder here is hand-rolled and 30 lines, because

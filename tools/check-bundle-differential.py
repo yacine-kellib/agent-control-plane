@@ -86,6 +86,41 @@ def registry_of(k, entries):
     }, indent=1).encode()
 
 
+def manifest_of(**patch):
+    """The default manifest with fields REPLACED or dropped.
+
+    Added for ACP-44. The shaped helpers above cannot express a manifest whose
+    `bundle_epoch` is a string or whose `author` is not an object, and a fixture
+    that cannot express the shape cannot test for it -- which is the lesson
+    ACP-53 left behind one file over.
+    """
+    obj = json.loads(manifest())
+    for field, value in patch.items():
+        if value is DROP:
+            obj.pop(field, None)
+        else:
+            obj[field] = value
+    return json.dumps(obj, indent=1).encode()
+
+
+def registry_patched(**patch):
+    """The default registry with fields REPLACED or dropped. See manifest_of."""
+    obj = json.loads(registry())
+    for field, value in patch.items():
+        if value is DROP:
+            obj.pop(field, None)
+        else:
+            obj[field] = value
+    return json.dumps(obj, indent=1).encode()
+
+
+class _Drop:
+    """Sentinel: this field is absent, which is a different case from null."""
+
+
+DROP = _Drop()
+
+
 def build(root, *, suite=HYBRID, key=KEY, strip_pq=False, no_quorum=False, **kw):
     """Write a bundle directory and sign it with the PYTHON implementation."""
     os.makedirs(os.path.join(root, "attesters"), exist_ok=True)
@@ -93,7 +128,12 @@ def build(root, *, suite=HYBRID, key=KEY, strip_pq=False, no_quorum=False, **kw)
     # so popping inside it left `keys` in the kwargs `manifest` receives.
     attester_keys = kw.pop("keys", None)
     attester_entries = kw.pop("entries", None)
-    if no_quorum:
+    # ACP-44. Verbatim documents, for the shapes the helpers cannot build.
+    manifest_bytes = kw.pop("manifest_bytes", None)
+    registry_bytes_verbatim = kw.pop("registry_bytes", None)
+    if registry_bytes_verbatim is not None:
+        registry_bytes = registry_bytes_verbatim
+    elif no_quorum:
         registry_bytes = json.dumps(
             {"schema_version": "1",
              "attesters": {"a": {"classical": "x", "pq": "x"}}}, indent=1).encode()
@@ -104,7 +144,7 @@ def build(root, *, suite=HYBRID, key=KEY, strip_pq=False, no_quorum=False, **kw)
     else:
         registry_bytes = registry()
     files = {
-        "manifest.json": manifest(**kw),
+        "manifest.json": manifest_bytes if manifest_bytes is not None else manifest(**kw),
         "floors.json": b'{"payments":"T3"}\n',
         "attesters/registry.json": registry_bytes,
     }
@@ -202,6 +242,144 @@ CASES = [
      "PB-5: a genuine, internally consistent, superseded bundle"),
     ("suite-below-floor", {"suite": "ed25519"}, {},
      "CR-4: containment, not rank"),
+
+    # ------------------------------------------------------------------ ACP-44
+    # THE ABSENCES AND WRONG SHAPES. Added when verify.rs stopped coercing
+    # fields with as_str()/as_u64()/as_object() and started promoting each one
+    # into the type spec/schemas/bundle/ declares for it.
+    #
+    # They are here because that migration is exactly the kind that looks
+    # behaviour-preserving and is not: a whole-document deserialise collapses
+    # every distinct absence into ONE parse error, and the refusals below are
+    # distinguishable BY DESIGN. Committed as data so the next migration is
+    # guarded by a command rather than by whoever is reviewing it.
+    ("quorum-k-string", {"registry_bytes": registry_patched(quorum_k="2")}, {},
+     "PB-6: a threshold that is not an integer is QuorumInvalid, NOT Malformed "
+     "-- the distinction a whole-document parse would destroy"),
+    ("quorum-k-zero", {"registry_bytes": registry_patched(quorum_k=0)}, {},
+     "PB-6: zero attesters is not a quorum"),
+    ("quorum-k-negative", {"registry_bytes": registry_patched(quorum_k=-1)}, {},
+     "PB-6: and neither is a negative one. The TRAP in this migration: typing "
+     "quorum_k u64 turns this into a deserialisation failure unless the field "
+     "is promoted on its own"),
+    ("quorum-k-above-i64",
+     {"registry_bytes": registry_patched(quorum_k=2 ** 63)}, {},
+     "PB-6's rule is 'absent or below 1'. Rust refused this as QuorumInvalid "
+     "until ACP-44 because as_i64() overflowed -- the accessor's range showing "
+     "through as a policy verdict. THIS CASE WAS RED BEFORE THE MIGRATION"),
+    ("epoch-string", {"manifest_bytes": manifest_of(bundle_epoch="7")}, {},
+     "PB-5: an epoch that is not an integer"),
+    ("expires-at-number",
+     {"manifest_bytes": manifest_of(expires_at=1787011200)}, {},
+     "PB-1: an expiry that is not a string. A unix integer is not RFC 3339 and "
+     "must not be read as one"),
+    ("expires-at-unparseable",
+     {"manifest_bytes": manifest_of(expires_at="the day after tomorrow")}, {},
+     "PB-1: well-typed and not a timestamp"),
+    ("author-not-an-object", {"manifest_bytes": manifest_of(author="ana")}, {},
+     "PB-2: an identity is an object with an id, not a bare name"),
+    ("author-id-not-a-string",
+     {"manifest_bytes": manifest_of(author={"id": 5, "display_name": "A"})}, {},
+     "PB-2 compares ids byte-for-byte; a number is not an id"),
+    ("attesters-is-an-array",
+     {"registry_bytes": registry_patched(
+         attesters=[{"classical": "ka", "pq": "pa"}])}, {},
+     "PB-7: identity -> key is a MAP. An array has no identities, so nothing "
+     "can be shown distinct"),
+    ("attester-entry-is-a-string",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": "i-am-a-string", "p1": {"classical": "kb", "pq": "pb"}})}, {},
+     "an entry with no fields has no keys"),
+    ("custody-absent", {"manifest_bytes": manifest_of(custody=DROP)}, {},
+     "custody is schema-REQUIRED and READ BY NOTHING. The schema classifies it "
+     "T and a verifier MUST NOT weight a decision on it, so its absence cannot "
+     "be a refusal"),
+    ("custody-malformed",
+     {"manifest_bytes": manifest_of(custody={"tier": 9, "classical": ["x"]})}, {},
+     "and neither can its shape -- otherwise a compromised signer holds a "
+     "refusal switch over a field nobody reads (RES-8)"),
+    ("manifest-unknown-fields",
+     {"manifest_bytes": manifest_of(future_field={"a": 1}, another="x")}, {},
+     "a field this build does not know is not a field this build refuses on. "
+     "The strict projections carry deny_unknown_fields; the verifier must not"),
+    ("manifest-empty", {"manifest_bytes": b"{}"}, {},
+     "every field absent at once. Whichever check fires first, both "
+     "implementations must name the SAME one"),
+
+    # The shapes that decide whether the attester legs may be typed `String`.
+    # They may not: the reference compares them as written, and PB-7 asks
+    # whether two identities carry the same key, never whether a key is well
+    # formed. Keys are named p0/p1/p2 because Rust walks the map sorted and
+    # Python in insertion order -- sorted names keep the two walks identical.
+    ("attester-legs-numeric-shared",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": {"classical": 1, "pq": 2}, "p1": {"classical": 1, "pq": 4}})}, {},
+     "PB-7: a collision is a collision whatever the key is written as"),
+    ("attester-legs-null-shared",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": {"classical": None, "pq": "a"},
+         "p1": {"classical": None, "pq": "b"}})}, {},
+     "PB-7, and the sharpest of these: serde reads a null into Option::None, so "
+     "a typed leg would report a present-and-colliding key as ABSENT"),
+    ("attester-legs-numeric-distinct",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": {"classical": 1, "pq": 2}, "p1": {"classical": 3, "pq": 4}})}, {},
+     "the positive path for the three above, or they are satisfied by a check "
+     "that refuses everything"),
+    ("attester-role-not-a-string",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": {"role": 7, "classical": "ka", "pq": "pa"},
+         "p1": {"role": 8, "classical": "kb", "pq": "pb"}})}, {},
+     "ACP-53: a role is not a verification key. It is not read, so its type "
+     "cannot be a refusal either"),
+    ("display-name-not-a-string",
+     {"manifest_bytes": manifest_of(author={"id": "ana", "display_name": 7})}, {},
+     "PB-2 forbids comparing display_name, so its type cannot refuse a bundle"),
+    ("collision-before-a-bad-entry",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": {"classical": "same", "pq": "a"},
+         "p1": {"classical": "same", "pq": "b"},
+         "p2": "i-am-a-string"})}, {},
+     "ORDER. The collision at p1 must fire before the malformed p2 is reached, "
+     "or an operator is told the registry is malformed when the truth is that "
+     "one key holder enrolled twice"),
+    ("bad-entry-before-collision",
+     {"registry_bytes": registry_patched(attesters={
+         "p0": "i-am-a-string",
+         "p1": {"classical": "same", "pq": "a"},
+         "p2": {"classical": "same", "pq": "b"}})}, {},
+     "the mirror image, so the case above is about ORDER and not about one of "
+     "the two refusals always winning"),
+]
+
+# Where the two implementations DISAGREE today. PINNED, not hidden.
+#
+# A differential that quietly omits its disagreements reports agreement it has
+# not earned. Each entry asserts BOTH sides' current verdicts, so the pin fails
+# if either moves -- including when the defect is fixed, which is the point:
+# fixing it must force this list to shrink rather than let the tool keep
+# printing a stale exception. They do not count toward the agreement total.
+#
+# ONE DEFECT, three shapes: the Python reference does not bound its integers to
+# the domain the schema declares. `bundle_epoch` is `integer, minimum 0` and
+# `quorum_k` is `integer, minimum 1`; Python's ints are unbounded and its
+# isinstance() tests carry neither the sign bound nor the 64-bit one, so it
+# accepts values Rust refuses. Rust is right on all three and the fix belongs in
+# reference/src/acp_bundle.py, which is not this file's to edit.
+KNOWN_DIVERGENCES = [
+    ("epoch-negative", {"manifest_bytes": manifest_of(bundle_epoch=-1)}, {},
+     "REFUSED Malformed", "OK Normal",
+     "PB-5 counts upward from zero (schema: integer, minimum 0). The reference "
+     "accepts a negative epoch, so a high-water mark can be seeded below zero"),
+    ("epoch-above-u64",
+     {"manifest_bytes": manifest_of(bundle_epoch=2 ** 64)}, {},
+     "REFUSED Malformed", "OK Normal",
+     "the same defect at the other end: the reference has no upper bound where "
+     "the schema-derived Rust type has u64"),
+    ("quorum-k-above-u64",
+     {"registry_bytes": registry_patched(quorum_k=2 ** 64)}, {},
+     "REFUSED QuorumInvalid", "OK Normal",
+     "and again on quorum_k, which is why the three are one finding"),
 ]
 
 
@@ -256,6 +434,27 @@ def main() -> int:
                 agreed += 1
                 print(f"  ok  {name:<22} {p}")
 
+        # The pinned disagreements. Asserted on BOTH sides, so that fixing the
+        # reference turns this red and forces the entry to be rewritten as an
+        # ordinary case rather than left as a stale exception.
+        for name, build_kw, verdict_kw, want_rust, want_python, why in KNOWN_DIVERGENCES:
+            root = os.path.join(work, name)
+            os.makedirs(root)
+            build(root, **build_kw)
+            r = rust_verdict(root, **verdict_kw)
+            p = python_verdict(root, **verdict_kw)
+            if (r, p) == (want_rust, want_python):
+                print(f" PIN  {name:<22} rust={r} / python={p}  ({why})")
+            elif r == p:
+                print(f"FAIL  {name}: the divergence is GONE ({r}). Move this "
+                      f"case out of KNOWN_DIVERGENCES and into CASES.")
+                bad += 1
+            else:
+                print(f"FAIL  {name}: the divergence MOVED\n"
+                      f"        rust   {r}  (pinned {want_rust})\n"
+                      f"        python {p}  (pinned {want_python})")
+                bad += 1
+
         # Non-vacuity: a run where every case errored would print no
         # divergences and mean nothing.
         if agreed < len(CASES):
@@ -268,7 +467,9 @@ def main() -> int:
         if bad:
             print(f"{bad} divergence(s)")
             return 1
-        print(f"python and rust agree on {len(CASES)} bundles: hash, verdict and refusal")
+        print(f"python and rust agree on {len(CASES)} bundles: hash, verdict "
+              f"and refusal, with {len(KNOWN_DIVERGENCES)} pinned divergence(s) "
+              f"in the reference's integer bounds")
         return 0
     finally:
         shutil.rmtree(work, ignore_errors=True)

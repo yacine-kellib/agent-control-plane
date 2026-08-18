@@ -46,6 +46,42 @@
 //! bundle itself must clear is [`VerifierConfig::suite_floor`]. A bundle
 //! naming the floor it will be judged against is the RES-8 defect with the
 //! serial numbers filed off.
+//!
+//! # Why the fields are promoted one at a time (ACP-44)
+//!
+//! Every value this file reads out of a signed member goes through
+//! [`promoted`], which deserialises **one named field** into the type
+//! `spec/schemas/bundle/` declares for it. Nothing here coerces with
+//! `as_str`/`as_u64`/`as_object`: an accessor's return type is a choice made at
+//! the call site, and a choice made at the call site is a second definition of
+//! a field the specification already types. `quorum_k` is the case that proves
+//! it — `as_i64()` refused every threshold above 2^63 as `QuorumInvalid`, which
+//! is the accessor's range showing through and not PB-6.
+//!
+//! It is promotion **per field** rather than one `RawManifest` /
+//! `RawAttesterRegistry` deserialise, and that is not a stylistic preference:
+//!
+//! 1. A whole-document parse collapses every distinct absence into one parse
+//!    error. These refusals are distinguishable **by design** — an absent
+//!    `quorum_k` is [`Refusal::QuorumInvalid`] and *not* `Malformed`, and
+//!    `tools/check-bundle-differential.py` asserts the refusal NAME.
+//! 2. It would refuse documents this verifier accepts today, over fields no
+//!    verifier reads. `serde` fails the whole struct on any wrongly-typed
+//!    member, so a numeric `author.display_name`, a numeric attester `role`, or
+//!    a `custody` leg written as a string — which is what every fixture in this
+//!    repository writes — would each become a refusal. `custody` is the sharp
+//!    one: the schema classifies it **T**, this module reads nothing from it,
+//!    and a strict parse would let a compromised signer's malformed `custody`
+//!    decide the verdict.
+//! 3. The Python reference is lenient in exactly the same places and must not
+//!    be edited to match. Tightening one side alone is not a fix, it is a
+//!    divergence — and the differential is the thing that would find it.
+//!
+//! The generated types are still the authority on **which** type each field
+//! has: `the_promoted_field_types_are_the_ones_codegen_declares` compares every
+//! promotion against `RawManifest` / `RawAttesterRegistry` field by field, so a
+//! schema that retypes `bundle_epoch` stops this crate COMPILING rather than
+//! letting a hand-picked type drift away from the spec in silence.
 
 use crate::tree::{Member, Tree};
 use acp_core::BundleEpoch;
@@ -53,6 +89,8 @@ use acp_crypto::{
     Primitive, PrimitiveVerdict, Suite, VerifyingKeys, verify_ed25519, verify_hybrid,
     verify_mldsa65,
 };
+use serde::Deserialize;
+use std::collections::BTreeMap;
 
 /// Why a bundle was refused.
 ///
@@ -373,31 +411,50 @@ impl ActiveBundle {
         // PB-6. Absent or nonsensical is refused, never defaulted: a default
         // threshold is a threshold nobody chose, and the permissive default
         // (k=1) collapses INV-1-HIGH to single compromise.
-        match registry.get("quorum_k").and_then(|v| v.as_i64()) {
+        //
+        // `u64` because that is the domain the schema declares for this field
+        // (`integer, minimum 1`) and the type `RawAttesterRegistry::quorum_k`
+        // carries. The `as_i64()` this replaced refused every threshold above
+        // 2^63 as QuorumInvalid -- the accessor's range, not PB-6, and a live
+        // divergence from the reference, whose integers are unbounded.
+        match promoted::<u64>(&registry, &["quorum_k"]) {
             Some(k) if k >= 1 => {}
             _ => return Err(Refusal::QuorumInvalid),
         }
 
-        let attesters = registry
-            .get("attesters")
-            .and_then(|v| v.as_object())
+        // An open map of deployment-specific identities, so only its SHAPE is
+        // promoted. The entries stay opaque, for the reason below.
+        let attesters = promoted::<BTreeMap<String, serde_json::Value>>(&registry, &["attesters"])
             .ok_or(Refusal::Malformed(
                 "attesters/registry.json has no attesters map",
             ))?;
 
         for leg in ["classical", "pq"] {
-            let mut seen: Vec<&serde_json::Value> = Vec::new();
+            let mut seen: Vec<serde_json::Value> = Vec::new();
             for entry in attesters.values() {
-                // A key that is absent cannot be shown distinct from anything,
-                // and an entry that is not an object has no keys at all.
-                // Refusing is the only fail-safe reading of either.
-                let key = entry.get(leg).ok_or(Refusal::Malformed(
+                // Promoted only as far as "this is an object". PB-7 asks
+                // whether two identities carry the SAME key, never whether a
+                // key is well formed, so the leg values are compared as opaque
+                // JSON. Typing them `String` -- which is what
+                // `RawAttester::classical` does -- would refuse registries the
+                // reference accepts and compares, and a leg written `null`
+                // would deserialise to `None` and be read as ABSENT when both
+                // implementations treat it as present and colliding.
+                //
+                // Per entry INSIDE this loop, never as one pass over the whole
+                // map: a collision at p1 must fire before a malformed p2 is
+                // reached, because that is the order the reference refuses in.
+                let legs: BTreeMap<String, serde_json::Value> = Deserialize::deserialize(entry)
+                    .map_err(|_| Refusal::Malformed("an attester entry has no classical/pq key"))?;
+                // A key that is absent cannot be shown distinct from anything.
+                // Refusing is the only fail-safe reading.
+                let key = legs.get(leg).ok_or(Refusal::Malformed(
                     "an attester entry has no classical/pq key",
                 ))?;
-                if seen.contains(&key) {
+                if seen.contains(key) {
                     return Err(Refusal::RegistryKeysNotDistinct);
                 }
-                seen.push(key);
+                seen.push(key.clone());
             }
         }
         Ok(())
@@ -408,15 +465,14 @@ impl ActiveBundle {
 /// display name, and two-person integrity compared on a mutable label is
 /// one-person integrity with extra steps.
 fn check_two_person_integrity(manifest: &serde_json::Value) -> Result<(), Refusal> {
+    // `id` only. `display_name` is not promoted even though `RawIdentity`
+    // types it, because a party whose display_name is the wrong type is not a
+    // party this check has anything to say about -- and refusing there would
+    // be a refusal invented by the type, on a field PB-2 forbids comparing.
     let id = |who: &str| -> Result<String, Refusal> {
-        manifest
-            .get(who)
-            .and_then(|v| v.get("id"))
-            .and_then(|v| v.as_str())
-            .map(str::to_owned)
-            .ok_or(Refusal::Malformed(
-                "manifest is missing an author or reviewer id",
-            ))
+        promoted::<String>(manifest, &[who, "id"]).ok_or(Refusal::Malformed(
+            "manifest is missing an author or reviewer id",
+        ))
     };
     if id("author")? == id("reviewer")? {
         return Err(Refusal::AuthorIsReviewer);
@@ -424,20 +480,41 @@ fn check_two_person_integrity(manifest: &serde_json::Value) -> Result<(), Refusa
     Ok(())
 }
 
+/// One named field of a signed document, promoted into the type
+/// `spec/schemas/bundle/` declares for it.
+///
+/// The single point where this file touches an untyped JSON document, and it
+/// is deliberately the only one. `T` is never chosen freely: every call passes
+/// the type the generated projection carries for that field, and
+/// `the_promoted_field_types_are_the_ones_codegen_declares` fails to COMPILE if
+/// the schema and the call site ever disagree.
+///
+/// `None` covers every way a field can fail to be readable — the document is
+/// not an object, the field is absent, or its value is the wrong type. The
+/// three are deliberately not distinguished HERE: each caller names the refusal
+/// its own clause requires, which is why an absent `quorum_k` is
+/// [`Refusal::QuorumInvalid`] while an absent `bundle_epoch` is `Malformed`.
+fn promoted<'a, T: Deserialize<'a>>(doc: &'a serde_json::Value, path: &[&str]) -> Option<T> {
+    let mut cursor = doc;
+    for name in path {
+        cursor = cursor.get(name)?;
+    }
+    T::deserialize(cursor).ok()
+}
+
 fn read_epoch(manifest: &serde_json::Value) -> Result<BundleEpoch, Refusal> {
-    manifest
-        .get("bundle_epoch")
-        .and_then(|v| v.as_u64())
+    // `u64`, the type the schema declares (`integer, minimum 0`). A negative
+    // epoch is therefore not an epoch: PB-5 counts upward and a high-water mark
+    // seeded below zero is a mark an attacker chose.
+    promoted::<u64>(manifest, &["bundle_epoch"])
         .map(BundleEpoch::new)
         .ok_or(Refusal::Malformed("manifest has no integer bundle_epoch"))
 }
 
 fn read_expiry(manifest: &serde_json::Value) -> Result<Timestamp, Refusal> {
-    let raw = manifest
-        .get("expires_at")
-        .and_then(|v| v.as_str())
+    let raw = promoted::<String>(manifest, &["expires_at"])
         .ok_or(Refusal::Malformed("manifest has no expires_at"))?;
-    Timestamp::parse(raw).ok_or(Refusal::Malformed("expires_at is not RFC 3339 UTC"))
+    Timestamp::parse(&raw).ok_or(Refusal::Malformed("expires_at is not RFC 3339 UTC"))
 }
 
 /// `None` means refuse; `Some(serving)` says at what strength.
@@ -1033,6 +1110,287 @@ mod tests {
         assert_eq!(
             host.activate(m, HYBRID, sig, ts("2026-08-18T00:00:00Z")),
             Err(Refusal::QuorumInvalid)
+        );
+    }
+
+    /// Activate a bundle whose manifest or registry is given VERBATIM.
+    ///
+    /// The shaped helpers above cannot express a malformed document, and a
+    /// fixture that cannot express the attack cannot test for it — which is the
+    /// lesson ACP-53 left behind.
+    fn activate_raw(
+        manifest_bytes: Option<&[u8]>,
+        registry_bytes: Option<&[u8]>,
+    ) -> Result<(), Refusal> {
+        let mut host = BundleHost::new(config(0));
+        let mut m = members(7, "2027-01-01T00:00:00Z");
+        if let Some(b) = manifest_bytes {
+            m[0].1 = b.to_vec();
+        }
+        if let Some(b) = registry_bytes {
+            m[2].1 = b.to_vec();
+        }
+        let sig = sign(&m, HYBRID, signing_key());
+        host.activate(m, HYBRID, sig, ts("2026-08-18T00:00:00Z"))
+    }
+
+    #[test]
+    fn the_promoted_field_types_are_the_ones_codegen_declares() {
+        // THE BINDING TO spec/schemas/bundle/. Every field verify.rs promotes
+        // is compared against the generated projection's own type for it, so a
+        // schema that retypes `bundle_epoch` breaks the BUILD here rather than
+        // leaving a hand-picked `u64` drifting quietly away from the spec.
+        //
+        // The manifest below writes `custody` in its SCHEMA shape, unlike every
+        // other fixture in this repository, because `RawManifest` cannot parse
+        // the shape the fixtures use. That is the whole reason verify.rs
+        // promotes per field instead of deserialising the document, and this
+        // test is the one place the strict shape has to appear.
+        use acp_core::generated::{RawAttesterRegistry, RawManifest};
+
+        const M: &[u8] = br#"{"schema_version":"1","bundle_epoch":7,
+            "created_at":"2026-01-01T00:00:00Z",
+            "author":{"id":"ana","display_name":"A"},
+            "reviewer":{"id":"bo","display_name":"R"},
+            "expires_at":"2027-01-01T00:00:00Z","min_suite":"hybrid-ed25519-mldsa65",
+            "custody":{"tier":"T3",
+                       "classical":{"tier":"T3","mechanism":"offline laptop"},
+                       "pq":{"tier":"T3","mechanism":"offline laptop"}}}"#;
+        const R: &[u8] = br#"{"schema_version":"1","quorum_k":2,"attesters":{
+            "p0":{"role":"approver","classical":"ka","pq":"pa"},
+            "p1":{"role":"confirmer","classical":"kb","pq":"pb"}}}"#;
+
+        let doc: serde_json::Value = serde_json::from_slice(M).unwrap();
+        let raw: RawManifest = serde_json::from_slice(M).unwrap();
+        assert_eq!(promoted::<u64>(&doc, &["bundle_epoch"]), raw.bundle_epoch);
+        assert_eq!(promoted::<String>(&doc, &["expires_at"]), raw.expires_at);
+        assert_eq!(
+            promoted::<String>(&doc, &["author", "id"]),
+            raw.author.and_then(|a| a.id)
+        );
+        assert_eq!(
+            promoted::<String>(&doc, &["reviewer", "id"]),
+            raw.reviewer.and_then(|r| r.id)
+        );
+
+        let rdoc: serde_json::Value = serde_json::from_slice(R).unwrap();
+        let rraw: RawAttesterRegistry = serde_json::from_slice(R).unwrap();
+        assert_eq!(promoted::<u64>(&rdoc, &["quorum_k"]), rraw.quorum_k);
+        assert_eq!(
+            promoted::<BTreeMap<String, serde_json::Value>>(&rdoc, &["attesters"])
+                .map(|m| m.keys().cloned().collect::<Vec<_>>()),
+            rraw.attesters
+                .map(|m| m.keys().cloned().collect::<Vec<_>>()),
+            "the attesters map shape must be the one the schema declares"
+        );
+    }
+
+    #[test]
+    fn a_quorum_that_is_not_an_integer_is_quorum_invalid_and_not_malformed() {
+        // THE REFUSAL NAMES ARE THE INTERFACE. A whole-document deserialise
+        // would turn each of these into one parse error, and an operator paged
+        // at 03:00 would be told the bundle is malformed when the truth is that
+        // nobody chose a threshold. tools/check-bundle-differential.py asserts
+        // the NAME, and the reference refuses these the same way.
+        for bad in [
+            br#"{"schema_version":"1","quorum_k":"2","attesters":{}}"#.as_slice(),
+            br#"{"schema_version":"1","quorum_k":2.5,"attesters":{}}"#.as_slice(),
+            br#"{"schema_version":"1","quorum_k":true,"attesters":{}}"#.as_slice(),
+            br#"{"schema_version":"1","quorum_k":null,"attesters":{}}"#.as_slice(),
+            br#"{"schema_version":"1","quorum_k":-1,"attesters":{}}"#.as_slice(),
+            br#"{"schema_version":"1","quorum_k":0,"attesters":{}}"#.as_slice(),
+        ] {
+            assert_eq!(
+                activate_raw(None, Some(bad)),
+                Err(Refusal::QuorumInvalid),
+                "quorum {} did not refuse as QuorumInvalid",
+                String::from_utf8_lossy(bad)
+            );
+        }
+    }
+
+    #[test]
+    fn a_quorum_larger_than_an_i64_is_not_refused_for_being_large() {
+        // THE ONE VERDICT ACP-44 MOVED, and it moved toward the reference.
+        // `as_i64()` returned None for anything above 2^63, so a threshold in
+        // that range was refused as QuorumInvalid — the accessor's range
+        // showing through, never PB-6, whose rule is "absent or below 1". The
+        // reference's integers are unbounded and it accepted these throughout,
+        // so this was a live cross-language divergence rather than a hardening.
+        let big = format!(
+            r#"{{"schema_version":"1","quorum_k":{},"attesters":{{
+                "p0":{{"classical":"ka","pq":"pa"}}}}}}"#,
+            u64::MAX
+        );
+        assert_eq!(activate_raw(None, Some(big.as_bytes())), Ok(()));
+    }
+
+    #[test]
+    fn a_negative_bundle_epoch_is_refused() {
+        // PB-5 counts upward from zero — the schema says `integer, minimum 0`
+        // — so a negative epoch is not an epoch. A high-water mark seeded below
+        // zero is a mark the attacker chose.
+        //
+        // KNOWN DIVERGENCE: reference/src/acp_bundle.py accepts this, because
+        // its `isinstance(epoch, int)` test does not carry the schema's bound.
+        // It is pinned in tools/check-bundle-differential.py rather than papered
+        // over, and this assertion is the Rust half of that pin.
+        let m = br#"{"schema_version":"1","bundle_epoch":-1,
+            "created_at":"2026-01-01T00:00:00Z",
+            "author":{"id":"ana","display_name":"A"},
+            "reviewer":{"id":"bo","display_name":"R"},
+            "expires_at":"2027-01-01T00:00:00Z","min_suite":"hybrid-ed25519-mldsa65",
+            "custody":{"tier":"T3","classical":"x","pq":"y"}}"#;
+        assert_eq!(
+            activate_raw(Some(m), None),
+            Err(Refusal::Malformed("manifest has no integer bundle_epoch"))
+        );
+    }
+
+    #[test]
+    fn an_attester_entry_that_is_not_an_object_is_refused() {
+        // An entry with no fields has no keys, and a key that is absent cannot
+        // be shown distinct from anything.
+        assert_eq!(
+            activate_raw(
+                None,
+                Some(
+                    br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                        "p0":"i-am-a-string",
+                        "p1":{"classical":"kb","pq":"pb"}}}"#
+                )
+            ),
+            Err(Refusal::Malformed(
+                "an attester entry has no classical/pq key"
+            ))
+        );
+    }
+
+    #[test]
+    fn attester_keys_are_compared_as_written_not_as_strings() {
+        // PB-7 asks whether two identities carry the SAME key, never whether a
+        // key is well formed. Typing the legs `String` — which is what
+        // `RawAttester` does, and what a whole-document deserialise would
+        // impose — refuses all four of these instead of comparing them, and the
+        // reference compares them. A `null` leg is the sharp one: serde reads it
+        // as `None`, so a present-and-colliding key would be reported ABSENT.
+        for (registry, expected) in [
+            (
+                br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                    "p0":{"classical":1,"pq":2},"p1":{"classical":1,"pq":4}}}"#
+                    .as_slice(),
+                Err(Refusal::RegistryKeysNotDistinct),
+            ),
+            (
+                br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                    "p0":{"classical":null,"pq":"a"},"p1":{"classical":null,"pq":"b"}}}"#
+                    .as_slice(),
+                Err(Refusal::RegistryKeysNotDistinct),
+            ),
+            (
+                br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                    "p0":{"classical":{"k":1},"pq":"a"},"p1":{"classical":{"k":1},"pq":"b"}}}"#
+                    .as_slice(),
+                Err(Refusal::RegistryKeysNotDistinct),
+            ),
+            (
+                br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                    "p0":{"classical":1,"pq":2},"p1":{"classical":3,"pq":4}}}"#
+                    .as_slice(),
+                Ok(()),
+            ),
+        ] {
+            assert_eq!(
+                activate_raw(None, Some(registry)),
+                expected,
+                "{}",
+                String::from_utf8_lossy(registry)
+            );
+        }
+    }
+
+    #[test]
+    fn the_distinctness_check_refuses_per_entry_in_order() {
+        // A collision at p1 fires BEFORE a malformed p2 is reached, because
+        // that is the order the reference refuses in. Deserialising the whole
+        // attesters map up front would reverse it and report Malformed for a
+        // registry whose real defect is that one key holder enrolled twice.
+        assert_eq!(
+            activate_raw(
+                None,
+                Some(
+                    br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                        "p0":{"classical":"same","pq":"a"},
+                        "p1":{"classical":"same","pq":"b"},
+                        "p2":"i-am-a-string"}}"#
+                )
+            ),
+            Err(Refusal::RegistryKeysNotDistinct)
+        );
+        // ...and the mirror image, so the assertion above is about ORDER and
+        // not about one of the two refusals always winning.
+        assert_eq!(
+            activate_raw(
+                None,
+                Some(
+                    br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                        "p0":"i-am-a-string",
+                        "p1":{"classical":"same","pq":"a"},
+                        "p2":{"classical":"same","pq":"b"}}}"#
+                )
+            ),
+            Err(Refusal::Malformed(
+                "an attester entry has no classical/pq key"
+            ))
+        );
+    }
+
+    #[test]
+    fn a_field_no_verifier_reads_cannot_cause_a_refusal() {
+        // THE REASON THIS FILE PROMOTES PER FIELD. Each document below is
+        // wrong in a field this module never reads, and each must still
+        // activate. A `RawManifest` / `RawAttesterRegistry` deserialise refuses
+        // all four, because serde fails the whole struct on any wrongly-typed
+        // member — and `custody` is the one that matters: the schema classifies
+        // it T, this verifier reads nothing from it, and letting it decide the
+        // verdict would hand a compromised signer a refusal switch.
+        let custody_malformed = br#"{"schema_version":"1","bundle_epoch":7,
+            "created_at":"2026-01-01T00:00:00Z",
+            "author":{"id":"ana","display_name":"A"},
+            "reviewer":{"id":"bo","display_name":"R"},
+            "expires_at":"2027-01-01T00:00:00Z","min_suite":"hybrid-ed25519-mldsa65",
+            "custody":{"tier":9,"classical":["x"]}}"#;
+        assert_eq!(activate_raw(Some(custody_malformed), None), Ok(()));
+
+        let custody_absent = br#"{"schema_version":"1","bundle_epoch":7,
+            "created_at":"2026-01-01T00:00:00Z",
+            "author":{"id":"ana","display_name":"A"},
+            "reviewer":{"id":"bo","display_name":"R"},
+            "expires_at":"2027-01-01T00:00:00Z","min_suite":"hybrid-ed25519-mldsa65"}"#;
+        assert_eq!(activate_raw(Some(custody_absent), None), Ok(()));
+
+        // display_name is typed by RawIdentity and forbidden to PB-2, which
+        // compares on id: two people can share a display name.
+        let display_name_numeric = br#"{"schema_version":"1","bundle_epoch":7,
+            "created_at":"2026-01-01T00:00:00Z",
+            "author":{"id":"ana","display_name":7},
+            "reviewer":{"id":"bo","display_name":"R"},
+            "expires_at":"2027-01-01T00:00:00Z","min_suite":"hybrid-ed25519-mldsa65",
+            "custody":{"tier":"T3","classical":"x","pq":"y"}}"#;
+        assert_eq!(activate_raw(Some(display_name_numeric), None), Ok(()));
+
+        // A role is not a verification key (ACP-53) and is not read at all, so
+        // its type cannot be a refusal either.
+        assert_eq!(
+            activate_raw(
+                None,
+                Some(
+                    br#"{"schema_version":"1","quorum_k":2,"attesters":{
+                        "p0":{"role":7,"classical":"ka","pq":"pa"},
+                        "p1":{"role":8,"classical":"kb","pq":"pb"}}}"#
+                )
+            ),
+            Ok(())
         );
     }
 
