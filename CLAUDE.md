@@ -15,8 +15,10 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (63 assertions)
+./tools/selftest.sh                # tests the tooling itself (71 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
+./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
+./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
 
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
@@ -43,7 +45,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 106 tests
+cargo check --workspace && cargo test --workspace   # Rust: 116 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
@@ -73,7 +75,7 @@ orchestrator/  TS — advances the clock, decides nothing
 sim/           the business simulation (companion to Annex D)
 deploy/        docker-compose.yml  (no k8s/ — the substrate is deliberately deferred,
                see `git show main:docs/plans/roadmap.md`)
-tools/         verify.sh sign-release.sh selftest.sh
+tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
 docs/          working documents — deliberately OUTSIDE the signed roots
 ```
 
@@ -149,10 +151,14 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **`feat/rule-store` is open and unpushed**, well ahead of `main` — `git log --oneline main..HEAD` for the count, which is deliberately not published here because it is wrong again on the next commit. It carries the bundle rule store, six defect fixes — four of them live in released v1.3.14 — the specification moving v1.3.13 → **v1.3.15**, and `reference/suites/art_harness.py`, which runs an external adversarial corpus against Door A and found one of the six on its first run. The spec's §1 alert enumerates them as (a)–(d).
 
-**The rule store is now built end to end**, steps 2–7 (ACP-36 … ACP-41): real Ed25519/ML-DSA-65 primitives, `custody.rs` with the `Signer` trait and tiers T0–T3, the canonical walk and tree hash, verify-on-every-read, the offline `acp-bundle` CLI, and `reference/src/acp_bundle.py`. **Both differential directions run**: Python's signatures verify in Rust (`tests/python_interop.rs`), Rust's verify in Python (`tools/check-rust-signatures.py`), and the two agree on a bundle's tree hash, verdict and *refusal name* across sixteen cases (`tools/check-bundle-differential.py`). The last two need cargo, so they run from `selftest.sh` rather than the gate.
+**The rule store is now built end to end**, steps 2–7 (ACP-36 … ACP-41): real Ed25519/ML-DSA-65 primitives, `custody.rs` with the `Signer` trait and tiers T0–T3, the canonical walk and tree hash, verify-on-every-read, the offline `acp-bundle` CLI, and `reference/src/acp_bundle.py`. **Both differential directions run**: Python's signatures verify in Rust (`tests/python_interop.rs`), Rust's verify in Python (`tools/check-rust-signatures.py`), and the two agree on a bundle's tree hash, verdict and *refusal name* across 38 cases with 3 pinned divergences (`tools/check-bundle-differential.py`). The last two need cargo, so they run from `selftest.sh` rather than the gate.
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 145 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 150 files across ten roots.
+
+**Phase 8 is done (ACP-44).** `tools/codegen.sh` generates the Rust and TypeScript wire types from `spec/schemas/bundle/` and is the first thing that ever read those files — it found four defects on its first pass, one a live quorum bypass (ACP-53: PB-7 compared whole registry entries, so changing a `role` string let one key holder satisfy a k=2 quorum alone). **The fail-safe defaults live in the schema as `x-acp-absent` data**, not in a generator table, and the generator halts rather than guessing when a lookup table has no rule. `x-acp-ordered` is applied only where an order is declared — `SuiteId` gets no `Ord`, because CR-4 is containment and not rank. `tools/sync-counts.sh` re-derives every published count, which had been hand-work and had already recurred twice (ACP-42, ACP-43).
+
+**Two things are disclosed and NOT closed**: nothing validates a bundle against the schemas and every fixture is in fact schema-invalid (ACP-52), and the Python reference does not bound integers to the schema's declared domain — three divergences are pinned in the differential, which asserts both sides so the divergence vanishing or moving turns it red (ACP-54).
 
 `spec/schemas/bundle/` has seven schemas and `spec/vectors/` has `CLASSIFICATION.md` and `OBLIGATIONS.md` — 85 cases split 47 vector-expressible / 38 per-implementation obligations. **Extracting the actual vector corpus has not started** (VEC-2), and it is what `crates/acp-conformance` waits on. Note the limit recorded there: a vector names a **seed plus the declared derivation**, never a seed alone — an implementation choosing its own domain separators derives a different identity and refuses every signature in the vector, which at the verifier is indistinguishable from a forgery.

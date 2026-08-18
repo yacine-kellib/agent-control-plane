@@ -22,6 +22,139 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — four defects in `spec/schemas/`, found by reading it for the first time
+
+`spec/schemas/bundle/` held seven normative JSON Schema files. **Nothing in the
+repository opened any of them.** No consumer, no validator, no gate line — verified by
+grep across every language root. `packages/acp-types/src/index.ts` had said since the
+polyglot restructure that its types "will be GENERATED from `spec/schemas/*.schema.json`",
+and nothing generated them.
+
+Phase 8 (`tools/codegen.sh`) is the first thing that ever read them. It found four defects
+on its first pass, one of them a live quorum bypass. That is the finding worth publishing;
+the code generator is the instrument, not the result.
+
+### PB-7 was defeated by editing a role string
+
+`ACP-53`, and it is the serious one. PB-7 requires attester verification keys to be
+pairwise distinct, "compared over the complete suite". Both implementations compared whole
+registry **entries** for equality, and an entry is `{role, classical, pq}` — so the check
+fired only when two entries were byte-identical. Measured, both sides:
+
+| registry | verdict | PB-7 |
+| --- | --- | --- |
+| entries identical | `RegistryKeysNotDistinct` | correct |
+| same keys, **different `role`** | **accepted** | must refuse |
+| differ in classical, **share `pq`** | **accepted** | must refuse |
+| share classical, differ in `pq` | **accepted** | must refuse |
+
+The attack is one string. Enrol `alice` as `approver` and `bob` as `confirmer` with the
+same key: two identities, one private key, `quorum_k = 2` satisfied alone — and
+approver-plus-confirmer is exactly the pairing DR-9 demands for an irreversible action at
+floor-HIGH. INV-1-HIGH defeated by a single compromise, reached through the registry rather
+than through the threshold. That is the attack PB-7 was written in v1.3.15 to close.
+
+**Three of this repository's own controls reported the check as sound**, and that is the
+part that generalises:
+
+- **The differential agreed.** Both implementations were wrong identically, so
+  `check-bundle-differential.py` passed. §15 already states the limit — agreement is
+  evidence about consistency and never about correctness, and it is weakest exactly where
+  it feels strongest. This is a clean instance rather than a hypothetical one.
+- **A deletion mutant would still have died.** Remove the loop and the byte-identical case
+  goes red, so the check registered as load-bearing. `dossier/05` already says deletion
+  mutants cannot catch a check that is present and means the wrong thing; here it was.
+- **The fixture could not express the attack.** Every registry helper in all three places
+  set both legs from one string and emitted no `role`, so "shares a key" and "is
+  byte-identical" were the same condition. The suite proved the check fires on the case
+  that was written, and that case was the only one it caught.
+
+Fixed by comparing **per leg** across identities with `role` excluded; either leg colliding
+is a collision, and an entry missing a leg is refused because a key that is absent cannot
+be shown distinct from anything. The fixtures were rebuilt before the cases, since none
+could express the attack. Every new case was run against the old check before being
+trusted — 4 red in Rust, 4 red in Python, 4 divergences in the differential — and in each
+run the identical-entries case and the positive path stayed green, which is the blind spot
+drawn to scale.
+
+### The normative schema described an artifact nobody builds
+
+`ACP-50`. `bundle.schema.json` declared a tree index — a `members` array of path and digest
+pairs — and a signature object of two fixed base64 fields named `classical` and `pq`.
+Neither exists. §8.2's file listing contains no index file, because the covered set is
+established by the canonical walk; and PB-8 specifies one value per primitive, which is a
+map keyed by primitive name, hex-encoded, and is what both implementations write.
+
+So the normative source held two descriptions of one object and they disagreed: the
+encoding-split defect, inside the document that exists to prevent it, introduced by the
+v1.3.15 revision that fixed the same defect one paragraph away. It is now
+`signature.schema.json` and describes the artifact that exists.
+
+### RK-1's fail-safe default was stated in the wrong domain
+
+`ACP-51`. One hand-written `RiskTier { Low, Medium, High }` in `acp-core`, whose doc
+comment read "a resource absent from `floors.json` is **T3**" — annotating an enum with no
+T3. TypeScript carried it one step worse, as a value:
+`UNCLASSIFIED_RESOURCE_TIER: RiskTier = 'HIGH'`.
+
+The schemas define two ordered domains over different subjects: `Tier` (`T0 < T1 < T2 <
+T3`, how sensitive a resource is) and `Risk` (`LOW < MEDIUM < HIGH`, how dangerous an
+action is). §8.4 composes both with `max`, which is exactly why one type served for both
+until someone read the schemas as a producer of types — every wrong composition
+typechecked. Latent rather than live: nothing consumed either value, and phase 9 is where
+a floors lookup would have started returning `High`. The Python reference was correct
+throughout.
+
+### The generator, and the rule it will not guess
+
+`tools/codegen.sh` emits Rust and TypeScript from the schemas, with the output committed so
+the repository stays clonable without a codegen toolchain. It is hand-rolled rather than
+`typify` or `quicktype` for one reason: every off-the-shelf generator emits `Option<T>` and
+`#[derive(Default)]`, and those are precisely the mechanisms that turn *absent* into
+*permissive*.
+
+The fail-safe defaults are therefore carried **in the schema as data**, under
+`x-acp-absent`, rather than in a table beside the generator — a generator-local table would
+be a second definition of RK-1, which is the same defect one layer down. The open maps are
+emitted with a **private** field and one accessor returning the fail-safe value, so the
+permissive answer is unreachable rather than discouraged. And the generator **halts** on a
+lookup table with no declared rule, exactly as `sign-release.sh` halts on an unrecognised
+file type. A generator that guesses a default eventually guesses the permissive one.
+
+`x-acp-ordered` is applied only where the schema declares an order. `SuiteId` deliberately
+has none: CR-4's floor is satisfied by **containment** of primitives, never by rank, and a
+derived `Ord` would make `declared >= floor` compile — which is the downgrade. A test
+asserts the absence against the generated source, because Rust cannot express "this type
+does not implement `Ord`".
+
+Each of those controls was proved failable rather than asserted: flipping `x-acp-absent`
+to `T1` turns the floors test red, adding `x-acp-ordered` to `SuiteId` turns the ordering
+test red, and deleting either annotation makes the generator halt with exit 2.
+
+### What this does not claim
+
+**Nothing validates a bundle against these schemas.** `ACP-52` is open, and it is not
+closed by any of the above. Codegen makes the schemas *executable* for the first time,
+which is a partial mitigation and deliberately less than validation. Every bundle fixture
+in this repository is in fact schema-invalid — `custody` legs are written as strings where
+the schema requires objects — and nothing notices, because both loaders read only the
+security fields they need, by name.
+
+Note also the standing limit before anyone builds that validator: PB-7 and the three
+absent-⇒-fail-safe rules are **not expressible in JSON Schema** and live in the loader,
+which is precisely where the defect above was found. A bundle that validates is not a
+bundle that is well-formed, and a green schema check must not be published as though it
+were.
+
+**The reference does not bound integers to the schema's declared domain.** `ACP-54`, found
+by the differential's new cases and pinned rather than hidden: a negative `bundle_epoch`
+and a `quorum_k` above `2^64` are refused by Rust and accepted by Python. The differential
+asserts *both* sides' verdicts for those three cases, so the divergence disappearing or
+moving turns it red — a known divergence recorded is worth more than a suite quietly
+sized to avoid it.
+
+---
+
 ## Unreleased since v1.3.14 — 47 of 85 suite cases could be shared data; the rest cannot
 
 `spec/vectors/` gains its first two files, and neither is a vector. **ACP-1 (VEC-1)**
