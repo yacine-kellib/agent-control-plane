@@ -11,7 +11,7 @@ allowed to differ, and are.
 **Date:** August 2026
 **Package:** `spec/` + `dossier/` + `reference/` + `crates/` + `services/` + `packages/` + `orchestrator/` + `sim/` + `deploy/` + `tools/`
 **Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig`
-**Release key fingerprint:** `SHA256:c6334fda510760d9125e94ce8c900e56` *(verify out of band)*
+**Release key fingerprint:** `SHA256:2a60320791802d39dbc6fb321f1628b9` *(verify out of band)*
 
 Reproduce everything in one command:
 
@@ -115,6 +115,33 @@ The path is now required — no `$HOME` default — and `keygen` refuses to over
 would pass a refusal for the wrong reason. Three assertions added, all proved by firing
 them against a decoy. The real key is never an argument to a test: a test that can reach
 the signing key is the defect it is testing for.
+
+### The release key was rotated
+
+`ACP-16`. Encryption is prevention, not remediation — so the key that had been sitting
+unencrypted since 2026-08-10 was replaced rather than merely wrapped. The old key was
+readable by every process running as that user for the whole of that period, including
+every agent session in this repository, and it signed the manifest the previous release
+shipped. No evidence of misuse exists; none is available either, which is the point.
+
+The published fingerprint moves with it:
+
+| | fingerprint |
+| --- | --- |
+| superseded | `SHA256:c6334fda…` |
+| **current** | `SHA256:2a60320791802d39dbc6fb321f1628b9` |
+
+`README.md` calls that value *"the out-of-band half"* of the integrity claim, so changing
+it is not free — it invalidates any copy a reader has recorded. **It is free now**, and
+only now: there are no adopters, the paper has not shipped, and nobody has written the old
+value down. Rotating after publication would mean changing an anchor people hold, which is
+precisely the failure the anchor exists to prevent. The cost of this decision only ever
+goes up.
+
+The new key is `BEGIN ENCRYPTED PRIVATE KEY` — generated encrypted, never written in the
+clear at any point. The old key was retained until the new one produced a verifying
+signature, because a rotation that destroys the only working signer before proving its
+replacement is an outage, not a control.
 
 ### The location was never the fix — the encryption is
 
@@ -698,7 +725,7 @@ A structural release: no rule changed, and every number that replayed in v1.3.12
 
 ### A correction worth recording — the published fingerprint was wrong
 
-For the whole v1.3.13 window, `README.md` published the release-key fingerprint `SHA256:614ea014…`, which belongs to a **superseded key**. `RELEASE.md`, `release-key.pub` and `MANIFEST.sha256.sig` were correct and consistent throughout: the true fingerprint is `SHA256:c6334fda510760d9125e94ce8c900e56`.
+For the whole v1.3.13 window, `README.md` published the release-key fingerprint `SHA256:614ea014…`, which belongs to a **superseded key**. `RELEASE.md`, `release-key.pub` and `MANIFEST.sha256.sig` were correct and consistent throughout: the true fingerprint for that window was `SHA256:c6334fda…`. **That key has since been rotated** (ACP-16) and its fingerprint is superseded in turn; the current value is the one at the top of this file. Superseded fingerprints are written truncated on purpose — `selftest.sh` requires every full 32-character `SHA256:` in tracked prose to equal the shipped key, and a historical one written in full is indistinguishable from the defect this paragraph records.
 
 Nothing was mis-signed, and no signature ever verified against the wrong value. The damage is narrower and more embarrassing: a reader who performed the out-of-band check the README itself instructs them to perform would have got a **mismatch on an authentic package** — precisely the failure an out-of-band anchor exists to prevent. The document told its most careful readers to distrust it.
 
