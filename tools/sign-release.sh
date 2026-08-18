@@ -105,13 +105,23 @@ import getpass, hashlib, os, sys
 # every moment except the one where it is actually used. Encrypted, the file is
 # inert without the passphrase and the plaintext key exists only in memory, for
 # the seconds it signs.
-if not sys.stdin.isatty():
-    sys.exit("keygen needs a terminal to read a passphrase, and will not "
-             "generate an unencrypted key")
-pw = getpass.getpass("passphrase for the new release key: ")
+def ask(prompt):
+    # NOT sys.stdin.isatty(). getpass reads from /dev/tty, so a passphrase can
+    # be typed even when stdin is a pipe -- which is how an agent harness, a
+    # `cmd < /dev/null` and most CI wrappers invoke this. Gating on stdin
+    # refused a perfectly interactive user; gating on the failure of the read
+    # itself is the honest test. EOFError is getpass falling back to a stdin
+    # with nothing on it; OSError is no controlling terminal at all.
+    try:
+        return getpass.getpass(prompt)
+    except (EOFError, OSError):
+        sys.exit("no terminal available to read a passphrase -- run this from "
+                 "a real terminal. keygen will not generate an unencrypted key.")
+
+pw = ask("passphrase for the new release key: ")
 if len(pw) < 12:
     sys.exit("passphrase too short (12 characters minimum)")
-if pw != getpass.getpass("confirm passphrase: "):
+if pw != ask("confirm passphrase: "):
     sys.exit("passphrases differ -- nothing written")
 
 sk = Ed25519PrivateKey.generate()
@@ -170,10 +180,16 @@ except TypeError:
     # prompt. Prompting is TTY-only: selftest drives this path with a bogus key
     # and a prompt in a non-interactive context hangs forever instead of
     # failing. A gate that hangs is worse than a gate that fails.
-    if not sys.stdin.isatty():
-        sys.exit("key is passphrase-encrypted and stdin is not a terminal")
-    sk = load_pem_private_key(
-        data, password=getpass.getpass(f"passphrase for {sys.argv[1]}: ").encode())
+    # Same reasoning as keygen: ask the terminal, not stdin. Failing the read
+    # is what proves there is nowhere to type, and it must FAIL rather than
+    # block -- a prompt reached from selftest or CI hangs forever, and a gate
+    # that hangs reports nothing at all.
+    try:
+        pw = getpass.getpass(f"passphrase for {sys.argv[1]}: ")
+    except (EOFError, OSError):
+        sys.exit("key is passphrase-encrypted and there is no terminal to "
+                 "read the passphrase from")
+    sk = load_pem_private_key(data, password=pw.encode())
 open("MANIFEST.sha256.sig.tmp", "wb").write(
     sk.sign(open("MANIFEST.sha256.tmp", "rb").read()))
 PY

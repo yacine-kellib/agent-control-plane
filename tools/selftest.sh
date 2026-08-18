@@ -101,7 +101,7 @@ open(sys.argv[1], "wb").write(k.private_bytes(
 PY
 OUT=$(printf '' | ./tools/sign-release.sh sign "$ENCKEY" 2>&1); rc=$?
 [ $rc -ne 0 ]; chk $? "an encrypted key with no terminal fails instead of hanging (got $rc)"
-printf '%s' "$OUT" | grep -q 'not a terminal'
+printf '%s' "$OUT" | grep -q 'no terminal'
 chk $? "and says why, rather than failing as an unparseable key"
 rm -f "$ENCKEY"
 
