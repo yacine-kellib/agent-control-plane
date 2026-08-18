@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acp.spec/schemas/bundle/manifest.schema.json",
   "title": "Policy bundle manifest (ACP-SPEC-001 §8.2)",
+  "x-acp-name": "Manifest",
   "description": "Identity and provenance of one signed policy bundle. PB-5: bundle_epoch is strictly increasing and never reused or decreased. PB-2: author and reviewer identities MUST differ — asserted by the signer, because a schema cannot express a comparison between two of its own fields.",
   "type": "object",
   "additionalProperties": false,
@@ -45,9 +46,8 @@
       "format": "date-time"
     },
     "min_suite": {
-      "description": "CR-4. The signed floor on signature suites. A receipt or attestation declaring a weaker suite is refused. This is in the signed bundle precisely so a downgrade cannot be negotiated at runtime.",
-      "type": "string",
-      "enum": ["hybrid-ed25519-mldsa65"]
+      "$ref": "https://acp.spec/schemas/bundle/signature.schema.json#/$defs/suite_id",
+      "description": "CR-4. The signed floor on signature suites. A receipt or attestation declaring a weaker suite is refused. This is in the signed bundle precisely so a downgrade cannot be negotiated at runtime.\n\nIt is NOT this bundle's own floor. It floors the suites of downstream receipts and attestations; the floor THIS bundle must clear is configured out of band in the verifier, because a floor a bundle can lower is not a floor (RES-8). Wiring this field in as the bundle's own floor looks like an improvement and is the recurring defect.\n\nDrawn from `signature.schema.json` rather than restated, so that one edit to the suite list cannot leave the two spellings disagreeing."
     },
     "custody": {
       "$ref": "#/$defs/custody"
@@ -55,6 +55,7 @@
   },
   "$defs": {
     "identity": {
+      "x-acp-name": "Identity",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "display_name"],
@@ -73,15 +74,15 @@
       }
     },
     "custody": {
+      "x-acp-name": "Custody",
       "type": "object",
       "additionalProperties": false,
       "required": ["tier", "classical", "pq"],
       "description": "How the bundle signing key is held.\n\nCLASSIFIED **T** (trusted as transmitted) AND NOT A CONTROL INPUT. A verifier MUST NOT weight any decision on this object. A bundle asserting its own custody strength is the recurring defect RES-8/RES-9/RES-10 names: a verifier must never accept a derived security value from the party it is verifying. A compromised signer writes this object freely.\n\nIt is recorded for humans — auditors, operators, and the reviewer named above — and for no other purpose. The real binding is that the verifier is configured out of band with the expected public key.",
       "properties": {
         "tier": {
-          "description": "T0 development only; T1 encrypted key on an air-gapped host; T2 non-exportable cloud KMS; T3 PKCS#11 HSM. Split custody reports the WEAKER of its two legs, because a claim should never round in the flattering direction.",
-          "type": "string",
-          "enum": ["T0", "T1", "T2", "T3"]
+          "$ref": "https://acp.spec/schemas/bundle/floors.schema.json#/$defs/tier",
+          "description": "T0 development only; T1 encrypted key on an air-gapped host; T2 non-exportable cloud KMS; T3 PKCS#11 HSM. Split custody reports the WEAKER of its two legs, because a claim should never round in the flattering direction.\n\nThe SAME four values as a resource floor, drawn from `floors.schema.json` so there is one definition of the tier ladder. Note that the two uses are unrelated in meaning: a resource floor says how sensitive a thing is, a custody tier says how a key is held. They share a scale, not a subject."
         },
         "classical": {
           "$ref": "#/$defs/custody_leg"
@@ -92,14 +93,14 @@
       }
     },
     "custody_leg": {
+      "x-acp-name": "CustodyLeg",
       "type": "object",
       "additionalProperties": false,
       "required": ["tier", "mechanism"],
       "description": "Custody of one primitive. The two legs may differ, and differing is not a weakness: verification is conjunctive (CR-3), so forging requires BOTH signatures and therefore BOTH keys. An attacker must defeat both mechanisms.",
       "properties": {
         "tier": {
-          "type": "string",
-          "enum": ["T0", "T1", "T2", "T3"]
+          "$ref": "https://acp.spec/schemas/bundle/floors.schema.json#/$defs/tier"
         },
         "mechanism": {
           "description": "Free text naming the concrete mechanism, e.g. \"YubiHSM2 slot 3\" or \"age-encrypted file, offline laptop\". Human-readable only.",

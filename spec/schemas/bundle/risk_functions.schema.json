@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acp.spec/schemas/bundle/risk_functions.schema.json",
   "title": "Parameter-sensitive risk functions (ACP-SPEC-001 §8.3, RK-2)",
+  "x-acp-name": "RiskFunctions",
   "description": "Deterministic functions from a Proposal's parameters and its targets' effective tiers to a risk level.\n\nRK-2 exists because static per-action risk is insufficient: `modify_firewall_rule = HIGH` says nothing useful, since risk is a function of PARAMETERS and TARGETS, not action names.\n\nTHE ABSENT CASE DIFFERS FROM floors AND reversibility. An action with no risk function is REFUSED at §8.4 step 3 — it is NOT graded HIGH. Refusing and grading-HIGH are different behaviours: grading HIGH would route an unknown action into the human quorum, which looks conservative but silently teaches approvers to rubber-stamp things the policy author never considered. P-4: unknown is never LOW, and here it is not HIGH either — it is a refusal.\n\nTR-8: these functions are evaluated by the Executor over the INDEPENDENTLY RECEIVED canonical Proposal and the trusted bundle, ignoring every Context-Store raise and ignoring any risk value asserted in the receipt. The recomputed value is what all subsequent attestation requirements key on.",
   "type": "object",
   "additionalProperties": false,
@@ -15,11 +16,18 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/risk_function"
+      },
+      "x-acp-keyed-by": "applies_to",
+      "x-acp-absent": {
+        "clause": "8.4-3",
+        "behaviour": "refuse",
+        "why": "THE ABSENT CASE HERE IS NOT THE ABSENT CASE IN floors OR reversibility. An action with no risk function is REFUSED, not graded HIGH. Grading HIGH would route an unknown action into the human quorum, which looks conservative and is worse: it teaches approvers to rubber-stamp things the policy author never considered (T-26 habituation, AT-7). P-4 says unknown is never LOW; here it is not HIGH either. A lookup returning `Option` would let a caller reach for HIGH as the obvious safe default and get this exactly wrong."
       }
     }
   },
   "$defs": {
     "risk_function": {
+      "x-acp-name": "RiskFunction",
       "type": "object",
       "additionalProperties": false,
       "required": ["applies_to", "base", "raise_to"],
@@ -43,6 +51,7 @@
       }
     },
     "raise_clause": {
+      "x-acp-name": "RaiseClause",
       "type": "object",
       "additionalProperties": false,
       "required": ["if", "then"],
@@ -59,7 +68,9 @@
       }
     },
     "risk": {
-      "description": "Ordered LOW < MEDIUM < HIGH. §8.4 composes with max.",
+      "x-acp-name": "Risk",
+      "x-acp-ordered": true,
+      "description": "Ordered LOW < MEDIUM < HIGH. §8.4 composes with max.\n\nA RISK LEVEL IS NOT A RESOURCE TIER. This is a different ladder from `floors.schema.json`'s T0..T3, over a different subject, and §8.4 composes both with max — which is exactly why one type served for both until someone looked. The Rust and TypeScript definitions carried a single `RiskTier` enum whose doc comment cited RK-1's absent-⇒-T3 rule and whose values were LOW/MEDIUM/HIGH, so the fail-safe default was stated in the wrong domain in both. Generated separately, and named separately, for that reason.",
       "type": "string",
       "enum": ["LOW", "MEDIUM", "HIGH"]
     }

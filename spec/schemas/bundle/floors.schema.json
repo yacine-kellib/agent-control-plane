@@ -2,7 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acp.spec/schemas/bundle/floors.schema.json",
   "title": "Resource tier floors (ACP-SPEC-001 §8.3.2, RK-1)",
-  "description": "Maps each governable resource to its floor tier.\n\nRK-1: a resource ABSENT from this file MUST be treated as T3. That rule cannot be expressed in JSON Schema — a schema constrains what is present, never what is missing — so it is enforced in code by `RiskTier::for_unclassified()` (crates/acp-core) and by the absent⇒T3 branch in the Python reference. A conformance case asserts it in both, because a fail-safe default that only exists in a comment is not a control.\n\nRES-1 (A-7): the architecture guarantees no runtime component evaluates a resource BELOW its signed floor. It cannot know whether the floor was set correctly. A production database labelled T0 defeats the design with zero attack. Floor maintenance is the highest-leverage governance task in the system and is structurally unprovable — this file is where that risk concentrates.",
+  "x-acp-name": "Floors",
+  "description": "Maps each governable resource to its floor tier.\n\nRK-1: a resource ABSENT from this file MUST be treated as T3. That rule cannot be expressed in JSON Schema — a schema constrains what is present, never what is missing — so it is carried instead by the `x-acp-absent` annotation on `floors` below, which `tools/codegen.sh` reads to GENERATE the fail-safe direction into `Tier::for_unclassified()` (crates/acp-core) and its TypeScript equivalent. The Python reference spells the same default at `acp_executor.py`. A conformance case asserts it, because a fail-safe default that only exists in a comment is not a control — and stating it only in this prose is what let the Rust and TypeScript versions return HIGH, a RISK LEVEL, where a TIER was required.\n\nRES-1 (A-7): the architecture guarantees no runtime component evaluates a resource BELOW its signed floor. It cannot know whether the floor was set correctly. A production database labelled T0 defeats the design with zero attack. Floor maintenance is the highest-leverage governance task in the system and is structurally unprovable — this file is where that risk concentrates.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "floors"],
@@ -20,11 +21,19 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/tier"
+      },
+      "x-acp-absent": {
+        "clause": "RK-1",
+        "behaviour": "value",
+        "value": "T3",
+        "why": "absent means unknown, and unknown is the HIGHEST tier, not the lowest (P-4). Returning T0 or T1 here is the whole class of defect this specification exists to prevent, and it is the direction a lookup returning `Option` invites."
       }
     }
   },
   "$defs": {
     "tier": {
+      "x-acp-name": "Tier",
+      "x-acp-ordered": true,
       "description": "T0 public/sandbox · T1 internal · T2 production · T3 privileged. Ordered: T0 < T1 < T2 < T3, and §8.4 composes tiers with max, so the ordering is load-bearing rather than cosmetic.",
       "type": "string",
       "enum": ["T0", "T1", "T2", "T3"]

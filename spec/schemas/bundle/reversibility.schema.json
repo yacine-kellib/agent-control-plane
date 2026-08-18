@@ -2,7 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acp.spec/schemas/bundle/reversibility.schema.json",
   "title": "Per-action-class reversibility (ACP-SPEC-001 §9.6, RV-1)",
-  "description": "Maps each action class to whether it can be undone.\n\nRV-1: an action ABSENT from this file MUST be treated as IRREVERSIBLE. As with floors, JSON Schema cannot express absence, so the default is carried by the type itself — `impl Default for Reversibility` returns `Irreversible` in crates/acp-core, so a struct-update or a deserialisation gap cannot silently produce the permissive value.\n\nWhy this matters more than it looks: reversibility selects the acknowledgement regime. IRREVERSIBLE at floor-HIGH demands positive acknowledgement from a non-operator (DR-9) — silence is not consent. Getting this entry wrong in the permissive direction converts a held action into a released one.\n\nRV-3 is the reason the value is recomputed here and never read from a receipt: a compromised issuer claiming REVERSIBLE otherwise obtains Silent mode. Proven in reference/proofs/binding.dfy as `RV3_TrustedModeAcceptsDowngrade`.\n\nA-7 applies here exactly as it does to floors: that a classification is HONEST is conceded unprovable.",
+  "x-acp-name": "ReversibilityTable",
+  "description": "Maps each action class to whether it can be undone.\n\nRV-1: an action ABSENT from this file MUST be treated as IRREVERSIBLE. As with floors, JSON Schema cannot express absence, so the rule is carried by the `x-acp-absent` annotation below and GENERATED into the type: `impl Default for Reversibility` returns `Irreversible` in crates/acp-core, and the lookup on the table returns it directly, so a struct update, a deserialisation gap, or an `Option` a caller unwraps cannot silently produce the permissive value.\n\nWhy this matters more than it looks: reversibility selects the acknowledgement regime. IRREVERSIBLE at floor-HIGH demands positive acknowledgement from a non-operator (DR-9) — silence is not consent. Getting this entry wrong in the permissive direction converts a held action into a released one.\n\nRV-3 is the reason the value is recomputed here and never read from a receipt: a compromised issuer claiming REVERSIBLE otherwise obtains Silent mode. Proven in reference/proofs/binding.dfy as `RV3_TrustedModeAcceptsDowngrade`.\n\nA-7 applies here exactly as it does to floors: that a classification is HONEST is conceded unprovable.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "reversibility"],
@@ -19,9 +20,22 @@
         "maxLength": 128
       },
       "additionalProperties": {
-        "type": "string",
-        "enum": ["REVERSIBLE", "IRREVERSIBLE"]
+        "$ref": "#/$defs/reversibility"
+      },
+      "x-acp-absent": {
+        "clause": "RV-1",
+        "behaviour": "value",
+        "value": "IRREVERSIBLE",
+        "why": "reversibility selects the acknowledgement regime, so the permissive default converts a held action into a released one. An action nobody classified is one nobody thought about, and the fail-safe reading of that is that it cannot be undone."
       }
+    }
+  },
+  "$defs": {
+    "reversibility": {
+      "x-acp-name": "Reversibility",
+      "description": "Whether an action class can be undone.\n\nHoisted out of `additionalProperties` into `$defs` so that it has a NAME. An inline enum is a type the generator has to invent a name for, and an invented name is a name that drifts — `floors.schema.json` already declared its values under `$defs.tier` and this file did not, which is a difference with no reason behind it.\n\nDELIBERATELY NOT ORDERED. REVERSIBLE and IRREVERSIBLE are two cases, not a scale; a generated `Ord` would invite `max` composition that means nothing here.",
+      "type": "string",
+      "enum": ["REVERSIBLE", "IRREVERSIBLE"]
     }
   }
 }

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acp.spec/schemas/bundle/attesters.schema.json",
   "title": "Attester public key registry (ACP-SPEC-001 §8.2 attesters/)",
+  "x-acp-name": "AttesterRegistry",
   "description": "The approver and confirmer verification keys, and the quorum k.\n\nPUBLIC KEYS ONLY. This is not a stylistic constraint — it is the v1.3.14 custody fix, and it closed a real hole. Through v1.3.13 the primitives were HMAC-SHA256, so verifying a signature required holding the key that made it: the Executor held every attester key and could therefore MINT ITS OWN QUORUM. INV-1-HIGH did not hold against the very adversary it names, and no protocol test could have found it, because the defect was key CUSTODY rather than control flow. Never reintroduce a symmetric primitive here, not even for tests.\n\nPB-KEY: this registry is INSIDE the bundle hash. A `policy_bundle_hash` that does not cover it lets two Executors trusting DIFFERENT attesters agree that they hold the same bundle — which is the encoding-split defect wearing a key registry as a hat.\n\nACK-4 (reference-level, see reference/src/acp_ack.py — not a spec clause): an attester's identity is the one the SIGNATURE covers, never a transmitted `attester_id` field. This registry maps identity to key so that the signature can establish which of these entries signed. It does not authorise anyone to name themselves.",
   "type": "object",
   "additionalProperties": false,
@@ -25,19 +26,30 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/attester"
+      },
+      "x-acp-absent": {
+        "clause": "AT-9, PB-6",
+        "behaviour": "refuse",
+        "why": "an identity absent from the signed registry is not an attester. Its signature verifies against no key here and counts toward no quorum, and resolving it to a default would let a name nobody enrolled satisfy INV-1-HIGH. ACK-4: identity is what the SIGNATURE covers, never a transmitted `attester_id` — this map is how a signature is resolved to an enrolled key, not how a name authorises itself."
       }
     }
   },
   "$defs": {
+    "attester_role": {
+      "x-acp-name": "AttesterRole",
+      "description": "Which of the two acknowledgement duties an enrolled identity may discharge.\n\nHoisted into `$defs` for the same reason `reversibility` was: an inline enum has no name, and a generator inventing one invents a name that drifts.\n\nDELIBERATELY NOT ORDERED. A confirmer does not outrank an approver; they are different duties, and DR-9's separation is enforced per action against the proposer rather than by comparing roles.",
+      "type": "string",
+      "enum": ["approver", "confirmer"]
+    },
     "attester": {
+      "x-acp-name": "Attester",
       "type": "object",
       "additionalProperties": false,
       "required": ["role", "classical", "pq"],
       "properties": {
         "role": {
-          "description": "approver signs for authorisation; confirmer provides the non-operator positive acknowledgement DR-9 requires for irreversible actions. One person MAY hold both roles in the registry — DR-9 is enforced per action against the proposer, not by role exclusion here.",
-          "type": "string",
-          "enum": ["approver", "confirmer"]
+          "$ref": "#/$defs/attester_role",
+          "description": "approver signs for authorisation; confirmer provides the non-operator positive acknowledgement DR-9 requires for irreversible actions. One person MAY hold both roles in the registry — DR-9 is enforced per action against the proposer, not by role exclusion here."
         },
         "classical": {
           "$ref": "#/$defs/ed25519_pub"
@@ -48,11 +60,13 @@
       }
     },
     "ed25519_pub": {
+      "x-acp-name": "Ed25519PublicKey",
       "description": "Ed25519 verification key (RFC 8032), base64. 32 bytes raw; the decoded length is asserted in code, because a base64 string of the wrong length is well-formed JSON and a schema pattern alone would let a truncated key through.",
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]{43}=$"
     },
     "mldsa65_pub": {
+      "x-acp-name": "MlDsa65PublicKey",
       "description": "ML-DSA-65 verification key (FIPS 204), base64. 1952 bytes raw. Its size is why hybrid receipts run 13.2 kB against 256 B classical-only — a 53x wire increase that is algorithm-bound and does not improve with a faster library.",
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]{2603}=$"

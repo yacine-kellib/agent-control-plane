@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/bundle/signature.schema.json",
+  "title": "The detached bundle SIGNATURE file (ACP-SPEC-001 §8.2, PB-8)",
+  "x-acp-name": "SignatureEnvelope",
+  "description": "The `SIGNATURE` file at the bundle root: the declared suite, and one signature value per primitive that suite requires, over SHA-256 of the canonical bundle tree.\n\nA CORRECTION IS RECORDED HERE. Until this revision this file was named `bundle.schema.json` and described a *tree index* — `schema_version`, a `members` array of path+digest pairs, and a `signature` object carrying two fixed base64 fields named `classical` and `pq`. None of that artifact exists. §8.2's file listing contains no index file; the covered set is established by the CANONICAL WALK (`walk_bundle`, in both implementations), which is what makes \"the tree\" a fact rather than a convention. And PB-8, added in v1.3.15 when the offline signer turned the format from a diagram into bytes, specifies the file as a suite plus ONE VALUE PER PRIMITIVE — a map keyed by primitive name, hex-encoded — which is not the fixed pair the old schema declared.\n\nSo the normative source held two descriptions of one object, and they disagreed: the encoding-split defect arriving inside the document that exists to prevent it. It survived because NOTHING READ THE SCHEMAS. They were normative and unexecuted, and the first consumer — `tools/codegen.sh` — found this on its first run. That is the same shape as `sim/bundle.py` silently dropping three fields from a hash for several releases: a load-bearing artifact with no gate line.\n\nWHY THE MEMBERS INDEX IS NOT COMING BACK. The old rationale was real — without an explicit list, a verifier that skipped a file and a signer that included it compute different hashes and neither can tell which is wrong. The adopted answer is to make the WALK normative rather than to ship a list: it refuses symlinks, refuses unrecognised file types, and orders byte-wise, so two conformant implementations enumerate the same set. A committed index would be a second statement of the same fact, and this file exists because of what happens to the second statement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["suite", "parts"],
+  "properties": {
+    "suite": {
+      "$ref": "#/$defs/suite_id",
+      "description": "The suite this signature was produced under. PB-8: it MUST be inside the tree hash. Outside it, an attacker relabels a hybrid bundle as classical, the verifier obligingly requires one primitive, and the CR-3 downgrade costs nothing."
+    },
+    "parts": {
+      "type": "object",
+      "description": "primitive name -> signature value, lowercase hex.\n\nCR-3, CONJUNCTIVE: the values present MUST be exactly those the declared suite requires, and every one of them MUST verify. Not \"at least\": a value for a primitive the suite does not declare is as much a refusal as a missing one, because an `any`-shaped check lets an attacker strip the post-quantum leg, present a genuine classical signature, and be accepted.\n\nHex rather than base64, matching what both implementations write. Per-primitive lengths (Ed25519 64 bytes, ML-DSA-65 3309) are asserted in code and not here: `parts` is keyed by primitive, so no single value pattern can express a length that depends on its own key.",
+      "propertyNames": {
+        "$ref": "#/$defs/primitive"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]+$"
+      },
+      "x-acp-absent": {
+        "clause": "CR-3, PB-8",
+        "behaviour": "refuse",
+        "why": "a primitive the declared suite requires and this file does not carry is a stripped leg, and a stripped leg is the downgrade the hybrid suite exists to prevent. Absent is refused, never treated as 'not applicable'."
+      }
+    }
+  },
+  "$defs": {
+    "suite_id": {
+      "x-acp-name": "SuiteId",
+      "description": "A suite NAME as it appears on the wire.\n\nDELIBERATELY NOT ORDERED. There is no `x-acp-ordered` here and there must not be one: CR-4's floor is satisfied by CONTAINMENT of primitives, not by rank. A generated `Ord` would make `declared >= floor` compile, and that comparison is the downgrade — `ed25519` and `slhdsa128s` are incomparable, not adjacent. The behavioural type is `acp_crypto::Suite`, which carries `satisfies_floor` and `primitives()`; this is the wire name and nothing more.\n\nNOT `const`. Listing only the hybrid suite would make a bundle signed under `ed25519` fail SHAPE validation, when the required outcome is a CR-4 refusal naming the floor. Unknown names outside this list are refused under CR-1 by the loader, never defaulted to a known suite.",
+      "type": "string",
+      "enum": ["ed25519", "hybrid-ed25519-mldsa65", "slhdsa128s"]
+    },
+    "primitive": {
+      "x-acp-name": "PrimitiveName",
+      "description": "A primitive NAME as it appears on the wire.\n\n`pq-slh` is declared and NOT implemented. It keeps its own name and fails closed — aliasing it to `pq` would let a verifier report success for a primitive it cannot compute, which is the one thing an unimplemented primitive must never do.",
+      "type": "string",
+      "enum": ["classical", "pq", "pq-slh"]
+    }
+  }
+}
