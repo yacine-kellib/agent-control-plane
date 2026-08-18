@@ -13,7 +13,9 @@ dependencies = [
 name = "acp-bundle"
 version = "0.0.0"
 dependencies = [
+ "acp-core",
  "acp-crypto",
+ "serde_json",
  "sha2 0.10.9",
  "tempfile",
 ]

@@ -28,5 +28,9 @@
 //! signature cannot cover itself.
 
 pub mod tree;
+pub mod verify;
 
 pub use tree::{Member, SIGNATURE_FILE, Tree, TreeError, WalkError, walk_bundle};
+pub use verify::{
+    BundleHost, BundleSignature, Reading, Refusal, Serving, Timestamp, VerifierConfig,
+};

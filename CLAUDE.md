@@ -42,7 +42,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 74 tests
+cargo check --workspace && cargo test --workspace   # Rust: 99 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
@@ -150,6 +150,6 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 139 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 140 files across ten roots.
 
 Not yet started: `spec/schemas/` and `spec/vectors/` are empty. Extracting the vector corpus, and classifying which of the 52 conformance cases are data-expressible versus per-implementation obligations, is the next step and the thing `crates/acp-conformance` waits on.
