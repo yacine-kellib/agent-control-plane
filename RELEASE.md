@@ -96,6 +96,31 @@ the spec as committed before this change it names `CL-7`; against the corrected 
 is clean. It manufactures a collision on every run and requires the detector to name it, so
 a regex that silently stops matching cannot pass as a clean document.
 
+### The tool that said "move the key to offline media" is what put it in `$HOME`
+
+`ACP-16`. `sign-release.sh keygen` hardcoded `~/acp-release.key`, wrote the release key
+there, and then printed *"move to offline media, chmod 600"*. The exposure the dossier's
+two-gate argument denies was **manufactured by the repository's own tooling**, and moving
+the file by hand would have left the generator to recreate it on the next rotation.
+
+A second property was worse. `keygen` had **no overwrite guard**. `sign` already builds
+into `.tmp` files and moves them into place only after the signature exists, so a mistyped
+path cannot destroy the last valid manifest — the key itself had nothing. The asymmetry is
+backwards: a clobbered manifest can be re-signed, while a destroyed release key makes
+**every signature it ever produced permanently unverifiable**. `keygen` also had no test
+coverage at all, so this shipped untested for the life of the script.
+
+The path is now required — no `$HOME` default — and `keygen` refuses to overwrite, exiting
+**3** rather than merely non-zero, because `1` is usage and a check accepting any failure
+would pass a refusal for the wrong reason. Three assertions added, all proved by firing
+them against a decoy. The real key is never an argument to a test: a test that can reach
+the signing key is the defect it is testing for.
+
+What this does **not** fix is disclosed rather than implied. The key is still on the
+working disk, unencrypted, and it has been readable by every agent session in this
+repository since it was generated — including the session that made this fix. Prevention
+is not remediation, and rotation remains open on `ACP-16`.
+
 ### `sync-counts.sh` destroyed a dossier file and reported success
 
 Found while propagating 11/11 → 12/12, and disclosed because it is the more dangerous

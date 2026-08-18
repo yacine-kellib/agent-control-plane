@@ -77,21 +77,38 @@ assert_roots_present() {
 
 case "${1:-}" in
 keygen)
-  python3 - <<'PY'
+  # ACP-16. This used to hardcode ~/acp-release.key and then print "move to
+  # offline media" -- so the tool itself created the exposure the dossier's
+  # two-gate argument denies. A key in $HOME is readable by anything running as
+  # that user: every npm install, every editor extension, every agent session
+  # with shell access. The path is now REQUIRED and never defaults to $HOME.
+  KEY="${2:?usage: $0 keygen /path/to/offline-media/acp-release.key}"
+  # Refusing to overwrite is the discipline `sign` already applies to the
+  # manifest, and it matters more here. A clobbered manifest can be re-signed;
+  # a destroyed release key cannot be recovered, and every signature it ever
+  # produced becomes permanently unverifiable. This ran with no guard and no
+  # test for the whole life of the script.
+  if [ -e "$KEY" ]; then
+    printf 'refusing to overwrite an existing key: %s\n' "$KEY" >&2
+    printf 'a destroyed release key cannot be recovered, and every signature\n' >&2
+    printf 'it produced becomes unverifiable. Move or remove it first.\n' >&2
+    exit 3
+  fi
+  python3 - "$KEY" <<'PY'
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization as ser
-import hashlib, os
+import hashlib, os, sys
 sk = Ed25519PrivateKey.generate()
 priv = sk.private_bytes(ser.Encoding.PEM, ser.PrivateFormat.PKCS8,
                         ser.NoEncryption())
 pub = sk.public_key().public_bytes(ser.Encoding.PEM,
                                    ser.PublicFormat.SubjectPublicKeyInfo)
-path = os.path.expanduser("~/acp-release.key")
+path = sys.argv[1]
 with open(path, "wb") as f: f.write(priv)
 os.chmod(path, 0o600)
 open("release-key.pub", "wb").write(pub)
 raw = sk.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw)
-print(f"private key : {path}  (move to offline media, chmod 600)")
+print(f"private key : {path}  (chmod 600 — keep it on offline media)")
 print(f"public key  : release-key.pub  (ships with the dossier)")
 print(f"fingerprint : SHA256:{hashlib.sha256(raw).hexdigest()[:32]}")
 print("\nPublish that fingerprint out of band -- on the repository README, in\n"
@@ -133,5 +150,5 @@ PY
   echo "files covered: $(wc -l < MANIFEST.sha256)"
   ;;
 *)
-  echo "usage: $0 {keygen|sign <keyfile>}"; exit 2 ;;
+  echo "usage: $0 {keygen <keyfile>|sign <keyfile>}"; exit 2 ;;
 esac

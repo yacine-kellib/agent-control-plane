@@ -88,6 +88,35 @@ after=$(sha256sum MANIFEST.sha256 | awk '{print $1}')
 [ ! -f MANIFEST.sha256.tmp ]; chk $? "no .tmp manifest left behind"
 [ ! -f MANIFEST.sha256.sig.tmp ]; chk $? "no .tmp signature left behind"
 
+printf '\n\033[1m== keygen never writes to $HOME, and never clobbers a key ==\033[0m\n'
+
+# ACP-16. `keygen` hardcoded ~/acp-release.key and then printed "move to offline
+# media" -- the tool created the exposure the dossier's two-gate argument denies,
+# and nothing here tested it, so the footgun shipped untested for the life of the
+# script. Two properties, both destructive-by-omission:
+#
+#   (1) the path is REQUIRED. A default of $HOME puts the release key where every
+#       npm install, editor extension and agent session can read it.
+#   (2) it REFUSES to overwrite. `sign` already builds into .tmp so a mistyped
+#       path cannot destroy the last valid manifest; the key had no such guard,
+#       and the asymmetry matters -- a clobbered manifest can be re-signed, a
+#       destroyed key makes every signature it ever produced unverifiable.
+#
+# The decoy is never a real key and the real key is never an argument here: a
+# test that can reach the signing key is the defect it is testing for.
+OUT=$(./tools/sign-release.sh keygen 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "keygen with no path fails instead of defaulting to \$HOME (rc=$rc)"
+
+DECOY=$(mktemp); printf 'DECOY-not-a-key\n' > "$DECOY"
+BEFORE=$(shasum -a 256 "$DECOY" | awk '{print $1}')
+OUT=$(./tools/sign-release.sh keygen "$DECOY" 2>&1); rc=$?
+# Exit 3 specifically, not merely non-zero: 1 is "usage" and a check accepting
+# any failure would pass for a keygen that refused for the wrong reason.
+[ $rc -eq 3 ]; chk $? "keygen refuses to overwrite an existing key, exit 3 (got $rc)"
+[ "$BEFORE" = "$(shasum -a 256 "$DECOY" | awk '{print $1}')" ]
+chk $? "and the refused target is byte-identical — nothing was written"
+rm -f "$DECOY"
+
 printf '\n\033[1m== verify.sh --suites ==\033[0m\n'
 
 OUT=$(./tools/verify.sh --suites 2>&1); rc=$?
