@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 14 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (34 assertions)
+./tools/selftest.sh                # tests the tooling itself (46 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 
 # individual suites — run from reference/suites/, they use flat imports
@@ -42,7 +42,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 64 tests
+cargo check --workspace && cargo test --workspace   # Rust: 74 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 

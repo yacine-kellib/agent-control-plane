@@ -20,3 +20,9 @@ acp-crypto.workspace = true
 #     invisible at the call site.
 #   acp-core        — the tree is paths and digests; it needs no risk types.
 #     Added when `verify` lands and BundleEpoch is actually consulted.
+
+[dev-dependencies]
+# The walk is filesystem behaviour, so its tests need a real directory: what is
+# being checked is that an unrecognised file type halts and that a symlink is
+# refused, and neither is expressible against an in-memory list.
+tempfile = "3"

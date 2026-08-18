@@ -7,9 +7,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."   # tools/ -> repo root
 FAIL=0
+TOTAL=0
 OUT=""
-ok()  { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
-bad() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=1; }
+ok()  { printf '  \033[32mOK\033[0m   %s\n' "$1"; TOTAL=$((TOTAL + 1)); }
+bad() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=1; TOTAL=$((TOTAL + 1)); }
 chk() { if [ "$1" -eq 0 ]; then ok "$2"; else bad "$2"; fi; }
 # One idiom for every content assertion against $OUT. Writing these inline as
 # `grep -q X; [ $? -ne 0 ]; chk $?` works but reads as a bug, and the next
@@ -344,7 +345,35 @@ PY
   has 'checked [1-9][0-9]* published count' "the Rust count check is non-vacuous (found at least one)"
 fi
 
+printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
+
+# README.md and CLAUDE.md both publish how many assertions this script makes.
+# The number had already drifted once -- it said 34 while the run made 45 --
+# which is the same defect as the mutation counts and the Rust test count, in
+# the file whose entire job is catching that defect.
+#
+# THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
+# is TOTAL+1 as measured here, and a reader counting OK lines gets the same
+# figure. An off-by-one would be a wrong published number arriving by exactly
+# the mechanism this block exists to prevent, so it is spelled out rather than
+# left to be noticed.
+#
+# Skipped branches lower the total honestly: a run without cargo makes fewer
+# assertions and must publish fewer, which is why this compares against the
+# count of what actually ran rather than a constant in the script.
+EXPECT=$((TOTAL + 1))
+PUBLISHED=$(git ls-files '*.md' \
+  | xargs grep -ho 'tests the tooling itself ([0-9]\{1,\} assertions)' 2>/dev/null \
+  | grep -o '[0-9]\{1,\}' | sort -u)
+if [ -z "$PUBLISHED" ]; then
+  bad "no tracked .md publishes an assertion count (the check would be vacuous)"
+elif [ "$PUBLISHED" = "$EXPECT" ]; then
+  ok "every published assertion count equals this run ($PUBLISHED vs $EXPECT)"
+else
+  bad "published assertion count is $(echo "$PUBLISHED" | tr '\n' ' ')but this run made $EXPECT"
+fi
+
 printf '\n\033[1m== Result ==\033[0m\n'
-if [ $FAIL -eq 0 ]; then echo "  tooling self-test passed."
-else echo "  tooling self-test FAILED."; fi
+if [ $FAIL -eq 0 ]; then echo "  tooling self-test passed ($TOTAL assertions)."
+else echo "  tooling self-test FAILED ($TOTAL assertions)."; fi
 exit $FAIL
