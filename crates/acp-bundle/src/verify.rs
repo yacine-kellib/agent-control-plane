@@ -39,6 +39,13 @@
 //! and says a verifier MUST NOT weight any decision on it — a compromised
 //! signer writes that object freely. Custody strength lives in
 //! `acp_crypto::custody::TrustedKeys`, on the verifier's side of the boundary.
+//!
+//! `manifest.min_suite` is likewise **not** read as this bundle's own floor,
+//! and that is worth stating because wiring it in looks like an improvement.
+//! It floors the suites of downstream receipts and attestations; the floor the
+//! bundle itself must clear is [`VerifierConfig::suite_floor`]. A bundle
+//! naming the floor it will be judged against is the RES-8 defect with the
+//! serial numbers filed off.
 
 use crate::tree::{Member, Tree};
 use acp_core::BundleEpoch;
@@ -451,7 +458,22 @@ impl Timestamp {
         };
         let (y, mo, d) = (n(0, 4)?, n(5, 7)?, n(8, 10)?);
         let (h, mi, sec) = (n(11, 13)?, n(14, 16)?, n(17, 19)?);
-        if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || sec > 60 {
+        // The day is checked against the ACTUAL length of that month, not
+        // against 31. A range check alone let `2026-02-31` through, and
+        // `days_from_civil` rolled it forward to the same instant as
+        // `2026-03-03` — two spellings of one value, which is the encoding
+        // split this parser's strictness exists to prevent.
+        //
+        // `sec` stops at 59: no leap second. The reference `datetime` refuses
+        // 23:59:60, and a parser that accepts what the differential partner
+        // rejects is a divergence waiting for the first bundle that hits it.
+        if !(1..=12).contains(&mo)
+            || d < 1
+            || d > days_in_month(y, mo)
+            || h > 23
+            || mi > 59
+            || sec > 59
+        {
             return None;
         }
         Some(Timestamp(
@@ -461,6 +483,22 @@ impl Timestamp {
 
     pub fn unix(self) -> i64 {
         self.0
+    }
+}
+
+/// How many days a month actually has.
+///
+/// The century rule is the part that gets written wrong: 2000 is a leap year
+/// (divisible by 400) and 2100 is not (divisible by 100 but not 400). Both are
+/// in the tests, because "divisible by four" passes every casual check for
+/// seventy-five years at a time.
+const fn days_in_month(y: i64, m: i64) -> i64 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
+        2 => 28,
+        _ => 0,
     }
 }
 
@@ -914,6 +952,48 @@ mod tests {
         assert_eq!(ts("2000-03-01T00:00:00Z").unix(), 951_868_800);
         assert_eq!(ts("2026-08-18T00:00:00Z").unix(), 1_787_011_200);
         assert_eq!(ts("2038-01-19T03:14:07Z").unix(), 2_147_483_647);
+    }
+
+    #[test]
+    fn an_impossible_calendar_date_is_refused_rather_than_rolled_over() {
+        // FOUND AFTER THE FIRST VERSION SHIPPED, and it is the defect this
+        // module's own doc forbids. `2026-02-31` used to parse, and
+        // days_from_civil rolled it forward to the same unix second as
+        // `2026-03-03`: two spellings of one instant, in the field that decides
+        // when a bundle stops being valid. An author writing a nonsense expiry
+        // would have got a silently different one.
+        //
+        // The reference `datetime` refuses all of these, so accepting them
+        // would also be a live divergence the moment ACP-41 compares the two.
+        for bad in [
+            "2026-02-31T00:00:00Z",
+            "2026-02-29T00:00:00Z", // 2026 is not a leap year
+            "2026-04-31T00:00:00Z",
+            "2026-06-31T00:00:00Z",
+            "2100-02-29T00:00:00Z", // divisible by 100, not by 400
+            "2026-01-00T00:00:00Z",
+        ] {
+            assert!(
+                Timestamp::parse(bad).is_none(),
+                "accepted an impossible date {bad:?}"
+            );
+        }
+
+        // And the leap days that are real must still parse, or the fix would
+        // be a refusal dressed as a validation.
+        assert!(Timestamp::parse("2024-02-29T00:00:00Z").is_some());
+        assert!(Timestamp::parse("2000-02-29T00:00:00Z").is_some());
+        assert!(Timestamp::parse("2026-01-31T00:00:00Z").is_some());
+    }
+
+    #[test]
+    fn a_leap_second_is_refused_because_the_reference_refuses_it() {
+        // `sec > 60` admitted 23:59:60. Python's datetime rejects it, so
+        // leaving it in meant either a divergence in ACP-41 or a case the
+        // differential never reaches. Agreeing with the reference is the point
+        // of having one.
+        assert!(Timestamp::parse("2026-08-18T23:59:60Z").is_none());
+        assert!(Timestamp::parse("2026-08-18T23:59:59Z").is_some());
     }
 
     #[test]

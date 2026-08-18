@@ -388,7 +388,7 @@ tools/         verify.sh sign-release.sh selftest.sh
 Other languages, if you want to run them:
 
 ```bash
-cargo check --workspace && cargo test --workspace   # Rust: 99 tests
+cargo check --workspace && cargo test --workspace   # Rust: 101 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
