@@ -329,17 +329,40 @@ impl ActiveBundle {
     }
 
     /// PB-7: attester verification keys must be pairwise distinct, compared
-    /// over the **complete suite**.
+    /// **per leg** across identities.
     ///
     /// In the loader rather than in a schema, and the spec says why: JSON
     /// Schema's `uniqueItems` applies to arrays and there is no keyword for
     /// uniqueness across the values of a map. An implementation validating the
     /// registry by schema alone is non-conformant however cleanly it validates.
     ///
-    /// The comparison is over the whole entry, not over one leg. Two identities
-    /// differing in their classical key but sharing a post-quantum key are not
-    /// distinct, and treating them as such is CR-3's conjunctive guarantee
-    /// undone at the registry instead of at the verifier.
+    /// # What this used to compare, and why it was wrong (ACP-53)
+    ///
+    /// Until this revision the loop compared **whole entries** for equality, so
+    /// it fired only on byte-identical ones. `role` is part of an entry, so one
+    /// key holder could enrol twice —
+    ///
+    /// ```text
+    /// "alice": {"role": "approver",  "classical": K, "pq": K}
+    /// "bob":   {"role": "confirmer", "classical": K, "pq": K}
+    /// ```
+    ///
+    /// — and satisfy `quorum_k = 2` alone. That pairing is precisely what DR-9
+    /// demands for an irreversible action at floor-HIGH, so the registry handed
+    /// over the case the threshold exists to prevent. A role is not a
+    /// verification key and must never distinguish two identities.
+    ///
+    /// **Either leg colliding is a collision, not both.** PB-7 says two
+    /// identities differing in their classical key but *sharing* a post-quantum
+    /// key are not distinct; requiring the pair to match is CR-3's conjunctive
+    /// guarantee undone at the registry instead of at the verifier.
+    ///
+    /// The reference implementation is wrong in the same way and was corrected
+    /// in the same commit — which is the point worth keeping. The differential
+    /// agreed throughout, because agreement is evidence about consistency and
+    /// never about correctness (§15). A deletion mutant would still have been
+    /// killed, because the one shape the check did catch was the one the
+    /// fixture built.
     fn check_registry(&self) -> Result<(), Refusal> {
         let bytes = self
             .member("attesters/registry.json")
@@ -362,12 +385,20 @@ impl ActiveBundle {
                 "attesters/registry.json has no attesters map",
             ))?;
 
-        let mut seen: Vec<&serde_json::Value> = Vec::new();
-        for key in attesters.values() {
-            if seen.contains(&key) {
-                return Err(Refusal::RegistryKeysNotDistinct);
+        for leg in ["classical", "pq"] {
+            let mut seen: Vec<&serde_json::Value> = Vec::new();
+            for entry in attesters.values() {
+                // A key that is absent cannot be shown distinct from anything,
+                // and an entry that is not an object has no keys at all.
+                // Refusing is the only fail-safe reading of either.
+                let key = entry.get(leg).ok_or(Refusal::Malformed(
+                    "an attester entry has no classical/pq key",
+                ))?;
+                if seen.contains(&key) {
+                    return Err(Refusal::RegistryKeysNotDistinct);
+                }
+                seen.push(key);
             }
-            seen.push(key);
         }
         Ok(())
     }
@@ -538,10 +569,24 @@ mod tests {
     }
 
     fn registry(k: u64, keys: &[&str]) -> Vec<u8> {
-        let entries: Vec<String> = keys
+        let entries: Vec<(&str, &str, &str)> = keys.iter().map(|k| ("approver", *k, *k)).collect();
+        registry_of(k, &entries)
+    }
+
+    /// A registry with per-entry control of `role`, `classical` and `pq`.
+    ///
+    /// The old helper set both legs from one string and emitted no `role` at
+    /// all, which is why PB-7 looked covered: with those entries, sharing a key
+    /// and being byte-identical were the same thing, so a whole-entry
+    /// comparison passed the only test that existed (ACP-53). A fixture that
+    /// cannot express the attack cannot test for it.
+    fn registry_of(k: u64, entries: &[(&str, &str, &str)]) -> Vec<u8> {
+        let entries: Vec<String> = entries
             .iter()
             .enumerate()
-            .map(|(i, k)| format!(r#""person{i}":{{"classical":"{k}","pq":"{k}"}}"#))
+            .map(|(i, (role, classical, pq))| {
+                format!(r#""person{i}":{{"role":"{role}","classical":"{classical}","pq":"{pq}"}}"#)
+            })
             .collect();
         format!(
             r#"{{"schema_version":"1","quorum_k":{k},"attesters":{{{}}}}}"#,
@@ -889,19 +934,79 @@ mod tests {
         );
     }
 
-    #[test]
-    fn two_attesters_sharing_a_key_are_refused() {
-        // PB-7. The holder of one private key signs two objects differing only
-        // in their attestation nonces, labels them with two names, and
-        // satisfies k=2 alone -- INV-1-HIGH defeated by a single compromise,
-        // through the registry rather than through the threshold.
+    /// PB-7, all four shapes. The holder of one private key signs two objects
+    /// differing only in their attestation nonces, labels them with two names,
+    /// and satisfies k=2 alone -- INV-1-HIGH defeated by a single compromise,
+    /// through the registry rather than through the threshold.
+    ///
+    /// Four cases rather than one because until ACP-53 only the first was
+    /// tested, only the first was caught, and the other three were accepted by
+    /// both implementations. The check compared whole entries; three of these
+    /// differ somewhere in the entry while sharing a key.
+    fn assert_registry_refused(entries: &[(&str, &str, &str)]) {
         let mut host = BundleHost::new(config(0));
         let mut m = members(7, "2027-01-01T00:00:00Z");
-        m[2].1 = registry(2, &["same", "same"]);
+        m[2].1 = registry_of(2, entries);
         let sig = sign(&m, HYBRID, signing_key());
         assert_eq!(
             host.activate(m, HYBRID, sig, ts("2026-08-18T00:00:00Z")),
             Err(Refusal::RegistryKeysNotDistinct)
+        );
+    }
+
+    #[test]
+    fn two_attesters_with_identical_entries_are_refused() {
+        assert_registry_refused(&[("approver", "same", "same"), ("approver", "same", "same")]);
+    }
+
+    #[test]
+    fn two_attesters_sharing_a_key_under_different_roles_are_refused() {
+        // The attack ACP-53 names, and the worst of the four: approver plus
+        // confirmer is exactly the pairing DR-9 requires for an irreversible
+        // action at floor-HIGH. A role is not a verification key.
+        assert_registry_refused(&[("approver", "same", "same"), ("confirmer", "same", "same")]);
+    }
+
+    #[test]
+    fn two_attesters_sharing_only_the_post_quantum_key_are_refused() {
+        // The case the old code comment claimed to handle and did not.
+        assert_registry_refused(&[("approver", "ka", "shared"), ("approver", "kb", "shared")]);
+    }
+
+    #[test]
+    fn two_attesters_sharing_only_the_classical_key_are_refused() {
+        assert_registry_refused(&[("approver", "shared", "ka"), ("approver", "shared", "kb")]);
+    }
+
+    #[test]
+    fn genuinely_distinct_attesters_are_accepted() {
+        // Without this the four refusals above are satisfied by a check that
+        // refuses everything, which is not a control either.
+        let mut host = BundleHost::new(config(0));
+        let mut m = members(7, "2027-01-01T00:00:00Z");
+        m[2].1 = registry_of(2, &[("approver", "ka", "pa"), ("confirmer", "kb", "pb")]);
+        let sig = sign(&m, HYBRID, signing_key());
+        assert_eq!(
+            host.activate(m, HYBRID, sig, ts("2026-08-18T00:00:00Z")),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn an_attester_entry_with_no_verification_key_is_refused() {
+        // A key that is absent cannot be shown distinct from anything.
+        let mut host = BundleHost::new(config(0));
+        let mut m = members(7, "2027-01-01T00:00:00Z");
+        m[2].1 = br#"{"schema_version":"1","quorum_k":2,"attesters":{
+            "alice":{"role":"approver","classical":"ka","pq":"pa"},
+            "bob":{"role":"confirmer","classical":"kb"}}}"#
+            .to_vec();
+        let sig = sign(&m, HYBRID, signing_key());
+        assert_eq!(
+            host.activate(m, HYBRID, sig, ts("2026-08-18T00:00:00Z")),
+            Err(Refusal::Malformed(
+                "an attester entry has no classical/pq key"
+            ))
         );
     }
 

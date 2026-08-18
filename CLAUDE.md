@@ -30,7 +30,7 @@ PYTHONPATH=../src python3 partition_integration.py # 6/6
 PYTHONPATH=../src python3 cbor_suite.py           # 8/8
 PYTHONPATH=../src python3 research_bundle.py --attacks  # 4/4  Annex D domain attacks
 PYTHONPATH=../src python3 llm_agent_suite.py       # 44/44  the live-agent client — no API key, no network
-PYTHONPATH=../src python3 bundle_suite.py          # 27/27  the policy bundle: walk, tree hash, verify-on-read
+PYTHONPATH=../src python3 bundle_suite.py          # 32/32  the policy bundle: walk, tree hash, verify-on-read
 PYTHONPATH=../src python3 art_harness.py           # a HARNESS, not a suite: it reports findings and
                                                    # fails only if it is broken or vacuous. Corpus is
                                                    # fixtures until load_corpus() is wired to real ART.
@@ -43,7 +43,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 101 tests
+cargo check --workspace && cargo test --workspace   # Rust: 106 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
 ```
 
@@ -149,7 +149,7 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **`feat/rule-store` is open and unpushed**, well ahead of `main` — `git log --oneline main..HEAD` for the count, which is deliberately not published here because it is wrong again on the next commit. It carries the bundle rule store, six defect fixes — four of them live in released v1.3.14 — the specification moving v1.3.13 → **v1.3.15**, and `reference/suites/art_harness.py`, which runs an external adversarial corpus against Door A and found one of the six on its first run. The spec's §1 alert enumerates them as (a)–(d).
 
-**The rule store is now built end to end**, steps 2–7 (ACP-36 … ACP-41): real Ed25519/ML-DSA-65 primitives, `custody.rs` with the `Signer` trait and tiers T0–T3, the canonical walk and tree hash, verify-on-every-read, the offline `acp-bundle` CLI, and `reference/src/acp_bundle.py`. **Both differential directions run**: Python's signatures verify in Rust (`tests/python_interop.rs`), Rust's verify in Python (`tools/check-rust-signatures.py`), and the two agree on a bundle's tree hash, verdict and *refusal name* across eleven cases (`tools/check-bundle-differential.py`). The last two need cargo, so they run from `selftest.sh` rather than the gate.
+**The rule store is now built end to end**, steps 2–7 (ACP-36 … ACP-41): real Ed25519/ML-DSA-65 primitives, `custody.rs` with the `Signer` trait and tiers T0–T3, the canonical walk and tree hash, verify-on-every-read, the offline `acp-bundle` CLI, and `reference/src/acp_bundle.py`. **Both differential directions run**: Python's signatures verify in Rust (`tests/python_interop.rs`), Rust's verify in Python (`tools/check-rust-signatures.py`), and the two agree on a bundle's tree hash, verdict and *refusal name* across sixteen cases (`tools/check-bundle-differential.py`). The last two need cargo, so they run from `selftest.sh` rather than the gate.
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 

@@ -359,17 +359,42 @@ class BundleHost:
         if not isinstance(attesters, dict):
             raise Refused("Malformed")
 
-        # PB-7, compared over the COMPLETE entry. Two identities differing in
-        # their classical key but sharing a post-quantum key are not distinct,
-        # and treating them as such is CR-3's conjunctive guarantee undone at
-        # the registry instead of at the verifier. Not expressible in JSON
-        # Schema -- `uniqueItems` is for arrays and there is no keyword for
-        # uniqueness across a map's values -- so it lives in the loader.
-        seen = []
-        for entry in attesters.values():
-            if entry in seen:
-                raise Refused("RegistryKeysNotDistinct")
-            seen.append(entry)
+        # PB-7, compared PER LEG across identities -- never over the whole
+        # entry.
+        #
+        # Comparing whole entries is what this did until ACP-53, and it caught
+        # only BYTE-IDENTICAL ones. `role` is part of the entry, so a single
+        # key holder enrolled twice --
+        #
+        #     "alice": {"role": "approver",  "classical": K, "pq": K}
+        #     "bob":   {"role": "confirmer", "classical": K, "pq": K}
+        #
+        # -- was accepted, and satisfied quorum_k = 2 alone. That pairing is
+        # exactly what DR-9 demands for an irreversible action at floor-HIGH,
+        # so the registry handed over the case the threshold exists to prevent.
+        # A role is not a verification key and must never distinguish two
+        # identities.
+        #
+        # EITHER leg colliding is a collision, not both: PB-7 says two
+        # identities differing in their classical key but SHARING a
+        # post-quantum key are not distinct. Requiring the pair to match is
+        # CR-3's conjunctive guarantee undone at the registry instead of at
+        # the verifier.
+        #
+        # Not expressible in JSON Schema -- `uniqueItems` is for arrays and
+        # there is no keyword for uniqueness across a map's values -- so it
+        # lives in the loader, and the loader is what has to be right.
+        for leg in ("classical", "pq"):
+            seen = []
+            for entry in attesters.values():
+                # A key that is absent cannot be shown distinct from anything,
+                # and an entry that is not an object has no keys at all.
+                # Refusing is the only fail-safe reading of either.
+                if not isinstance(entry, dict) or leg not in entry:
+                    raise Refused("Malformed")
+                if entry[leg] in seen:
+                    raise Refused("RegistryKeysNotDistinct")
+                seen.append(entry[leg])
 
     @staticmethod
     def _check_two_person_integrity(manifest) -> None:

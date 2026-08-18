@@ -54,9 +54,22 @@ def manifest(epoch=7, expires="2027-01-01T00:00:00Z", author="ana", reviewer="bo
 
 
 def registry(k=2, keys=("ka", "kb")):
+    return registry_of(k, [("approver", v, v) for v in keys])
+
+
+def registry_of(k, entries):
+    """A registry with per-entry control of role, classical and pq.
+
+    The old fixture set both legs from one string and emitted no `role` at all,
+    which is exactly why PB-7 looked covered: with those entries, "shares a key"
+    and "is byte-identical" were the same condition, so a whole-entry comparison
+    passed the only test that existed. ACP-53. A fixture that cannot express the
+    attack cannot test for it, and this one could not.
+    """
     return json.dumps({
         "schema_version": "1", "quorum_k": k,
-        "attesters": {f"p{i}": {"classical": v, "pq": v} for i, v in enumerate(keys)},
+        "attesters": {f"p{i}": {"role": r, "classical": c, "pq": q}
+                      for i, (r, c, q) in enumerate(entries)},
     }).encode()
 
 
@@ -224,13 +237,65 @@ def t_author_and_reviewer_must_differ():
     return refuses(lambda: host().activate(ms, HYBRID, sign(ms), NOW), "AuthorIsReviewer")
 
 
-def t_two_attesters_sharing_a_key_are_refused():
-    # PB-7: one private key signs two objects differing only in their nonces,
-    # labelled with two names, satisfying k=2 alone.
+# PB-7, all four shapes. One private key signs two objects differing only in
+# their nonces, labelled with two names, satisfying k=2 alone.
+#
+# Four cases rather than one because until ACP-53 only the first was tested,
+# only the first was caught, and the other three were ACCEPTED by both
+# implementations. The check compared whole entries, so anything that differed
+# anywhere in the entry — a role, the other leg — walked through it.
+
+def _registry_refused(entries):
     ms = members()
-    ms[2] = ("attesters/registry.json", registry(keys=("same", "same")))
+    ms[2] = ("attesters/registry.json", registry_of(2, entries))
     return refuses(lambda: host().activate(ms, HYBRID, sign(ms), NOW),
                    "RegistryKeysNotDistinct")
+
+
+def t_two_attesters_with_identical_entries_are_refused():
+    return _registry_refused([("approver", "same", "same"),
+                              ("approver", "same", "same")])
+
+
+def t_two_attesters_sharing_a_key_under_different_roles_are_refused():
+    # The attack ACP-53 names, and the worst of the four: approver plus
+    # confirmer is exactly the pairing DR-9 requires for an irreversible action
+    # at floor-HIGH. A role is not a verification key.
+    return _registry_refused([("approver", "same", "same"),
+                              ("confirmer", "same", "same")])
+
+
+def t_two_attesters_sharing_only_the_post_quantum_key_are_refused():
+    # The case the old code comment claimed to handle and did not.
+    return _registry_refused([("approver", "ka", "shared"),
+                              ("approver", "kb", "shared")])
+
+
+def t_two_attesters_sharing_only_the_classical_key_are_refused():
+    return _registry_refused([("approver", "shared", "ka"),
+                              ("approver", "shared", "kb")])
+
+
+def t_genuinely_distinct_attesters_are_accepted():
+    # Without this the four refusals above are satisfied by a check that
+    # refuses everything, which is not a control either.
+    ms = members()
+    ms[2] = ("attesters/registry.json",
+             registry_of(2, [("approver", "ka", "pa"), ("confirmer", "kb", "pb")]))
+    h = host()
+    h.activate(ms, HYBRID, sign(ms), NOW)
+    return h.active_epoch == 7, "distinct registry activates"
+
+
+def t_an_attester_entry_with_no_verification_key_is_refused():
+    # A key that is absent cannot be shown distinct from anything.
+    ms = members()
+    ms[2] = ("attesters/registry.json", json.dumps({
+        "schema_version": "1", "quorum_k": 2,
+        "attesters": {"alice": {"role": "approver", "classical": "ka", "pq": "pa"},
+                      "bob": {"role": "confirmer", "classical": "kb"}},
+    }).encode())
+    return refuses(lambda: host().activate(ms, HYBRID, sign(ms), NOW), "Malformed")
 
 
 def t_absent_quorum_k_is_refused_not_defaulted():

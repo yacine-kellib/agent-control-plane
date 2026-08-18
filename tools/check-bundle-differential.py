@@ -65,9 +65,24 @@ def manifest(epoch=7, expires="2027-01-01T00:00:00Z", author="ana", reviewer="bo
 
 
 def registry(k=2, keys=("ka", "kb")):
+    return registry_of(k, [("approver", v, v) for v in keys])
+
+
+def registry_of(k, entries):
+    """A registry with per-entry control of role, classical and pq.
+
+    The old fixture set both legs from one string and emitted no `role`, so
+    "shares a key" and "is byte-identical" were the same condition and the one
+    PB-7 case here passed against a check that compared whole entries. Both
+    implementations were wrong in the same way and this file agreed with itself
+    (ACP-53) -- which is §15's limit arriving in the tool built to test for it.
+    """
     return json.dumps({
         "schema_version": "1", "quorum_k": k,
-        "attesters": {f"p{i}": {"classical": v, "pq": v} for i, v in enumerate(keys)},
+        "attesters": {
+            f"p{i}": {k: v for k, v in
+                      (("role", r), ("classical", c), ("pq", q)) if v is not None}
+            for i, (r, c, q) in enumerate(entries)},
     }, indent=1).encode()
 
 
@@ -77,10 +92,13 @@ def build(root, *, suite=HYBRID, key=KEY, strip_pq=False, no_quorum=False, **kw)
     # Popped BEFORE the dict literal: every value in a literal is evaluated,
     # so popping inside it left `keys` in the kwargs `manifest` receives.
     attester_keys = kw.pop("keys", None)
+    attester_entries = kw.pop("entries", None)
     if no_quorum:
         registry_bytes = json.dumps(
             {"schema_version": "1",
              "attesters": {"a": {"classical": "x", "pq": "x"}}}, indent=1).encode()
+    elif attester_entries is not None:
+        registry_bytes = registry_of(2, attester_entries)
     elif attester_keys is not None:
         registry_bytes = registry(keys=attester_keys)
     else:
@@ -154,8 +172,30 @@ CASES = [
      "PB-1: beyond the window, refused"),
     ("author-is-reviewer", {"author": "ana", "reviewer": "ana"}, {},
      "PB-2: two-person integrity, compared on id"),
+    # PB-7, all four shapes. Until ACP-53 only the first was here, and it was
+    # the only one either implementation caught -- the check compared whole
+    # entries, so anything differing anywhere in the entry walked through. Both
+    # were wrong identically, so this file agreed and reported agreement, which
+    # is exactly what §15 says a differential cannot rule out.
     ("shared-attester-key", {"keys": ("same", "same")}, {},
      "PB-7: one private key satisfying a k=2 quorum alone"),
+    ("shared-key-different-roles",
+     {"entries": [("approver", "same", "same"), ("confirmer", "same", "same")]}, {},
+     "PB-7: a role is not a verification key -- and approver+confirmer is the "
+     "pairing DR-9 demands at floor-HIGH"),
+    ("shared-pq-leg-only",
+     {"entries": [("approver", "ka", "shared"), ("approver", "kb", "shared")]}, {},
+     "PB-7: the case the old code comment claimed to handle and did not"),
+    ("shared-classical-leg-only",
+     {"entries": [("approver", "shared", "ka"), ("approver", "shared", "kb")]}, {},
+     "PB-7: either leg colliding is a collision, not both"),
+    ("distinct-attesters",
+     {"entries": [("approver", "ka", "pa"), ("confirmer", "kb", "pb")]}, {},
+     "PB-7 positive path: without it the four refusals above are satisfied by "
+     "a check that refuses everything"),
+    ("attester-with-no-key",
+     {"entries": [("approver", "ka", "pa"), ("confirmer", "kb", None)]}, {},
+     "a key that is absent cannot be shown distinct from anything"),
     ("absent-quorum-k", {"no_quorum": True}, {},
      "PB-6: refused rather than defaulted"),
     ("epoch-rollback", {"epoch": 6}, {"high_water": 7},

@@ -101,7 +101,7 @@ run llm_agent_suite.py      "44/44"      "Suite 10 live-agent client"
 # for several releases and silently dropped three fields from a hash (ACP-35);
 # the cross-language half needs cargo and runs from selftest.sh instead, so this
 # gate stays runnable with Python alone.
-run bundle_suite.py         "27/27"      "Suite 11 policy bundle (PB-1..PB-8)"
+run bundle_suite.py         "32/32"      "Suite 11 policy bundle (PB-1..PB-8)"
 # NOT numbered as a suite, deliberately. Its corpus is fixtures until the
 # published ART file is wired, so calling it "Suite 11" would let a reader
 # count it as external evidence it does not yet carry. What it asserts today is
