@@ -57,7 +57,16 @@ sync() {
     # '|' as the delimiter, not '/': several of these patterns contain a
     # slash ("32/32", "bundle_suite.py"), which silently terminated the
     # expression early and produced "bad flag in substitute command".
-    if ! after=$(sed -E "s|$pattern|$replacement|g" "$f" 2>/dev/null); then
+    #
+    # sed writes to a TEMP FILE, not to a shell variable. $( ) strips EVERY
+    # trailing newline, so a file ending in a blank line came back one line
+    # short and tripped the guard below -- a HALT on a perfectly correct
+    # substitution, which made spec/ACP-DEPLOY-001.md permanently unsyncable
+    # and would have done the same to any future file ending in a blank line.
+    # Comparing files rather than strings also makes the write byte-exact.
+    TMP=$(mktemp)
+    if ! sed -E "s|$pattern|$replacement|g" "$f" > "$TMP" 2>/dev/null; then
+      rm -f "$TMP"
       printf '  \033[31mHALT\033[0m  %-28s sed failed on %s\n' "$label" "$f"
       exit 2
     fi
@@ -68,24 +77,25 @@ sync() {
     # back as one blank line, printing SYNC. A destructive edit that reports
     # success is worse than the drift the script exists to remove, so it halts
     # (exit 2, distinct from 1 = drift) rather than writing.
-    if [ "$(printf '%s\n' "$after" | wc -l)" -ne "$(wc -l < "$f")" ]; then
+    if [ "$(wc -l < "$TMP")" -ne "$(wc -l < "$f")" ]; then
       printf '  \033[31mHALT\033[0m  %-28s %s: line count would change\n' "$label" "$f"
       printf '        (%s -> %s) — the pattern or replacement is malformed;\n' \
-        "$(wc -l < "$f")" "$(printf '%s\n' "$after" | wc -l)"
+        "$(wc -l < "$f")" "$(wc -l < "$TMP")"
       printf '        refusing to write. Nothing was modified.\n'
+      rm -f "$TMP"
       exit 2
     fi
-    if [ "$after" != "$(cat "$f")" ]; then
+    if ! cmp -s "$TMP" "$f"; then
       moved=$((moved + 1))
       DRIFT=1
       if [ $CHECK -eq 1 ]; then
         printf '  \033[33mDRIFT\033[0m %-28s %s would change\n' "$label" "$f"
       else
-        # printf '%s\n' restores the trailing newline that $( ) strips.
-        printf '%s\n' "$after" > "$f"
+        cat "$TMP" > "$f"
         printf '  \033[32mSYNC\033[0m  %-28s %s -> %s\n' "$label" "$f" "$want"
       fi
     fi
+    rm -f "$TMP"
   done
   if [ "$hits" -eq 0 ]; then
     printf '  \033[31mMISS\033[0m  %-28s pattern matched nothing — the published\n' "$label"
