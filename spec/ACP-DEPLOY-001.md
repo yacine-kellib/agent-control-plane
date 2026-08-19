@@ -10,7 +10,7 @@ NOT EXECUTED BY ANY GATE**
 This section comes first because the limits are larger than the claims, and a reader who
 stops here should stop with the right impression.
 
-**Nothing here is executed.** 73 of this document's 79 clauses have no check that
+**Nothing here is executed.** 78 of this document's 85 clauses have no check that
 would catch their violation. That is not an oversight to be fixed later by writing more
 tests — most of a deployment specification constrains an operator's infrastructure, and this
 repository's gates run in a process, not in a datacentre. §9 names every unchecked clause
@@ -19,8 +19,9 @@ with no executable consumer is this project's recurring defect: it produced thre
 corrections in a single day (the schema describing an artifact nobody builds, AU-1's audit
 chain disagreeing with the reference, and `CL-7` naming two normative rules).
 
-**Nothing here runs.** The architecture this document specifies has no implementation. Every
-service `main()` in `services/` exits non-zero by design, and four components named
+**Nothing here runs.** The architecture this document specifies has no implementation. The four Rust
+services' `main()` returns `ExitCode::FAILURE` and the two TypeScript services have
+no entry point at all (ACP-63), and four components named
 throughout — the API gateway, the KMS signing substrate, the audit service and the egress
 proxy — have no source directory at all. The one that matters most is the KMS: custody tiers
 T2 (cloud KMS) and T3 (HSM) are **declared and not implemented**, T0 refuses to sign for
@@ -79,7 +80,7 @@ Clause ids use the `DP-` family, which collides with no family in `ACP-SPEC-001`
 
 ## 1. Status of This Document (Normative)
 
-> **⚠ NORMATIVE ALERT (first revision). This document is new, it is unconfirmed, and most of its clauses are checked by no command.** ACP-SPEC-001 §1 records the same defect three times in one revision — normative text with no executable consumer: a bundle schema describing an artifact nobody builds, an audit-chain formula (AU-1) no suite ever compared against, and a clause id (CL-7) naming two different rules. A *deployment* specification is more exposed to that defect than any other kind, because almost nothing it says can be executed: no control-plane service in the reference repository boots — every service `main()` exits non-zero by design, so a scaffold cannot be mistaken for a running control plane — and no command reads this document's prose. §9 is therefore part of the normative text and not an appendix to it — it names, per clause group, the command that goes red when a clause is violated, or says plainly that none does. A clause here with no entry in §9 is an editing error, not a covered clause.
+> **⚠ NORMATIVE ALERT (first revision). This document is new, it is unconfirmed, and most of its clauses are checked by no command.** ACP-SPEC-001 §1 records the same defect three times in one revision — normative text with no executable consumer: a bundle schema describing an artifact nobody builds, an audit-chain formula (AU-1) no suite ever compared against, and a clause id (CL-7) naming two different rules. A *deployment* specification is more exposed to that defect than any other kind, because almost nothing it says can be executed: no control-plane service in the reference repository boots — no service has a startable entry point (ACP-63), so a scaffold cannot be mistaken for a running control plane — and no command reads this document's prose. §9 is therefore part of the normative text and not an appendix to it — it names, per clause group, the command that goes red when a clause is violated, or says plainly that none does. A clause here with no entry in §9 is an editing error, not a covered clause.
 >
 > **The clause ids in this document are, at the time of writing, checked by reading and not by running.** The clause-id uniqueness assertion in `tools/selftest.sh` takes one hardcoded path, `spec/ACP-SPEC-001.md`, and does not see this file; an id here that collides with a live id there ships green. `DP-` was verified free of collision against ACP-SPEC-001's bullet-defined families, against every clause prefix appearing anywhere in `spec/`, `dossier/`, `README.md` and `CLAUDE.md`, and against the whole working tree including gitignored files. That verification is a fact established by reading, and it decays the moment anyone allocates a family. §9 specifies the widening that turns it into a control and states what remains uncovered afterwards.
 >
@@ -557,7 +558,7 @@ That is not a cosmetic omission, because the specification names durable state i
 
   *Coverage, stated rather than implied.* No test in this repository steps a clock during a hold, and none could without a boot path to step it in. This clause is an obligation on a deployment and an instruction to an auditor. It is not evidence.
 
-**Coverage of this section, before anything it claims.** Nothing in this repository boots — every service `main()` exits non-zero by design — so **every clause DP-46 through DP-53 is recorded NOT CHECKED in §9's table**, and none of them is credited to an existing gate. The one adjacent check, `bundle_suite.py`'s restored-host case, covers the bundle host's RAD-3 mark and is named under DP-47 with its scope stated so it cannot be read as covering the Executor. The check that would make DP-47 a control is a restart case in the ledger suite (§14 suite 10) asserting that a restarted Executor refuses a superseded bundle epoch; the check that would make DP-48 one is a case asserting that an action in `pending_release` at shutdown is voided and not released. Until those are written, this section is a specification of an obligation and not a demonstration of one, and it should be read the way §14 suite 11 asks the rest of the document to be read.
+**Coverage of this section, before anything it claims.** Nothing in this repository boots — no service has a startable entry point (ACP-63) — so **every clause DP-46 through DP-53 is recorded NOT CHECKED in §9's table**, and none of them is credited to an existing gate. The one adjacent check, `bundle_suite.py`'s restored-host case, covers the bundle host's RAD-3 mark and is named under DP-47 with its scope stated so it cannot be read as covering the Executor. The check that would make DP-47 a control is a restart case in the ledger suite (§14 suite 10) asserting that a restarted Executor refuses a superseded bundle epoch; the check that would make DP-48 one is a case asserting that an action in `pending_release` at shutdown is voided and not released. Until those are written, this section is a specification of an obligation and not a demonstration of one, and it should be read the way §14 suite 11 asks the rest of the document to be read.
 
 
 ---
@@ -712,7 +713,7 @@ This is the shortest normative section in this document, and the length is the f
 
 **A correction worth recording, and this section is where it surfaced.** The §4.1 threat table names the countermeasure for induced attestation flooding (T-17) as *"Queue isolation (§8.6a) + ES-6 monitoring"*. `ES-6` is defined nowhere. It occurs exactly once in ACP-SPEC-001 and exactly once in the whole repository — that cell — and there is no `ES-` clause family at all. This section found it by writing, because T-17 is precisely the threat a capacity section cites, so the citation this section would naturally have made is a citation of a promise with nothing behind it. It is unfalsifiable in the `CL-7` way, inverted: `CL-7` was one id naming two rules, so a claim of "CL-7 satisfied" could satisfy either and cite the clause honestly, whereas this is one id naming zero rules, so no implementation can satisfy or fail "ES-6 monitoring" and no conformance claim about T-17's mitigation means anything. Nothing in the repository could have caught it by running: the clause-id uniqueness assertion reports ids defined **twice** and is blind by construction to an id defined **never**. The disposition is a specification-side action this document cannot take — define ES-6, or strike the promise from T-17's countermeasure column and publish the removal as a correction. Adding it to an exception list to keep the dangling-clause-id check registered in §9 green would be resolving the finding by retuning the instrument that found it, and is not available. The finding is filed rather than reported only here.
 
-**Conformance status of this section (Normative Disclosure).** No command in this repository goes red when DP-65, DP-66 or DP-67 is violated, and this section claims no coverage for any of them. DP-65 is observable only in a running deployment's queue, and nothing in this repository runs a queue — every service `main()` exits non-zero by design. DP-66 constrains what future normative text may say and has no runtime shape at all. DP-67 constrains prose in documents this repository does not own. The nearest executable neighbours are the partition suites, and they exercise ledger safety under partition rather than queue capacity; citing them here would be borrowing coverage from a test that checks something else, which is the failure this document's §9 register exists to prevent. All three clauses are recorded there as NOT CHECKED. The check that would change that is a queue-behaviour case asserting that an item over the configured depth bound expires void rather than disappearing, and it does not exist.
+**Conformance status of this section (Normative Disclosure).** No command in this repository goes red when DP-65, DP-66 or DP-67 is violated, and this section claims no coverage for any of them. DP-65 is observable only in a running deployment's queue, and nothing in this repository runs a queue — no service has a startable entry point (ACP-63). DP-66 constrains what future normative text may say and has no runtime shape at all. DP-67 constrains prose in documents this repository does not own. The nearest executable neighbours are the partition suites, and they exercise ledger safety under partition rather than queue capacity; citing them here would be borrowing coverage from a test that checks something else, which is the failure this document's §9 register exists to prevent. All three clauses are recorded there as NOT CHECKED. The check that would change that is a queue-behaviour case asserting that an item over the configured depth bound expires void rather than disappearing, and it does not exist.
 
 **On the unused ids.** DP-68 through DP-70 are deliberately never allocated: three clauses are what can honestly be required, and a range padded to look thorough would be the visible form of the thing DP-66 declines to do.
 
@@ -789,6 +790,11 @@ Ranges are cited by section and clause range. Where the check cell names a comma
 | Every range — a clause id cited but defined nowhere | New assertion that every `[A-Z]{2,4}-[0-9]+` cited in `spec/*.md` is defined in bullet form in `spec/*.md`, modulo an enumerated and individually justified exception list, mirroring the rule that any unlisted `T` in the classification suite is a conformance failure. **This assertion is RED at introduction**: `ES-6` is cited at `spec/ACP-SPEC-001.md:270` as the countermeasure for induced fail-closed attestation flood (T-17) and is defined nowhere in the specification or the repository. It goes green only when `ES-6` is defined or the promise is withdrawn — not by adding it to the exception list, which would be retuning the instrument that found it. | SHIPPED-WITH |
 | §9 Executable consumers, DP-71 .. DP-76 — clause-id collisions | The uniqueness scan in `tools/selftest.sh`, widened from one literal path to `git ls-files 'spec/*.md'`, with the manufactured collision moved into a copy of *this* file per DP-73. Catches an id defined twice, within this document or across both. | SHIPPED-WITH |
 | §9 Executable consumers, DP-71 .. DP-76 — everything else: register completeness, correct statuses, the no-count rule, inherited UNCONFIRMED status | None. Nothing diffs this table against the gate, nothing enumerates this document's clauses, and nothing greps this file for a number. See DP-71's positive-path admission. | NOT CHECKED |
+| §11 Flow legs, DP-87 — every cited obligation resolves to a mechanism | `tools/check-flow-legs.py`. Parses Annex A, and for every clause a leg cites asserts a matching `FailClosed`/`CriticalAlert` label exists in `reference/src` or `sim`, or an exemption naming the covering mechanism. Two mutation tests hold it honest: relabelling every `DR-9` raise, and citing a clause nothing enforces, each go red naming the leg. Two aliases are recorded rather than hidden — `PB-7` raises as `PB-DISTINCT`, and step `9.3-7` raises as `TR-8`. | **CHECKED** |
+| §11 Flow legs, DP-83, DP-86 — the register is COMPLETE | None. `check-flow-legs.py` validates the citations on rows that exist and cannot see a crossing nobody wrote down. Deleting a leg row entirely leaves it green — verified by deleting `F3.5` and watching it pass. Completeness is the obligation this section exists to impose and the one nothing enforces, which is stated here rather than left for a reader to discover. | NOT CHECKED |
+| §11 Flow legs, DP-84 — citations are not restatements | None mechanically. A widened clause-id scan reports an id *defined* twice; nothing reports a requirement *paraphrased* once. Same limit **DP-3** records for itself. | NOT CHECKED |
+| §11 Flow legs, DP-85 — a no-obligation leg is disclosed | Partially. The checker counts and prints legs declaring no receiving obligation (currently `F2.3`, `F7.1`) so the number is visible, but nothing verifies the declaration is *true* — a leg whose receiver silently checks nothing and says nothing is indistinguishable from one with no row. | NOT CHECKED |
+| §11 Flow legs, DP-88 — the register is not read at runtime | None, and none is possible from inside this repository. Nothing here boots, so no component can be observed reading or not reading it. | NOT CHECKED |
 | §10 Residual risk and open problems, DP-77 .. DP-82 | None. A residual is a disclosure rather than an obligation, so there is no violation to catch; what a check *could* catch is a residual quietly disappearing without a closing change, and nothing does that either. | NOT CHECKED |
 
 **Disclosure of how this register was derived, and where it is weakest.** Every CHECKED row was established by reading the command and the test it runs, not by observing a green run in the session that wrote this section: the per-commit gate takes minutes and the full tooling self-test invokes both the gate and cargo. Every SHIPPED-WITH row is a **promise about a commit**, and that is this section's own exposure to the defect it is written against. If a Tier-B check is dropped, weakened or deferred before the commit lands, this table over-claims, and nothing in the repository would diff the table against what actually shipped — the failure would be a green run whose disclosure section is wrong, which is the exact shape of the artifacts ACP-50, ACP-56 and ACP-57 corrected. The mitigation available today is a review obligation and not a control: **before this document is published, every SHIPPED-WITH row MUST be re-read against the commit that carries it, and any row whose check did not land MUST be demoted to NOT CHECKED in the same commit.** Demoting a row is the cheap outcome. Publishing a status the tooling does not support is not.
@@ -803,7 +809,7 @@ Ranges are cited by section and clause range. Where the check cell names a comma
 
 The limits come before the claims here, as they do in the specification's Security Considerations (ACP-SPEC-001 §15) and in `dossier/06-RESIDUAL-RISK.md`. Two things separate this section from those, and both are weaknesses rather than strengths.
 
-First, **these are residuals of a document, not of a running system.** Nothing specified here boots: every service `main()` in this repository exits non-zero by design, so a deployment residual cannot be demonstrated the way a ledger residual can be demonstrated by running the partition suites. The residuals below were found by reading, and reading is the method that found the three corrections ACP-SPEC-001 §1 publishes.
+First, **these are residuals of a document, not of a running system.** Nothing specified here boots: no service in this repository has a startable entry point, and every Rust `main()` exits non-zero by design, so a deployment residual cannot be demonstrated the way a ledger residual can be demonstrated by running the partition suites. The residuals below were found by reading, and reading is the method that found the three corrections ACP-SPEC-001 §1 publishes.
 
 Second, and worse, **no command in this repository goes red if any clause in this section is violated.** §9 records that per clause group rather than leaving it to be inferred, and each clause below repeats it in its own terms. This is not an aside. A deployment specification is the artifact most exposed to the defect ACP-SPEC-001 §1 records recurring three times in one day — normative text with no executable consumer — precisely because so little of it is executable, and a residual section that implied coverage it does not have would be a fourth instance rather than a disclosure of the first three.
 
@@ -863,3 +869,101 @@ Residuals carry `DP-` ids so that `spec/vectors/OBLIGATIONS.md` can key per-impl
 
 
 ---
+
+---
+
+## 11. Flow Legs and Receiving Obligations (Normative)
+
+Sections 2 through 8 specify domains, the components assigned to them, the
+credentials they hold and the stores they depend on. They do not specify the
+**wire between them**: what crosses each boundary, and what the receiving
+component is obliged to do before it acts. This section adds that, and adds
+nothing else — every requirement a receiver applies belongs to ACP-SPEC-001 and
+is cited here rather than reproduced (**DP-3**).
+
+- **DP-83 (NEW — Normative). Every crossing of a domain boundary is a leg, and the deployment record enumerates them.** The deployment record **MUST** enumerate, as a **leg**, every crossing of a boundary between two of the seven domains (**DP-5**), and **MUST** give each leg a stable identifier naming its source component, its destination component, and the artifact carried. Identifiers **MUST** be retired rather than reused when a leg is removed.
+
+  *Why enumeration rather than a diagram.* Absence is legible in a list and invisible in a picture, which is the argument §2 already makes for replacing one with the other, restated one layer down. The artifact this document replaced drew seven flows and labelled one of them "the only inbound door" — a claim its own edges falsified, because attestation objects reached the **KMS** and acknowledgements reached the **Executor** across the same boundary, and the time source crossed it without being drawn at all. **DP-7** records that correction. This clause is what prevents the next one: a crossing that has no row cannot be miscounted, because it was never counted.
+
+  *Why identifiers are retired and not reused.* Alerts, runbooks and incident records outlive the document that named the leg. A reused identifier silently redirects a reader from the crossing they are investigating to a different one.
+
+- **DP-84 (NEW — Normative). Each leg cites the receiving obligation by clause id and does not restate it.** For each leg, the record **MUST** cite, by ACP-SPEC-001 clause id, every requirement the **receiving** component applies before acting on the artifact, and **MUST NOT** paraphrase those requirements in its own words.
+
+  *This is **DP-3** applied to the wire, and it is where paraphrase is most tempting.* A leg table invites a plain-language summary of what the receiver checks, because a bare clause id reads as unhelpful. That summary is a second description of a requirement that already has one, and by the third document the mapping back is a reader's inference. The audit chain (**AU-1**) and bundle signature (**PB-8**) corrections are both instances of that failure inside the normative source itself.
+
+- **DP-85 (NEW — Normative). A leg whose receiver applies no obligation is recorded as trusting the channel, and mapped to a disclosed residual.** Where a receiving component applies no verification before acting, the record **MUST** state that explicitly and **MUST** identify the disclosed residual that permits it. A leg carrying no obligation and no such statement is a conformance failure of this document.
+
+  *This is RES-8's rule for the wire, and the omission it closes is the dangerous one.* A leg table listing only the legs that check something reads as complete while describing a subset. Every unchecked crossing is a place where a verifier accepts an artifact from a party on the strength of the channel it arrived on, which is the class ACP-SPEC-001 has hit five times (C2 → X1 → Y1 → Z3 → W1). Suite 12's classification (**§14**) already requires every control **input** to be **R**, **B** or **T** with each **T** disclosed; this clause requires the same discipline of every control **artifact in transit**, which suite 12 does not reach because it classifies inputs at a consumer rather than crossings at a boundary.
+
+- **DP-86 (NEW — Normative). Legs are enumerated for stores, and for components no one has implemented.** The leg register **MUST** include crossings to and from the **Context Store**, the **Bundle Repository**, the **Consumption Ledger** and the **Audit subsystem**, and **MUST** include every component named in **DP-16** irrespective of whether an implementation exists. A component **MUST NOT** be absent from the register on the grounds that it is unbuilt.
+
+  *Why unbuilt components still get rows, and the failure is an enumeration failure.* A component missing because nobody built it is indistinguishable, in a register, from a component that carries no traffic. The distinction matters exactly when planning: the **Context Store** is read at evaluation-order steps 4 through 6 and again at **§9.3 step 9**, and a plan that enumerates services and omits stores will schedule the decision path without scheduling the thing it reads. ACP-SPEC-001 records the same shape one register down as **T-33** — the quorum threshold was an *unenumerated* **T**, and the method could not classify a row nobody had listed. The failure was of enumeration, not of classification.
+
+- **DP-87 (NEW — Normative). A cited clause resolves to a named enforcement mechanism, or is labelled a positive-path obligation with its proof named.** Every clause cited under **DP-84** **MUST** resolve to a named mechanism that refuses when the obligation is unmet. Where the obligation is an ordering or structural property that no refusal can express, the record **MUST** label it a **positive-path obligation** and **MUST** name the test that establishes it. A citation resolving to neither **MUST** be treated as a defect in the record.
+
+  *What this clause is for, stated as the failure it catches.* A clause id resolving in ACP-SPEC-001 proves only that someone **wrote** the rule. It says nothing about whether anything **applies** it, and a receiver obligation that reads as a control and is a sentence is worse than an absent one, because it is published as evidence. This is the same requirement §14's mutation discipline places on a control — a check that kills no mutant is not a control — moved from the implementation to the description of it.
+
+  *The positive-path escape is narrow, deliberately.* Check-then-mutate ledger ordering (**CL-7**) is the worked example: deleting it raises nothing, because the failure is silent corruption rather than a refusal. Labelling it and naming the partition test that proves adoption after heal is a disclosure. Labelling an obligation nobody tested is the abuse this sentence exists to forbid, and the difference is whether the named proof exists and fails when broken.
+
+- **DP-88 (NEW — Normative). The leg register is not a control input.** No component **MAY** weight any decision on the leg register, and no verifier **MAY** read a leg identifier, a cited clause, or an obligation status out of it at runtime.
+
+  *The posture is **DP-5**'s, for the same reason, and it is stated separately because the temptation here is stronger.* The record enumerates exactly the checks a verifier performs, so a verifier consulting it to decide what to check would be reading its own obligations from a document the deploying party writes. That is the fifth-recurrence shape, in machinery written to describe the boundary. **If a future revision gives a runtime component a reason to read this register, that revision has introduced the recurrence.**
+
+**What this section does not do.** It does not specify a transport, a serialization, an ordering between legs, or a retry policy; **§12.2** governs transport and **DS-\*** governs delivery. It does not require a leg to exist — the topology decides that, not this document. And it does not make the leg register evidence that a deployment behaves as the register says: like every other obligation in this document, it constrains an artifact written by the deploying party, and an assessor reading it is reading a claim.
+
+---
+
+## Annex A — Leg register for the reference topology (Informative)
+
+**Informative, and the distinction matters.** This annex is not a required
+topology. It is the leg register for the topology in this repository, published
+for two reasons: it is the worked example **DP-83** through **DP-88** are
+otherwise stated without, and it is the artifact `tools/check-flow-legs.py`
+reads, which is what makes **DP-87** checkable at all rather than aspirational.
+
+A deployment with a different topology has different legs. The obligations
+apply; these rows do not.
+
+Component names are **DP-16**'s. Clause ids are cited, never restated
+(**DP-84**). Legs marked *positive-path* carry the **DP-87** label and name
+their proof.
+
+| Leg | Crossing | Receiving obligation, cited |
+| --- | --- | --- |
+| F1.1 | proposing application → Ingress Adapter | V-3, B-6 |
+| F1.2 | Ingress Adapter → Input / Output Schema Validator | V-3, B-1 |
+| F1.3 | Input / Output Schema Validator → Policy Engine | B-1, B-6 |
+| F1.4 | LLM → Input / Output Schema Validator | B-3 — raw model output crosses to the validator and to nothing else |
+| F2.1 | authoring host → offline key custody | PB-2 |
+| F2.2 | offline key custody → signed bundle | PB-5, PB-7, PB-8 |
+| F2.3 | offline custody → Bundle Repository | *no receiving obligation — one-way transfer; the obligation is at every read below* |
+| F2.4 | Bundle Repository → Policy Engine | CR-1, CR-3, CR-4 |
+| F2.5 | Bundle Repository → KMS | RAD-4, RAD-3 |
+| F2.6 | Bundle Repository → Executor | 9.3-4 |
+| F3.1 | Context Store → Policy Engine | CP-2, P-4 |
+| F3.2 | Policy Engine → KMS | RAD-3, RAD-4 |
+| F3.3 | KMS → Executor | 9.3-1, 9.3-2, 9.3-3, 9.3-5, 9.3-7, 9.3-8, TR-8 |
+| F3.4 | Executor → Consumption Ledger | CL-2, CL-3, CL-6, CL-7 |
+| F3.5 | Context Store → Executor | 9.3-9 |
+| F4.1 | Policy Engine → Attestation Presentation Service | AT-3 |
+| F4.2 | Attestation Presentation Service → approver devices | AT-3 |
+| F4.3 | approver device → attestation object | AT-1, AT-8a |
+| F4.4 | approver devices → KMS | AT-8, AT-8b, AT-2, AT-9, PB-7 |
+| F5.1 | Executor internal hold | DR-1, DR-6 |
+| F5.2 | Executor → notification service | DR-2 |
+| F5.3 | notification service → attesters and operator | DR-3, DR-8 |
+| F5.4 | notified party → Executor | DR-9, ACK-1..6 (reference-level) |
+| F5.5 | notified party → Executor | DR-4, DR-5 |
+| F5.6 | Executor internal notice | DR-13 |
+| F6.1 | Executor → Audit subsystem | AU-2 |
+| F6.2 | Audit subsystem → chain store | AU-1 — *positive-path: `audit_suite.py`, "AU-1 clause derives implementation head"* |
+| F6.3 | chain store → anchor verifier | AU-7, AU-8 |
+| F6.4 | anchor verifier → reconciliation job | AU-4 |
+| F6.5 | reconciliation job → findings | 11.3 — checks (a)–(h), incl. AU-7 and AC-5 enforcement. *Unimplemented; see below* |
+| F7.1 | Executor → egress mechanism | *no receiving obligation — an egress mechanism is a deployment choice, not a component (§2); the obligation is B-4 at the Executor* |
+| F7.2 | egress mechanism → effect domain | B-4, D-2 |
+| F8.1 | operator → Ingress Adapter | the operator is the principal AT-2 and DR-9 are stated about. Distinctness is enforced at the Executor (AT-2, DR-9), not here |
+| F8.2 | notification service → operator | DR-3 — the operator is a required recipient, not only the attesters |
+
+**What this register still does not carry.** The **Input / Output Schema Validator** now has rows (F1.2–F1.4), but the reference topology folds its function into the Ingress Adapter, so F1.2 and F1.3 describe a separation the implementation does not make — a topology statement this register asserts and the code does not yet honour. The **reconciliation job** (F6.5) is **unimplemented**: `§11.3` appears in no reference module, and the exemption recorded in `tools/check-flow-legs.py` says so explicitly rather than treating the row as covered. Both are disclosed under **DP-86** rather than left to be noticed.
+

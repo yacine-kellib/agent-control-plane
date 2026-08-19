@@ -733,6 +733,30 @@ else
   bad "published assertion count is $(echo "$PUBLISHED" | tr '\n' ' ')but this run made $EXPECT"
 fi
 
+# --- ACP-63: the scaffold claim, made checkable -------------------------------
+# Published prose says a scaffold cannot be mistaken for a running service. That
+# holds two different ways, so assert BOTH rather than the sentence that used to
+# claim one: a Rust service exits non-zero, a TS service has no entry point.
+for d in executor policy ledger anchor; do
+  grep -q 'ExitCode::FAILURE' "services/$d/src/main.rs" \
+    && ok "services/$d main() returns ExitCode::FAILURE" \
+    || bad "services/$d main() does not exit non-zero"
+done
+for d in notifier approval; do
+  if python3 -c "import json,sys; p=json.load(open('services/$d/package.json')); sys.exit(0 if not p.get('main') and not p.get('bin') else 1)"; then
+    ok "services/$d declares no entry point (nothing to start)"
+  else
+    bad "services/$d declares an entry point but is scaffold"
+  fi
+done
+
+# --- DP-87: every flow-leg obligation resolves to a mechanism -----------------
+if python3 tools/check-flow-legs.py >/dev/null 2>&1; then
+  ok "ACP-DEPLOY-001 Annex A: every cited leg obligation is enforced or exempted"
+else
+  bad "ACP-DEPLOY-001 Annex A: a leg cites an obligation nothing enforces"
+fi
+
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then echo "  tooling self-test passed ($TOTAL assertions)."
 else echo "  tooling self-test FAILED ($TOTAL assertions)."; fi

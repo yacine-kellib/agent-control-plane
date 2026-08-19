@@ -381,7 +381,7 @@ tools/         verify.sh sign-release.sh selftest.sh
 
 **What is real:** the Python reference implementation in `reference/` and everything that replays from it. That is the artifact the evidence is about.
 
-**What is scaffold:** most of `crates/`, `services/`, `orchestrator/` and `deploy/`. Every service `main()` exits non-zero on purpose, so a scaffold cannot be mistaken for a running control plane. Genuinely implemented on that side: the fail-safe defaults in `acp-core`, and CR-3 hybrid signature composition in `acp-crypto`.
+**What is scaffold:** most of `crates/`, `services/`, `orchestrator/` and `deploy/`. The four Rust services each have a `main()` that returns `ExitCode::FAILURE`; the two TypeScript services are libraries with no entry point at all, so there is nothing to start and nothing to exit (ACP-63), so a scaffold cannot be mistaken for a running control plane. Genuinely implemented on that side: the fail-safe defaults in `acp-core`, and CR-3 hybrid signature composition in `acp-crypto`.
 
 `spec/` is the only normative source — Rust and TypeScript types are *generated* from `spec/schemas`, never hand-written. Two hand-maintained definitions of one object is the encoding-split defect at the source level.
 
