@@ -56,7 +56,7 @@ Abridged output. A complete run prints 19 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   151 files match MANIFEST.sha256
+  OK   152 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -413,7 +413,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 151 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 152 files across ten signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
@@ -422,7 +422,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (80 assertions)
+./tools/selftest.sh               # tests the tooling itself (87 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

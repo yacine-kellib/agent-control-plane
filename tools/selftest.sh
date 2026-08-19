@@ -712,27 +712,6 @@ else
 fi
 rm -f "$SPECCOPY"
 
-# THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
-# is TOTAL+1 as measured here, and a reader counting OK lines gets the same
-# figure. An off-by-one would be a wrong published number arriving by exactly
-# the mechanism this block exists to prevent, so it is spelled out rather than
-# left to be noticed.
-#
-# Skipped branches lower the total honestly: a run without cargo makes fewer
-# assertions and must publish fewer, which is why this compares against the
-# count of what actually ran rather than a constant in the script.
-EXPECT=$((TOTAL + 1))
-PUBLISHED=$(git ls-files '*.md' \
-  | xargs grep -ho 'tests the tooling itself ([0-9]\{1,\} assertions)' 2>/dev/null \
-  | grep -o '[0-9]\{1,\}' | sort -u)
-if [ -z "$PUBLISHED" ]; then
-  bad "no tracked .md publishes an assertion count (the check would be vacuous)"
-elif [ "$PUBLISHED" = "$EXPECT" ]; then
-  ok "every published assertion count equals this run ($PUBLISHED vs $EXPECT)"
-else
-  bad "published assertion count is $(echo "$PUBLISHED" | tr '\n' ' ')but this run made $EXPECT"
-fi
-
 # --- ACP-63: the scaffold claim, made checkable -------------------------------
 # Published prose says a scaffold cannot be mistaken for a running service. That
 # holds two different ways, so assert BOTH rather than the sentence that used to
@@ -755,6 +734,27 @@ if python3 tools/check-flow-legs.py >/dev/null 2>&1; then
   ok "ACP-DEPLOY-001 Annex A: every cited leg obligation is enforced or exempted"
 else
   bad "ACP-DEPLOY-001 Annex A: a leg cites an obligation nothing enforces"
+fi
+
+# THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
+# is TOTAL+1 as measured here, and a reader counting OK lines gets the same
+# figure. An off-by-one would be a wrong published number arriving by exactly
+# the mechanism this block exists to prevent, so it is spelled out rather than
+# left to be noticed.
+#
+# Skipped branches lower the total honestly: a run without cargo makes fewer
+# assertions and must publish fewer, which is why this compares against the
+# count of what actually ran rather than a constant in the script.
+EXPECT=$((TOTAL + 1))
+PUBLISHED=$(git ls-files '*.md' \
+  | xargs grep -ho 'tests the tooling itself ([0-9]\{1,\} assertions)' 2>/dev/null \
+  | grep -o '[0-9]\{1,\}' | sort -u)
+if [ -z "$PUBLISHED" ]; then
+  bad "no tracked .md publishes an assertion count (the check would be vacuous)"
+elif [ "$PUBLISHED" = "$EXPECT" ]; then
+  ok "every published assertion count equals this run ($PUBLISHED vs $EXPECT)"
+else
+  bad "published assertion count is $(echo "$PUBLISHED" | tr '\n' ' ')but this run made $EXPECT"
 fi
 
 printf '\n\033[1m== Result ==\033[0m\n'
