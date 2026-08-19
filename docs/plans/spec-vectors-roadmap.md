@@ -42,7 +42,7 @@ afterthought.
 
 | ID | Ticket | Size | Notes |
 |----|--------|------|-------|
-| VEC-8 | Rust vector runner in `crates/acp-conformance`: read the same corpus, evaluate each case, report pass/fail. Depends on implementing enough of the Rust executor (policy evaluation over the bundle) to reach a verdict — so it pulls real `services/executor` / `acp-core` work with it. Likely splits into several tickets once VEC-1 reveals the corpus shape. | L | Blocked by VEC-1..4 |
+| VEC-8 | Rust vector runner in `crates/acp-conformance`: read the same corpus, evaluate each case, report pass/fail. Depends on implementing enough of the Rust executor (policy evaluation over the bundle) to reach a verdict — so it pulls real `acp-core` work with it, plus Executor work that now lives in the product repository (ACP-66) and therefore crosses the repository boundary. Likely splits into several tickets once VEC-1 reveals the corpus shape. | L | Blocked by VEC-1..4 |
 
 ---
 

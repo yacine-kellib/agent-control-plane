@@ -6,10 +6,6 @@ members = [
     "crates/acp-bundle",
     "crates/acp-bundle-cli",
     "crates/acp-conformance",
-    "services/executor",
-    "services/policy",
-    "services/ledger",
-    "services/anchor",
 ]
 
 [workspace.package]

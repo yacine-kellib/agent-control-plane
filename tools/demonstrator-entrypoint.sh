@@ -3,9 +3,9 @@
 #
 # Two jobs: refuse to run unless the operator has said, in the run command, that
 # they know this is not a control plane; and state the three reasons why before
-# anything else is printed. Every scaffold main() under services/ exits non-zero
-# for the same reason -- a thing that runs is assumed to work, and this one does
-# not deliver its own headline invariant.
+# anything else is printed. The reason is the repository's fail-safe default,
+# applied to itself -- a thing that runs is assumed to work, and this one does
+# not deliver its own headline invariant, so absence of the flag is a refusal.
 set -uo pipefail
 
 banner() {
@@ -53,7 +53,8 @@ if [ "${ACP_DEMONSTRATOR:-}" != "1" ]; then
       docker run --rm -e ACP_DEMONSTRATOR=1 acp-demonstrator
 
   This check exists so the container cannot silently become production. It is
-  the same reason every scaffold main() in services/ exits non-zero.
+  the repository's fail-safe default turned on itself: absent input is never
+  read as permission.
 
 EOF
   exit 3
@@ -88,11 +89,11 @@ case "${1:-day}" in
     # the offline release key, which must never be in a container image. Red
     # sections 1-2 between releases are a property of offline signing.
     #
-    # Dafny is NOT installed, so section 3 prints SKIP and the run reports 14
-    # result lines rather than 16. A skipped proof is not a passed one -- to
+    # Dafny is NOT installed, so section 3 prints SKIP and the run reports 17
+    # result lines rather than 18. A skipped proof is not a passed one -- to
     # replay the 36 proofs, run ./tools/verify.sh --suites on a host with Dafny.
     # CI does exactly that on every push.
-    echo "== 14 suites + harness + 35 mutants (proofs SKIPPED: no Dafny in this image) =="
+    echo "== 15 suites + harness + 35 mutants (proofs SKIPPED: no Dafny in this image) =="
     exec ./tools/verify.sh --suites
     ;;
   ingress)

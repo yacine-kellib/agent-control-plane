@@ -109,6 +109,14 @@ sync() {
 printf '\n\033[1m== deriving ==\033[0m\n'
 
 COVERED=$(./tools/sign-release.sh list | wc -l | tr -d ' ')
+
+# ACP-66 shrank ROOTS from ten entries to eight and nothing caught the five
+# places that still said "ten", because the number was published as a WORD and
+# no derivation can match a word. Publishing it as a numeral is what makes it
+# checkable at all. Same defect as ACP-42 and ACP-43: a count kept by hand is a
+# count that drifts, and the fix is to derive it, not to be more careful.
+ROOTS_N=$(sed -n 's/^ROOTS="\(.*\)"$/\1/p' tools/sign-release.sh | wc -w | tr -d ' ')
+printf '  signed roots       %s   (sign-release.sh ROOTS)\n' "$ROOTS_N"
 printf '  covered files      %s   (sign-release.sh list)\n' "$COVERED"
 
 RUST=$(cargo test --workspace 2>&1 \
@@ -160,6 +168,22 @@ sync "covered files (Coverage is)" "$COVERED" \
 sync "covered files (sample run)" "$COVERED" \
   '[0-9]+ files match MANIFEST\.sha256' "$COVERED files match MANIFEST.sha256" \
   README.md
+
+sync "signed roots (in ROOTS)" "$ROOTS_N" \
+  'the [0-9]+ directories in `ROOTS`' "the $ROOTS_N directories in \`ROOTS\`" \
+  CLAUDE.md
+
+sync "signed roots (across N)" "$ROOTS_N" \
+  'across [0-9]+ roots' "across $ROOTS_N roots" \
+  CLAUDE.md
+
+sync "signed roots (signed)" "$ROOTS_N" \
+  'across [0-9]+ signed roots' "across $ROOTS_N signed roots" \
+  README.md
+
+sync "signed roots (deploy spec)" "$ROOTS_N" \
+  'the [0-9]+ signed roots' "the $ROOTS_N signed roots" \
+  spec/ACP-DEPLOY-001.md
 
 sync "rust tests" "$RUST" \
   '# Rust: [0-9]+ tests' "# Rust: $RUST tests" \

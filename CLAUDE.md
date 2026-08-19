@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (87 assertions)
+./tools/selftest.sh                # tests the tooling itself (81 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
@@ -46,7 +46,7 @@ python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
 cargo check --workspace && cargo test --workspace   # Rust: 116 tests
-pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
+pnpm install && pnpm -r typecheck                   # TypeScript: 1 project
 ```
 
 Dependencies: `cryptography` and `dilithium-py`. Since v1.3.14 **`sim/` needs them too** — it signs with real hybrid keys, so the old "standard library only" claim is dead. Dafny is optional — the proof step is skipped if absent.
@@ -68,10 +68,8 @@ Dependencies: `cryptography` and `dilithium-py`. Since v1.3.14 **`sim/` needs th
 spec/          THE NORMATIVE SOURCE — ACP-SPEC-001.md, schemas/, vectors/
 dossier/       THE ARGUMENT — 00–07, annexes/. Not code.
 reference/     Python. Permanent. src/ suites/ proofs/
-crates/        Rust — acp-core, acp-crypto, acp-conformance
-services/      executor policy ledger anchor (Rust) · notifier approval (TS)
-packages/      TS — acp-types (generated), acp-client
-orchestrator/  TS — advances the clock, decides nothing
+crates/        Rust — acp-core, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
+packages/      TS — acp-types, generated from spec/schemas by codegen.sh
 sim/           the business simulation (companion to Annex D)
 deploy/        docker-compose.yml  (no k8s/ — the substrate is deliberately deferred,
                see `git show main:docs/plans/roadmap.md`)
@@ -87,7 +85,7 @@ docs/          working documents — deliberately OUTSIDE the signed roots
 
 The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`. Keep sys.path manipulation in the runner, not in library code.
 
-**Most of `crates/`, `services/`, `orchestrator/` and `deploy/` is scaffold.** The **four Rust services** each have a `main()` that returns `ExitCode::FAILURE`; the **two TypeScript services** are libraries with no entry point at all, so there is nothing to start and nothing to exit (ACP-63). Either way a scaffold cannot be mistaken for a running control plane, but the mechanism differs by language — do not write a health check expecting a process. What is genuinely implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3 — **T2 implemented** behind the `kms` feature as `KmsSigner`, T3 still declared-not-implemented behind `hsm`); and the canonical tree hash in `acp-bundle`.
+**The services are gone from this repository (ACP-66).** All six — four Rust, two TypeScript — moved to the private product repository, and `ROOTS` shrank with them. ACP-63's six scaffold assertions left `selftest.sh` at the same time, because a check that reads absent files passes vacuously. **They have no executable consumer anywhere right now**, which is disclosed rather than closed. What is genuinely implemented here: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3 — **T2 implemented** behind the `kms` feature as `KmsSigner`, T3 still declared-not-implemented behind `hsm`); and the canonical tree hash in `acp-bundle`.
 
 **T2's tests run only under `--features kms`, and that is a gate line, not a build flag.** `cargo test --workspace` uses default features, so the tier would be compiled out of the only Rust command any gate runs and its tests would pass forever by not existing — the same defect as an unrun mutant reporting SURVIVE. `selftest.sh` runs the feature build and asserts it yields **more** tests than the default one. Any future tier or primitive added behind a feature needs the same treatment, or it is unchecked by construction.
 
@@ -111,7 +109,7 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 - **A check that kills no mutant is not a control** — but read that with the fourth and sixth lessons in `dossier/05-TEST-EVIDENCE.md`. Redundancy claims are claims about the attacks you enumerated. Deletion mutants cannot catch a check that is present and means the wrong thing. And nothing at all catches a check that was never written; only an adversary who is not you does that.
 - **Where a branch genuinely cannot carry a mutant, say so and prove the alternative.** DR-13's `record_notice` raises nothing, so no attack succeeds when it is deleted — that was verified by dropping only the commit and confirming conformance goes 51/52 and the harness raises. Label such a branch a positive-path obligation. Do not dress it up as a control, and do not leave the coverage claim unproven.
 
-**`MANIFEST.sha256` is signed with an offline Ed25519 key.** Coverage is three allowlists and no deny-list: **roots** (the ten directories in `ROOTS`), **git-tracked** (`git ls-files`, so build outputs are excluded because they are gitignored), and **extension** (plus `LICENSE` and `Dockerfile` by name). The signer **halts on an unrecognised file type** rather than silently signing or silently skipping it. `.gitignore` is itself signed, because the signer derives its file set from it. Editing *any* covered file invalidates the manifest — this has already happened once to `README.md` via editor auto-format.
+**`MANIFEST.sha256` is signed with an offline Ed25519 key.** Coverage is three allowlists and no deny-list: **roots** (the 8 directories in `ROOTS`), **git-tracked** (`git ls-files`, so build outputs are excluded because they are gitignored), and **extension** (plus `LICENSE` and `Dockerfile` by name). The signer **halts on an unrecognised file type** rather than silently signing or silently skipping it. `.gitignore` is itself signed, because the signer derives its file set from it. Editing *any* covered file invalidates the manifest — this has already happened once to `README.md` via editor auto-format.
 
 `sign` builds into `.tmp` files and moves them into place only after the signature exists, so a mistyped key path cannot destroy the last valid manifest.
 
@@ -121,9 +119,9 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 - A claimed **binding** between artifacts must be verified from the signed bytes of both. A transmitted identifier is a name for a binding, not evidence of one.
 - Conformance suite 12 requires every control input to be classified **R** (recomputed), **B** (bound), or **T** (trusted as transmitted), with every `T` enumerated against a disclosed residual. An unlisted `T` is a conformance failure.
 
-**T-32 is OPEN and must stay open until it is actually closed.** The notifier self-certifies its own independence; `note.source_path`, `note.from_canonical` and `delivered` are classified **T**. Splitting `services/notifier` and `services/approval` into separate codebases improves *build-time* provenance, which R12 already credits — it does **not** move those rows off T, because the Executor still reads them from the party it is verifying. Closing it means the Executor checking two distinct signed service identities named in the signed bundle.
+**T-32 is OPEN and must stay open until it is actually closed.** The notifier self-certifies its own independence; `note.source_path`, `note.from_canonical` and `delivered` are classified **T**. Splitting the Notifier and the Approval service into separate codebases improves *build-time* provenance, which R12 already credits — it does **not** move those rows off T, because the Executor still reads them from the party it is verifying. Closing it means the Executor checking two distinct signed service identities named in the signed bundle.
 
-**`services/notifier` and `services/approval` share nothing above the wire format.** `@acp/types` is the one permitted common dependency — it *is* the wire format. No shared template engine, formatter, sanitiser, date helper or component library. Each keeps its own `render.ts`; factoring them together is not a refactor, it is the vulnerability (DR-2). If a linter flags the duplication, the linter is wrong.
+**DR-2 moved to the product repository, and got harder to enforce.** `services/notifier` and `services/approval` left with the rest of the services (ACP-66). The rule is unchanged and still normative — `@acp/types` is the one permitted common dependency because it *is* the wire format; no shared template engine, formatter, sanitiser, date helper or component library; each keeps its own `render.ts`; factoring them together is not a refactor, it is the vulnerability. What changed is who can catch a violation. This repository no longer holds code that can break DR-2, so no check here will ever fire, and the code that can break it now sits in a repository with no public reviewers. That is a **weakening**, disclosed here because the split is otherwise easy to read as pure gain.
 
 **Fail-safe defaults are deliberate and must not be "helpfully" relaxed.** Resource absent from `floors.json` ⇒ `T3`. Action absent from `reversibility.json` ⇒ `IRREVERSIBLE`. Action with no risk function ⇒ refused at `8.4-3`, *not* graded HIGH. IRREVERSIBLE below floor-HIGH with no entry in `notice_targets` ⇒ refused at `DR-13`, because a notice with no addressee is not a detection channel. Unknown is never LOW (P-4).
 
@@ -161,7 +159,7 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale twice by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 152 files across ten roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 130 files across 8 roots.
 
 **Phase 8 is done (ACP-44).** `tools/codegen.sh` generates the Rust and TypeScript wire types from `spec/schemas/bundle/` and is the first thing that ever read those files — it found four defects on its first pass, one a live quorum bypass (ACP-53: PB-7 compared whole registry entries, so changing a `role` string let one key holder satisfy a k=2 quorum alone). **The fail-safe defaults live in the schema as `x-acp-absent` data**, not in a generator table, and the generator halts rather than guessing when a lookup table has no rule. `x-acp-ordered` is applied only where an order is declared — `SuiteId` gets no `Ord`, because CR-4 is containment and not rank. `tools/sync-counts.sh` re-derives every published count, which had been hand-work and had already recurred twice (ACP-42, ACP-43).
 

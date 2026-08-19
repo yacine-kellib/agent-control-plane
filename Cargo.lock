@@ -3,13 +3,6 @@
 version = 4
 
 [[package]]
-name = "acp-anchor"
-version = "0.0.0"
-dependencies = [
- "acp-core",
-]
-
-[[package]]
 name = "acp-bundle"
 version = "0.0.0"
 dependencies = [
@@ -56,28 +49,6 @@ dependencies = [
  "hex",
  "serde_json",
  "sha2 0.10.9",
-]
-
-[[package]]
-name = "acp-executor"
-version = "0.0.0"
-dependencies = [
- "acp-core",
- "acp-crypto",
-]
-
-[[package]]
-name = "acp-ledger"
-version = "0.0.0"
-dependencies = [
- "acp-core",
-]
-
-[[package]]
-name = "acp-policy"
-version = "0.0.0"
-dependencies = [
- "acp-core",
 ]
 
 [[package]]

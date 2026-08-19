@@ -79,7 +79,7 @@ services:
     <<: *demonstrator
     command: ["acceptance"]
 
-  # The repository's own gate, run inside the image: proofs + 13 suites.
+  # The repository's own gate, run inside the image: proofs + 15 suites.
   # Integrity and signature are deliberately NOT checked here — regenerating the
   # manifest requires the offline release key, which must never be in a
   # container image.

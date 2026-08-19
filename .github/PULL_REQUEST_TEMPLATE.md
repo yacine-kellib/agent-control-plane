@@ -15,14 +15,14 @@ $ ./tools/verify.sh --suites
 paste the last few lines here
 ```
 
-- [ ] `./tools/verify.sh --suites` is green — **15** result lines, 0 failures
-- [ ] `./tools/selftest.sh` passes (34 assertions) — required if you touched anything in `tools/`
+- [ ] `./tools/verify.sh --suites` is green — **18** result lines, 0 failures
+- [ ] `./tools/selftest.sh` passes (81 assertions) — required if you touched anything in `tools/`
 
-<!-- 14 lines instead of 15 means Dafny is not installed and the proof step was skipped. -->
+<!-- 17 lines instead of 18 means Dafny is not installed and the proof step was skipped. -->
 
 ## Signed files
 
-Editing any file under a signed root (`spec dossier reference crates services packages orchestrator sim deploy tools`, or any file at the repository root) invalidates `MANIFEST.sha256`.
+Editing any file under a signed root (`spec dossier reference crates packages sim deploy tools`, or any file at the repository root) invalidates `MANIFEST.sha256`.
 
 - [ ] I have **not** regenerated `MANIFEST.sha256` — only the offline key holder can re-sign, and a manifest whose signature no longer verifies is worse than a stale one
 - [ ] Signed files I touched are listed here, so the maintainer knows what to re-sign:
@@ -33,7 +33,6 @@ Editing any file under a signed root (`spec dossier reference crates services pa
 
 - [ ] I did not copy `reference/src/*.py`. Those modules carry mutation markers that 35 mutants locate by reading the source text — a fork voids that evidence silently. Subclass and extend instead.
 - [ ] I added no model-side filtering, scoring or judging of model output (§5.1a)
-- [ ] I introduced no shared code between `services/notifier` and `services/approval` above `@acp/types` (DR-2)
 - [ ] I did not relax a fail-safe default — unknown is never LOW (P-4)
 - [ ] No verifier in this change accepts a derived security value from the party it is verifying (RES-8)
 

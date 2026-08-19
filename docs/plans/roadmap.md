@@ -164,8 +164,9 @@ When each one starts to matter:
   than it usually is. Premature before a bundle exists.
 
 **There is no UI track.** No ticket, no code, no design. `services/approval` and
-`services/notifier` are TypeScript scaffolds whose `main()` exits non-zero. The file
-`~/Downloads/acp-deployment-architecture.html` is a diagram, not an interface.
+`services/notifier` are TypeScript libraries with no entry point at all — and since
+ACP-66 they are not in this repository, they are in the product one. The deployment
+architecture document is a diagram, not an interface.
 
 ---
 
@@ -215,8 +216,11 @@ manifest).
 
 Recorded so the next reader does not have to rediscover them.
 
-- **`CLAUDE.md` says `deploy/` contains `k8s/`. It does not** — `deploy/` holds only
-  `docker-compose.yml`. Flagged 2026-08-17, still stale.
+- ~~**`CLAUDE.md` says `deploy/` contains `k8s/`. It does not.**~~ Fixed. Flagged
+  2026-08-17; `CLAUDE.md` and `README.md` both now say "no k8s/ — the substrate is
+  deliberately deferred". Left in the list because an entry that says "still stale"
+  about something already fixed is the same defect one level up, and it survived here
+  for two days.
 - **`~/Downloads/acp-deployment-architecture.html`** conflates the spec version with the
   package release version (`v1.3.13` vs package `v1.3.14`), shows **ACK-4** as though it
   were a spec clause when it lives only in `reference/`, and depicts running services that

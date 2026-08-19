@@ -74,9 +74,11 @@ The repository now holds a second implementation surface (Rust, TypeScript) alon
 
 Conformance vectors express *input → verdict*. They do not express the 35 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
 
-### RES-P2 — notifier/approval independence is monorepo-structural
+### RES-P2 — notifier/approval independence is structural, and no longer publicly checkable
 
 `services/notifier` and `services/approval` are separate codebases with separate dependency trees and separate builds, and may share nothing above the wire format. Separate organisations with separate release keys would be stronger. A monorepo was chosen because separate repositories would break *one clone, one command, every claim replays*, which is what this dossier is for. That is a trade, disclosed as one, not an equivalent.
+
+**The two-repository split (ACP-66) made this worse.** Both services moved to the private product repository. They are still two codebases with separate dependency trees, so the structural argument is unchanged — but the repository holding them is not public, so no outside reader can check the claim, and no command in *this* repository can fail on a violation. The trade above bought *one clone, one command* and no longer buys it for these two. Recorded as a weakening, because a split is easy to read as pure gain.
 
 **This does not close T-32.** Splitting the codebases improves *build-time* provenance, which R12 already credited. At run time the Executor still reads `note.source_path`, `note.from_canonical` and `delivered` from the notifier — the party it is verifying — so those rows remain **T**. Closing T-32 requires the Executor to establish independence from two distinct signed service identities named in the signed bundle: values the notifier does not mint. Recording this is the point; RES-8 has now recurred a sixth time, in the machinery a fix introduced.
 

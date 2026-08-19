@@ -8,11 +8,11 @@ If you are sending code, the rules below are not style preferences. Each one exi
 
 ```bash
 python3 -m pip install --break-system-packages cryptography dilithium-py
-./tools/verify.sh --suites      # proofs + 13 suites. Must be green. No key needed.
-./tools/selftest.sh             # tests the tooling itself. 34 assertions.
+./tools/verify.sh --suites      # proofs + 15 suites. Must be green. No key needed.
+./tools/selftest.sh             # tests the tooling itself (81 assertions)
 ```
 
-A clean `--suites` run prints exactly **15** result lines: 1 prerequisites + 1 proofs + 13 suites. If it prints 14, Dafny is missing and the proof step was skipped.
+A clean `--suites` run prints exactly **18** result lines: 1 prerequisites + 1 proofs + 15 suites + 1 external-corpus harness. If it prints 17, Dafny is missing and the proof step was skipped.
 
 Do **not** run `./tools/verify.sh` without `--suites` and treat red integrity as your problem — see below.
 
@@ -44,11 +44,11 @@ No filtering, scoring, or judging of model output, anywhere.
 
 The architecture assumes the model is manipulable and its guarantees do not depend on injection failing. Adding a content filter and relaxing a Door A control on the strength of it is an explicit conformance failure (§5.1a). In demos the model must be shown **complying fully** — simulating a refusal misrepresents the claim.
 
-### `services/notifier` and `services/approval` share nothing above the wire format
+### DR-2 is not enforceable here any more
 
-`@acp/types` is the one permitted common dependency, because it *is* the wire format. No shared template engine, formatter, sanitiser, date helper or component library. Each keeps its own `render.ts`.
+`services/notifier` and `services/approval` moved to the private product repository in the two-repository split (ACP-66), and the rule went with them: `@acp/types` is the one permitted common dependency because it *is* the wire format, and factoring the two together is not a refactor but the vulnerability — one compromised shared library lies to both channels at once, which is exactly the attack the second channel exists to catch.
 
-Factoring them together is not a refactor — it is the vulnerability (DR-2). One compromised shared library lies to both channels at once, which is exactly the attack the second channel exists to catch. **If a linter flags the duplication, the linter is wrong.**
+Nothing you can send to *this* repository can violate that, and no check here will fire on a violation elsewhere. It is listed so a contributor reading the specification's DR-2 knows where the code lives, and so the loss of public review over it is not silent. See RES-P2 in `dossier/06-RESIDUAL-RISK.md`.
 
 ### Do not relax fail-safe defaults
 

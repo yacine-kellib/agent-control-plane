@@ -12,11 +12,11 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ## The two gates
 
 ```bash
-./tools/verify.sh --suites   # proofs + 14 suites + harness. No release key needed.
+./tools/verify.sh --suites   # proofs + 15 suites + harness. No release key needed.
 ./tools/verify.sh            # the above, plus integrity and signature.
 ```
 
-`--suites` is the gate every commit is measured against. A clean run prints **17** result lines — 1 prerequisites, 1 proofs, 14 suites, 1 external-corpus harness — and no failures. It is not a reduced gate: it runs every suite the full command runs.
+`--suites` is the gate every commit is measured against. A clean run prints **18** result lines — 1 prerequisites, 1 proofs, 15 suites, 1 external-corpus harness — and no failures. It is not a reduced gate: it runs every suite the full command runs.
 
 The full command additionally proves the bytes on your disk are the signed release bytes.
 
@@ -50,7 +50,7 @@ dafny verify --function-syntax:4 reference/proofs/binding.dfy
 ## The consolidated attack registry
 
 ```bash
-python3 reference/suites/attack_registry.py             # all 73, grouped by suite
+python3 reference/suites/attack_registry.py             # all 81, grouped by suite
 python3 reference/suites/attack_registry.py --explain   # each with what it does and why
 python3 reference/suites/attack_registry.py --coverage  # which clause each attack exercises
 python3 reference/suites/attack_registry.py --compose   # acknowledgement x partitioned ledger

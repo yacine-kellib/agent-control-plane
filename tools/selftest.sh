@@ -712,22 +712,11 @@ else
 fi
 rm -f "$SPECCOPY"
 
-# --- ACP-63: the scaffold claim, made checkable -------------------------------
-# Published prose says a scaffold cannot be mistaken for a running service. That
-# holds two different ways, so assert BOTH rather than the sentence that used to
-# claim one: a Rust service exits non-zero, a TS service has no entry point.
-for d in executor policy ledger anchor; do
-  grep -q 'ExitCode::FAILURE' "services/$d/src/main.rs" \
-    && ok "services/$d main() returns ExitCode::FAILURE" \
-    || bad "services/$d main() does not exit non-zero"
-done
-for d in notifier approval; do
-  if python3 -c "import json,sys; p=json.load(open('services/$d/package.json')); sys.exit(0 if not p.get('main') and not p.get('bin') else 1)"; then
-    ok "services/$d declares no entry point (nothing to start)"
-  else
-    bad "services/$d declares an entry point but is scaffold"
-  fi
-done
+# ACP-63's six scaffold assertions moved to the product repository together
+# with the services they check (ACP-66). They cannot stay here: services/ is
+# no longer in this repository, so the checks would read files that do not
+# exist and pass vacuously -- which is precisely the defect ACP-64 was filed
+# for. Do not re-add a version of them that skips when services/ is absent.
 
 # --- DP-87: every flow-leg obligation resolves to a mechanism -----------------
 if python3 tools/check-flow-legs.py >/dev/null 2>&1; then

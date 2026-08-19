@@ -9,14 +9,14 @@ be its own collision — the package version and the spec version are therefore
 allowed to differ, and are.
 
 **Date:** August 2026
-**Package:** `spec/` + `dossier/` + `reference/` + `crates/` + `services/` + `packages/` + `orchestrator/` + `sim/` + `deploy/` + `tools/`
+**Package:** `spec/` + `dossier/` + `reference/` + `crates/` + `packages/` + `sim/` + `deploy/` + `tools/`
 **Integrity:** `MANIFEST.sha256`, Ed25519 detached signature `MANIFEST.sha256.sig`
 **Release key fingerprint:** `SHA256:636caed2e7bd9172eeaa8bd75482ec2b` *(verify out of band)*
 
 Reproduce everything in one command:
 
 ```bash
-./tools/verify.sh            # integrity + signature + proofs + 14 suites + harness
+./tools/verify.sh            # integrity + signature + proofs + 15 suites + harness
 ./tools/verify.sh --suites   # proofs + suites only, no release key needed
 ```
 

@@ -20,8 +20,8 @@
 # not the carrier and SLH-DSA is declared without an implementation.
 #
 # The container refuses to start without ACP_DEMONSTRATOR=1 so that it cannot
-# quietly become somebody's production control plane -- the same reason every
-# scaffold main() in services/ exits non-zero.
+# quietly become somebody's production control plane. That is the repository's
+# fail-safe-default rule applied to itself: absent input never means permission.
 
 FROM python:3.12-slim
 

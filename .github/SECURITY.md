@@ -44,7 +44,7 @@ Please run the gate, so we are looking at the same thing:
 
 ```bash
 python3 -m pip install --break-system-packages cryptography dilithium-py
-./tools/verify.sh --suites      # proofs + 13 suites, no release key needed
+./tools/verify.sh --suites      # proofs + 15 suites, no release key needed
 ```
 
 Two things that are **not** defects:
@@ -56,7 +56,7 @@ Two things that are **not** defects:
 
 | In scope | Out of scope |
 |---|---|
-| `spec/`, `dossier/`, `reference/` — the specification, the argument, and the Python implementation | Anything in `crates/`, `services/`, `orchestrator/`, `deploy/` behaving as scaffold — those `main()`s exit non-zero on purpose |
+| `spec/`, `dossier/`, `reference/` — the specification, the argument, and the Python implementation | Anything in `crates/` or `deploy/` that is explicitly waiting rather than wrong — `acp-conformance` has no vector corpus yet (VEC-2) and says so |
 | The Dafny proofs in `reference/proofs/` | The absence of `spec/vectors/` — known, tracked, not yet built |
 | `tools/verify.sh`, `tools/sign-release.sh`, `tools/selftest.sh` — a defect in the tooling that prints a false green is a serious finding | Dependency CVEs in `cryptography` or `dilithium-py` — report those upstream |
 | `sim/` where it misrepresents what the control plane does | `sim/` numbers that are placeholders — it says so |

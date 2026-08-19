@@ -27,7 +27,7 @@ cd "$(dirname "$0")/.."   # tools/ -> repo root; the manifest covers paths from 
 # Every root of the polyglot layout. Adding one is deliberate; a root that is
 # not named here is not signed, which is the intended default. assert_roots_
 # present fails loudly if one is missing, so a typo cannot silently sign less.
-ROOTS="spec dossier reference crates services packages orchestrator sim deploy tools"
+ROOTS="spec dossier reference crates packages sim deploy tools"
 # html is here for sim/attacks/supplier_qc_report.html -- the poisoned supplier
 # report whose payload is white-on-white hidden text. Its exact bytes ARE the
 # evidence, so it is one of the files most in need of a signature. The previous

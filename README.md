@@ -56,7 +56,7 @@ Abridged output. A complete run prints 19 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   152 files match MANIFEST.sha256
+  OK   130 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -295,7 +295,7 @@ Note the shape: it does not say the system is safe. It says what must be true si
 - That sensitivity or reversibility labels are honest. A-7, conceded unprovable: a production database labelled "sandbox" defeats the design with no attack at all.
 - That any human read a notification (A-8). Authentication is not comprehension.
 - That the notifier's declared independence is verified at run time. T-32, open: the runtime check is a lint, not a control.
-- That the Rust and TypeScript services are a running control plane. Most of them are scaffold — see [Repository layout](#repository-layout).
+- That anything here is a running control plane. The services that would be one live in a separate repository and are not part of this argument. What is here is a specification, a reference implementation, and the evidence about them.
 - **That an independent adversarial review has taken place. It has not.** See [below](#wanted-an-adversarial-reviewer).
 
 Full treatment: [`dossier/06-RESIDUAL-RISK.md`](dossier/06-RESIDUAL-RISK.md), which comes *before* the positive claims in the intended reading order.
@@ -370,18 +370,16 @@ The dossier is the argument; the spec is the normative source. Read `06` before 
 spec/          THE NORMATIVE SOURCE — ACP-SPEC-001.md, schemas/, vectors/
 dossier/       THE ARGUMENT — 00–07, annexes/. Not code.
 reference/     Python. Permanent. src/ suites/ proofs/
-crates/        Rust — acp-core, acp-crypto, acp-conformance
-services/      executor policy ledger anchor (Rust) · notifier approval (TS)
-packages/      TypeScript — acp-types (generated), acp-client
-orchestrator/  TypeScript — advances the clock, decides nothing
+crates/        Rust — acp-core, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
+packages/      TypeScript — acp-types, generated from spec/schemas by codegen.sh
 sim/           the business simulation (companion to Annex D)
-deploy/        docker-compose.yml, k8s/
-tools/         verify.sh sign-release.sh selftest.sh
+deploy/        docker-compose.yml  (no k8s/ — the substrate is deliberately deferred)
+tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
 ```
 
 **What is real:** the Python reference implementation in `reference/` and everything that replays from it. That is the artifact the evidence is about.
 
-**What is scaffold:** most of `crates/`, `services/`, `orchestrator/` and `deploy/`. The four Rust services each have a `main()` that returns `ExitCode::FAILURE`; the two TypeScript services are libraries with no entry point at all, so there is nothing to start and nothing to exit (ACP-63), so a scaffold cannot be mistaken for a running control plane. Genuinely implemented on that side: the fail-safe defaults in `acp-core`, and CR-3 hybrid signature composition in `acp-crypto`.
+**What was scaffold has left.** The four Rust services and the two TypeScript ones moved to a separate repository, so nothing here has a `main()` that could be mistaken for a running control plane — there is no longer anything to mistake. What remains in `crates/` is implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition and the real Ed25519/ML-DSA-65 primitives; the canonical tree hash in `acp-bundle`; and the offline CLI in `acp-bundle-cli`, which the gate builds twice. `crates/acp-conformance` is the one exception and says so: it is waiting on the vector corpus (VEC-2), which has not been extracted.
 
 `spec/` is the only normative source — Rust and TypeScript types are *generated* from `spec/schemas`, never hand-written. Two hand-maintained definitions of one object is the encoding-split defect at the source level.
 
@@ -389,7 +387,7 @@ Other languages, if you want to run them:
 
 ```bash
 cargo check --workspace && cargo test --workspace   # Rust: 116 tests
-pnpm install && pnpm -r typecheck                   # TypeScript: 5 projects
+pnpm install && pnpm -r typecheck                   # TypeScript: 1 project
 ```
 
 ---
@@ -413,7 +411,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 152 files across ten signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 130 files across 8 signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
@@ -422,7 +420,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (87 assertions)
+./tools/selftest.sh               # tests the tooling itself (81 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

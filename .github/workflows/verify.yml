@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   gate:
-    name: proofs + 14 suites + harness + tooling self-test
+    name: proofs + 15 suites + harness + tooling self-test
     runs-on: ubuntu-latest
     # Raised from 20 in v1.3.14. The gate signs with real ML-DSA-65 in pure
     # Python (~210 ms per signature), so `--suites` went from seconds to ~2
@@ -47,7 +47,7 @@ jobs:
 
       # Dafny is optional for a reader: verify.sh prints SKIP and carries on.
       # It is NOT optional here. Without it the proof step is skipped, the run
-      # prints 14 result lines instead of 15, and selftest.sh's line-count
+      # prints 17 result lines instead of 18, and selftest.sh's line-count
       # assertion fails — correctly, because a skipped proof is not a passed one.
       - name: Install Dafny
         uses: dafny-lang/setup-dafny-action@v1.7.0
@@ -59,13 +59,13 @@ jobs:
           python3 --version
           dafny --version
 
-      # The per-commit gate. Expect 15 result lines and zero failures.
+      # The per-commit gate. Expect 18 result lines and zero failures.
       - name: ./tools/verify.sh --suites
         run: ./tools/verify.sh --suites
 
       # Asserts the gate itself cannot print a false green: that the signer halts
       # on an unrecognised file type, that a bad key leaves MANIFEST.sha256
-      # byte-identical, that --suites reports exactly 15 lines, and that every
+      # byte-identical, that --suites reports exactly 18 lines, and that every
       # release-key fingerprint published in a tracked .md matches release-key.pub.
       - name: ./tools/selftest.sh
         run: ./tools/selftest.sh
@@ -85,10 +85,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Most of crates/ and services/ is scaffold whose main() exits non-zero on
-      # purpose. Compiling is therefore the whole claim being made here, and the
-      # 7 tests cover what is genuinely implemented: the fail-safe defaults in
-      # acp-core and CR-3 hybrid composition in acp-crypto.
+      # The services moved to the product repository (ACP-66), so what is left
+      # in crates/ is implemented rather than scaffold: the fail-safe defaults in
+      # acp-core, CR-3 hybrid composition and the real primitives in acp-crypto,
+      # the canonical tree hash in acp-bundle, and the offline CLI. Compiling is
+      # no longer the whole claim -- the test count is, and sync-counts.sh
+      # derives it rather than this comment restating it.
       - name: Rust — check and test
         run: |
           cargo check --workspace
@@ -106,7 +108,7 @@ jobs:
           node-version: "22"
           cache: pnpm
 
-      - name: TypeScript — typecheck 5 projects
+      - name: TypeScript — typecheck
         run: |
           pnpm install --frozen-lockfile
           pnpm -r typecheck
