@@ -725,6 +725,51 @@ else
   bad "ACP-DEPLOY-001 Annex A: a leg cites an obligation nothing enforces"
 fi
 
+# --- ACP-66 guard 1: the product half must not come back ----------------------
+# The split is only worth something if it stays split. A file reappearing under
+# services/, orchestrator/ or packages/acp-client is not a merge accident for a
+# reviewer to notice -- it is two definitions of one object at repository level,
+# and nothing else in this gate would say a word about it. The signer would not
+# either: those directories are out of ROOTS now, so a returning file is not
+# unsigned-and-loud, it is simply invisible.
+#
+# Written as a function on purpose: it honours GIT_INDEX_FILE, which is what
+# makes the manufactured failure below possible without touching the worktree.
+product_paths_tracked () {
+  for p in services orchestrator packages/acp-client; do
+    git ls-files "$p" | grep -q . && printf '%s ' "$p"
+  done
+  return 0
+}
+
+D=$(product_paths_tracked)
+if [ -z "$D" ]; then
+  ok "no product path is tracked here (services/ orchestrator/ packages/acp-client)"
+else
+  bad "product paths are back in this repository: $D"
+fi
+
+# THE ASSERTION ABOVE IS VACUOUS ON ITS OWN. "Nothing found" is also what a
+# detector reports when it cannot see -- a renamed path, a typo in the loop, a
+# git invocation that silently errors. So a violation is MANUFACTURED on every
+# run and the detector must name it.
+#
+# It is staged into a THROWAWAY INDEX, never the working tree and never the real
+# index: services/ must not exist on disk even for an instant, because a failure
+# between creating it and removing it would leave the split undone and the next
+# signature would cover it.
+TMPIDX=$(mktemp); rm -f "$TMPIDX"
+BLOB=$(printf 'manufactured -- selftest' | git hash-object -w --stdin)
+GIT_INDEX_FILE="$TMPIDX" git read-tree HEAD
+GIT_INDEX_FILE="$TMPIDX" git update-index --add \
+  --cacheinfo "100644,$BLOB,services/manufactured.rs"
+D=$(GIT_INDEX_FILE="$TMPIDX" product_paths_tracked)
+case "$D" in
+  *services*) ok "and the detector names a manufactured services/ file rather than passing" ;;
+  *)          bad "a manufactured services/ file was NOT detected (got '$D')" ;;
+esac
+rm -f "$TMPIDX"
+
 # THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
 # is TOTAL+1 as measured here, and a reader counting OK lines gets the same
 # figure. An off-by-one would be a wrong published number arriving by exactly

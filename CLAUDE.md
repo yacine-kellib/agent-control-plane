@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (81 assertions)
+./tools/selftest.sh                # tests the tooling itself (83 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)

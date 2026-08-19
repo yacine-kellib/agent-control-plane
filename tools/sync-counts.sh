@@ -193,7 +193,7 @@ if [ -n "$ASSERTIONS" ]; then
   sync "selftest assertions" "$ASSERTIONS" \
     'tests the tooling itself \([0-9]+ assertions\)' \
     "tests the tooling itself ($ASSERTIONS assertions)" \
-    README.md CLAUDE.md
+    README.md CLAUDE.md .github/CONTRIBUTING.md
 else
   printf '  \033[31mMISS\033[0m  %-28s selftest.sh printed no assertion count\n' "selftest assertions"
   DRIFT=1
