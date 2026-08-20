@@ -102,7 +102,7 @@ four releases; DR-13 gave it effect).
 | 8 | **Generated types** — `tools/codegen.sh` from `spec/schemas/` to Rust and TS | Cheapest now, when there is exactly ONE consumer. `acp-bundle/verify.rs` reads five named fields out of `serde_json::Value`, which is field access. Five services hand-writing structs is five second definitions of one object — the encoding-split defect multiplied, in the layer where it is least visible. | nothing |
 | 9 | **The decision path in Rust** — §8.4 grading, floors, RV-1, DR-13, CR-3/CR-4, AT-* quorum | This is the authorisation logic itself. Today it exists only in Python; the bundle is its *input*, and an input with no evaluator is a rule store nothing reads. | 8 |
 | 10 | **Ledger and anchor** — append-only, AU-7 anchor-before-release, CL-1..7 partition behaviour | Ordering and temporal properties. `OBLIGATIONS.md` already records that these are **not vector-expressible**, so they need per-implementation tests and cannot be inherited from a corpus. | 9 |
-| 11 | **The two doors** — `services/notifier`, `services/approval` | Where **T-32 closes**. It has been OPEN because the notifier self-certifies its own independence, and closing it needs the Executor to check *two distinct signed service identities named in the signed bundle*. The bundle can now carry them and is verified on read — so this is the open conformance item the rule store actually unblocks. | 9 |
+| 11 | **The two doors** — `services/notifier`, `services/approval` *(now in the PRIVATE product repo — ACP-66 moved `services/` out; the Executor-side check that closes T-32 stays here)* | Where **T-32 closes**. It has been OPEN because the notifier self-certifies its own independence, and closing it needs the Executor to check *two distinct signed service identities named in the signed bundle*. The bundle can now carry them and is verified on read — so this is the open conformance item the rule store actually unblocks. | 9 |
 | 12 | **Wire it together** — the demonstrator stops being a demonstrator | Services stop exiting non-zero **one at a time, each when it is real**. §9.7's latency budget must be **re-measured**: verify-on-every-read costs one hybrid verification per read, and that number was written before the cost existed. | 10, 11 |
 | 13 | **Substrate** — Podman / Kubernetes / Terraform | Unchanged from the reasoning below. Deliberately last. | 12 |
 
@@ -135,10 +135,15 @@ the path above is otherwise a straight line:
    that exercises the architecture as a system, and it is a companion to Annex D rather
    than the control plane. Phase 12 is where that stops being true, and it is five phases
    away — a schedule built on anything sooner is building on the sim.
-3. **The offline release key is in a home directory (ACP-16).** PB-4's guarantee is about
-   key custody, and the repository's own key does not meet the standard the repository
-   specifies for a customer's. It is a hygiene ticket that becomes an embarrassment the
-   moment anyone audits the release process.
+3. ~~**The offline release key is in a home directory (ACP-16).**~~ **Closed
+   2026-08-20**, and verified rather than assumed: `/Users/yakine/acp-release.key` no
+   longer exists, and the replacement is passphrase-encrypted, which is why signing needs
+   a real terminal and cannot happen from an agent session. The key was **rotated**, not
+   merely relocated — an agent session had already read it, and a key an agent has read is
+   spent whatever happens to the file afterwards. Left in the list, struck through, for
+   the reason the `k8s/` entry below gives. *A second project's `doora-release.key` is
+   still unencrypted in the same directory; it is out of this repository's scope and is
+   flagged to the key holder.*
 
 ### Why Kubernetes and Terraform are not on this list yet
 
@@ -230,6 +235,12 @@ Recorded so the next reader does not have to rediscover them.
   2026-08-18 the branch carries the whole rule store, steps 1–7, alongside the defect
   fixes and the spec at v1.3.15. Resolved, and left here because the reverse observation
   was recorded above it.
+- **Phase 9 is half done, and the table above does not say so.** `ACP-45` is six
+  slices; 1–3 are shipped (`crates/acp-el1`, the Python↔Rust EL-1 differential,
+  `crates/acp-decision`). Slices 4–6 — the receipt gate (CR-1/CR-3/CR-4), AT-* quorum, and
+  suite 12's R/B/T classification with the 53-case differential — are not started. The
+  slice breakdown lives in ACP-45's comments, not here, because a table that tracks
+  progress is a number that is wrong on the next commit (see below).
 - **`CLAUDE.md`'s "Current state" no longer publishes a commit count.** It said "11
   commits ahead" and was wrong within a day; any number written there is wrong on the next
   commit. `git log --oneline main..HEAD` is written down instead. Same class as ACP-43.
