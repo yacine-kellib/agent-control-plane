@@ -201,10 +201,11 @@ impl P {
             Tok::Word(w) => {
                 if let Some(t) = tier_ordinal(&w) {
                     Operand::Lit(Value::Tier(t))
-                } else if let Some(n) = as_integer(&w) {
-                    Operand::Lit(Value::Num(n))
                 } else {
-                    Operand::Ref(w)
+                    match classify_word(&w)? {
+                        Some(n) => Operand::Lit(Value::Num(n)),
+                        None => Operand::Ref(w),
+                    }
                 }
             }
         })
@@ -285,33 +286,51 @@ impl P {
     }
 }
 
-/// An integer literal, matching the reference implementation's acceptance.
+/// Classify a bare word: `Some(n)` a numeric literal, `None` a field
+/// reference, `Err` a numeric literal this implementation cannot represent.
 ///
-/// Python decides with `tk.lstrip("-").isdigit()` and then `int(tk)`. Two
-/// consequences are reproduced deliberately rather than improved on, because
-/// an implementation that accepts *more* than the reference is not a stricter
-/// implementation, it is a divergent one:
+/// # The third case is the whole reason this is not an `Option`
 ///
-/// - a leading `-` is accepted (`-5`), and
-/// - `str.isdigit()` is true for non-ASCII decimal digits, so the check is on
-///   ASCII digits only here; a token like `'٥'` is a `Ref` on both sides
-///   because Python's `int()` of it succeeds but its `isdigit` path is reached
-///   identically. Any residual difference is a differential finding, not a
-///   thing to paper over.
+/// It was one, and that was a defect — found by
+/// `tools/check-el1-differential.py` probing the `i64` boundary, in code whose
+/// own comment claimed the opposite behaviour.
 ///
-/// Width is `i64`. §8.3.1 says numeric literals are integers and defers width
-/// to AC-1a, while Python's are arbitrary precision — so a literal beyond
-/// `i64` parses in Python and is refused here. That is a real divergence of
-/// exactly the class ACP-54 already pins for bundle integers, and it is
-/// surfaced as a refusal rather than a silent wrap: `saturating` or `as`
-/// truncation would make a too-large threshold compare *smaller* than it is,
-/// which is the permissive direction.
-fn as_integer(tok: &str) -> Option<i64> {
+/// An all-digit token beyond `i64` returned `None`, so it fell through to
+/// `Operand::Ref` — a **field reference named "99999999999999999999"**, absent
+/// from every environment, therefore `false` under totality. Python's integers
+/// are arbitrary precision, so it compared the real value. The boundary is
+/// exact: at `i64::MAX` both agree on all six operators; at `i64::MAX + 1`
+/// they part on `<` and `!=`.
+///
+/// **The direction is what makes it serious.** A `raise_to` clause
+/// `count < <huge>` fires in Python and does NOT fire here, so the recomputed
+/// grade is *lower* in Rust. That is the permissive direction, arrived at
+/// silently, in the fold that decides whether an action needs a human. It is
+/// the RK-1/RV-1 lesson in a new place: a value that means "unknown" must
+/// never take the permissive branch.
+///
+/// It is also a grammar point, not only a range point. §8.3.1 has
+/// `FieldRef ::= Identifier ("." Identifier)*` and `Value ::= FieldRef |
+/// Literal | Number`; a token of nothing but digits is a Number by the
+/// grammar, and reinterpreting it as an identifier because it did not fit is
+/// the parser choosing a reading the specification does not offer.
+///
+/// So an out-of-range numeric literal now fails **closed** at parse time under
+/// clause `8.3.1`. Python still accepts it, and that residual divergence is
+/// pinned and asserted from both sides in the differential — the ACP-54
+/// pattern — so it going away or moving turns the check red rather than
+/// passing quietly.
+fn classify_word(tok: &str) -> Result<Option<i64>, El1Error> {
     let digits = tok.strip_prefix('-').unwrap_or(tok);
     if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
-        return None;
+        return Ok(None); // a genuine field reference
     }
-    tok.parse::<i64>().ok()
+    match tok.parse::<i64>() {
+        Ok(n) => Ok(Some(n)),
+        Err(_) => Err(El1Error::new(format!(
+            "integer literal {tok} is outside the representable range"
+        ))),
+    }
 }
 
 /// Parse EL-1 source into a tree, or fail closed with clause `8.3.1`.

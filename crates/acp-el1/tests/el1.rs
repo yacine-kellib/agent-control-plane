@@ -215,3 +215,36 @@ fn evaluation_has_no_error_path() {
     let answer: bool = acp_el1::eval(&parsed, &e);
     assert!(!answer, "every atom is absent, so every branch is false");
 }
+
+/// An integer literal beyond `i64` fails CLOSED, rather than becoming a field.
+///
+/// Found by `tools/check-el1-differential.py` probing the boundary. The token
+/// used to fall through to `Operand::Ref`, resolve absent, and evaluate
+/// `false` -- so `count < <huge>` did not fire here while it did in Python,
+/// making the recomputed grade LOWER in Rust. Silent, and in the permissive
+/// direction, inside the fold that decides whether a human is needed.
+///
+/// The boundary is asserted on both sides of itself: `i64::MAX` must still
+/// parse. Without that row this test is satisfied by a parser that refuses
+/// every large number, which passes by being uniformly broken.
+#[test]
+fn an_integer_literal_beyond_i64_is_refused_not_treated_as_a_field() {
+    let e = env(&[("count", Value::Num(5))]);
+
+    assert_eq!(
+        evaluate("count < 9223372036854775807", &e),
+        Ok(true),
+        "i64::MAX must still parse as a number"
+    );
+
+    for lit in ["9223372036854775808", "99999999999999999999"] {
+        let err = parse(&format!("count < {lit}"))
+            .expect_err("an out-of-range integer literal must be refused");
+        assert_eq!(err.clause, "8.3.1");
+        assert!(
+            err.message.contains("representable range"),
+            "the refusal must say why, got {:?}",
+            err.message
+        );
+    }
+}

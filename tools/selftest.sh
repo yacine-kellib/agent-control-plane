@@ -689,6 +689,37 @@ else
   [ "$N" -eq 4 ]; chk $? "and all four mutants actually ran (counted $N)"
 fi
 
+printf '\n\033[1m== EL-1 differential: Python vs Rust on generated source ==\033[0m\n'
+
+# diff_prose.py found Z1 with two evaluators written from the PROSE. That found
+# the ambiguity; it says nothing about whether the two implementations this
+# repository ships agree today. §1246 requires parser conformance to be run
+# against the deployment's own parser -- and there are two deployments here, so
+# the same method pointed at both is the check that the fix actually holds.
+#
+# The --selfcheck run comes FIRST and is not decoration: a differential
+# reporting "0 divergences" while unable to detect one looks exactly like a
+# healthy run. It proves the comparator calls a real difference a divergence
+# before any clean result is believed.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; EL-1 differential not checked\n'
+else
+  python3 tools/check-el1-differential.py --selfcheck >/dev/null 2>&1
+  chk $? "the EL-1 differential can detect a divergence (--selfcheck)"
+
+  OUT=$(python3 tools/check-el1-differential.py -n 2000 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "Python and Rust agree on 2000 generated EL-1 cases (rc=$rc)"
+
+  # Mixed connectives are the ONLY shapes where the Z1 class can appear. A run
+  # whose generator quietly stopped mixing would still report agreement, so the
+  # count is asserted rather than trusted.
+  M=$(printf '%s' "$OUT" | sed -n 's/.*, \([0-9]\{1,\}\) mixed-connective.*/\1/p' | head -1)
+  [ -n "$M" ] && [ "$M" -gt 500 ]; chk $? "and at least 500 of them mix && with || (got ${M:-none})"
+
+  printf '%s' "$OUT" | grep -q 'pinned divergence'
+  chk $? "and the disclosed i64-width divergences are still exactly as pinned"
+fi
+
 printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 
 # README.md and CLAUDE.md both publish how many assertions this script makes.
