@@ -30,6 +30,11 @@ import argparse, sys, time
 
 import conformance as C
 import cbor_suite, audit_suite, ack_suite, class_findings
+# Imported for its MUTANTS list ONLY -- the footer below prints how many
+# mutation controls exist, and through v1.3.16 it printed a hand-typed 20 while
+# the list held 25. A published count with no executable source is the ACP-42
+# shape; deriving it is the fix that cannot regress.
+import mutate_executor
 from acp_executor import FailClosed, CriticalAlert
 
 
@@ -51,6 +56,8 @@ META = {
              "Two encodings of one value means the single-use ledger sees two different slots."),
     "X1":   ("Recomputation", "TR-8", "A signed decision claims the action is low risk when it is not.",
              "The lie is inside a valid signature, so only independent recomputation catches it."),
+    "EL-1": ("Recomputation", "8.3.1", "A number in the request is written 22.0 instead of 22, and the rule that grades sensitive ports stops firing.",
+             "X1 lied about the grade and recomputation caught it. This changes the INPUT the grade is computed from, in a way JSON says is not a change at all."),
     "T15":  ("Freshness", "RAD-3", "An older policy rulebook is replayed to reinstate a withdrawn permission.",
              "Rollback undoes a security decision without touching any signature."),
     "T13":  ("Replay", "CL-2", "A decision receipt is replayed after it was already used.",
@@ -93,7 +100,7 @@ SUITE_DEFAULT = {"1 Conformance": None, "5 Encoding": "CBOR",
                  "8 Findings": "ACK"}
 
 _PREFIXES = ("Y1b", "B-1a", "T15", "T13", "T14", "T10", "Y1", "Y2", "Y4",
-             "Z3", "Z4", "X1", "CR", "DR", "RV")
+             "Z3", "Z4", "X1", "EL-1", "CR", "DR", "RV")
 
 
 def _meta(name: str, suite: str | None = None):
@@ -181,9 +188,9 @@ def cmd_run(explain=False):
     print(f"RESULT: {len(reg)-fails}/{len(reg)}"
           f"{' — every attack fails closed, every honest path executes' if not fails else ' — REVIEW REQUIRED'}")
     print("\nMutation controls are separate and equally load-bearing:")
-    print("  python3 mutate_executor.py            20 executor checks")
-    print("  python3 audit_suite.py --mutate        4 audit checks")
-    print("  python3 ack_suite.py --mutate          6 acknowledgement checks")
+    print(f"  python3 mutate_executor.py           {len(mutate_executor.MUTANTS):2d} executor checks")
+    print(f"  python3 audit_suite.py --mutate       {len(audit_suite.MUTANTS):2d} audit checks")
+    print(f"  python3 ack_suite.py --mutate         {len(ack_suite.MUTANTS):2d} acknowledgement checks")
     print("A passing suite proves nothing until you show it can fail.")
     return 1 if fails else 0
 

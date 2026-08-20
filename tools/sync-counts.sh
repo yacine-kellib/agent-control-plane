@@ -48,6 +48,17 @@ DRIFT=0
 sync() {
   local label="$1" want="$2" pattern="$3" replacement="$4"; shift 4
   local files=("$@")
+  # '|' is the sed delimiter chosen below, so a '|' anywhere in the pattern or
+  # the replacement closes the expression early. That surfaces as a bare
+  # "sed failed", which says nothing about the cause -- it has cost two HALTs
+  # and one clobbered dossier row already. Name it instead of discovering it.
+  case "$pattern$replacement" in
+    *"|"*)
+      printf '  \033[31mHALT\033[0m  %-28s pattern or replacement contains "|",\n' "$label"
+      printf '        which is this function'"'"'s sed delimiter. Anchor on\n'
+      printf '        surrounding prose, or match the pipe with ".".\n'
+      exit 2 ;;
+  esac
   local hits=0 moved=0 f before after
   for f in "${files[@]}"; do
     [ -f "$f" ] || continue
@@ -127,6 +138,54 @@ printf '  rust tests         %s   (cargo test --workspace)\n' "$RUST"
 BUNDLE=$(cd reference/suites && PYTHONPATH=../src python3 bundle_suite.py 2>/dev/null \
   | grep -oE 'RESULT: [0-9]+/[0-9]+' | grep -oE '[0-9]+/[0-9]+')
 printf '  suite 11           %s (bundle_suite.py)\n' "$BUNDLE"
+
+# ACP-74. Suites 1 and 2 were never sync targets, and one added conformance case
+# moved "52/52" across six published sites and the 43/9 split across three more
+# -- every one found by grep and edited by hand, which is exactly the drift this
+# script exists to remove. It had simply never been pointed at the two suites the
+# dossier quotes most often.
+#
+# BOTH ARE DERIVED ONLY FROM A CLEAN RUN. A failing mutation run prints
+# "25/26 killed" in the same shape as a passing one, and syncing that would
+# publish a partial result as the expected value -- the instrument rewriting its
+# own answer, which is why the gate-line count above refuses the same trick.
+CONFORM=$(cd reference/suites && PYTHONPATH=../src python3 conformance.py 2>/dev/null \
+  | grep -oE 'RESULT: [0-9]+/[0-9]+' | grep -oE '[0-9]+/[0-9]+')
+[ -n "$CONFORM" ] && [ "${CONFORM%%/*}" = "${CONFORM##*/}" ] || CONFORM=""
+printf '  suite 1            %s (conformance.py)\n' "${CONFORM:-? (not clean)}"
+
+# The 43/9 split is published separately from the total, in three places, and it
+# is the half that goes stale silently: 52 stays right while "43 attacks" quietly
+# becomes 44. Taken from the lists themselves rather than parsed out of prose.
+CONF_SPLIT=$(cd reference/suites && PYTHONPATH=../src python3 -c \
+  'import conformance as C; print(len(C.ATTACKS), len(C.POSITIVE))' 2>/dev/null)
+CONF_ATK=${CONF_SPLIT%% *}; CONF_POS=${CONF_SPLIT##* }
+[ -n "$CONF_ATK" ] && CONF_TOTAL=$((CONF_ATK + CONF_POS)) || CONF_TOTAL=""
+printf '  suite 1 split      %s attacks + %s positive = %s\n' \
+  "${CONF_ATK:-?}" "${CONF_POS:-?}" "${CONF_TOTAL:-?}"
+
+MUTEXEC=$(cd reference/suites && PYTHONPATH=../src python3 mutate_executor.py 2>/dev/null \
+  | grep -oE 'RESULT: [0-9]+/[0-9]+ killed' | grep -oE '[0-9]+/[0-9]+')
+[ -n "$MUTEXEC" ] && [ "${MUTEXEC%%/*}" = "${MUTEXEC##*/}" ] || MUTEXEC=""
+printf '  suite 2            %s (mutate_executor.py)\n' "${MUTEXEC:-? (not clean)}"
+
+# The AGGREGATE "N mutants" claim, published in ten files including the
+# Dockerfile, the compose file and both .github templates. It is a sum of three
+# lists that live in three suites, so it is the number most exposed to one of
+# them moving -- and adding a single mutant moves it everywhere at once.
+MUT_SPLIT=$(cd reference/suites && PYTHONPATH=../src python3 -c \
+  'import mutate_executor as M, ack_suite as A, audit_suite as U;
+print(len(M.MUTANTS), len(A.MUTANTS), len(U.MUTANTS))' 2>/dev/null | tr -d '\n')
+MUT_E=$(printf '%s' "$MUT_SPLIT" | cut -d' ' -f1)
+MUT_A=$(printf '%s' "$MUT_SPLIT" | cut -d' ' -f2)
+MUT_U=$(printf '%s' "$MUT_SPLIT" | cut -d' ' -f3)
+if [ -n "$MUT_E" ] && [ -n "$MUT_A" ] && [ -n "$MUT_U" ]; then
+  MUT_TOTAL=$((MUT_E + MUT_A + MUT_U))
+else
+  MUT_TOTAL=""
+fi
+printf '  mutants, all three %s executor + %s ack + %s audit = %s\n' \
+  "${MUT_E:-?}" "${MUT_A:-?}" "${MUT_U:-?}" "${MUT_TOTAL:-?}"
 
 # Suite 7 joined this script when ACP-57 added the AU-1 conformance case and
 # moved 11/11 -> 12/12 across SEVEN published sites. Suite 11 needed two. The
@@ -312,6 +371,146 @@ if [ -n "$AUDIT" ]; then
     'audit_suite\.py( +)# expected: [0-9]+/[0-9]+' \
     "audit_suite.py\\1# expected: $AUDIT" \
     dossier/07-REPRODUCTION.md
+fi
+
+if [ -n "$CONFORM" ]; then
+  sync "suite 1 (CLAUDE.md)" "$CONFORM" \
+    'conformance\.py( +)# [0-9]+/[0-9]+' "conformance.py\1# $CONFORM" \
+    CLAUDE.md
+  sync "suite 1 (verify.sh)" "$CONFORM" \
+    'run conformance\.py( +)"[0-9]+/[0-9]+"' "run conformance.py\1\"$CONFORM\"" \
+    tools/verify.sh
+  sync "suite 1 (README sample)" "$CONFORM" \
+    'Suite 1  conformance — RESULT: [0-9]+/[0-9]+' \
+    "Suite 1  conformance — RESULT: $CONFORM" \
+    README.md
+  sync "suite 1 (dossier header)" "$CONFORM" \
+    '## Suite 1 — Conformance \([0-9]+/[0-9]+\)' \
+    "## Suite 1 — Conformance ($CONFORM)" \
+    dossier/05-TEST-EVIDENCE.md
+  sync "suite 1 (reproduction)" "$CONFORM" \
+    'conformance\.py( +)# expected: [0-9]+/[0-9]+ CONFORMANT' \
+    "conformance.py\1# expected: $CONFORM CONFORMANT" \
+    dossier/07-REPRODUCTION.md
+  sync "suite 1 (Dockerfile)" "$CONFORM" \
+    'the [0-9]+/[0-9]+ conformance result' "the $CONFORM conformance result" \
+    Dockerfile
+fi
+
+# The attacks/positive split. Published apart from the total, and it is the half
+# that rots quietly: the total stays right while "43 attacks" becomes 44.
+if [ -n "$CONF_ATK" ]; then
+  sync "suite 1 split (summary)" "$CONF_ATK/$CONF_POS" \
+    '\*\*[0-9]+/[0-9]+\*\* — [0-9]+ attacks fail closed, [0-9]+ honest paths execute' \
+    "**$CONFORM** — $CONF_ATK attacks fail closed, $CONF_POS honest paths execute" \
+    dossier/01-EXECUTIVE-SUMMARY.md
+  sync "suite 1 split (why not N)" "$CONF_TOTAL/$CONF_ATK" \
+    'the suite total is [0-9]+ and not [0-9]+' \
+    "the suite total is $CONF_TOTAL and not $CONF_ATK" \
+    dossier/05-TEST-EVIDENCE.md
+  sync "suite 1 split (obligation)" "$CONF_ATK/$CONF_POS" \
+    '\*\*[0-9]+ attacks must fail closed; [0-9]+ honest paths must execute\.\*\*' \
+    "**$CONF_ATK attacks must fail closed; $CONF_POS honest paths must execute.**" \
+    dossier/05-TEST-EVIDENCE.md
+  sync "suite 1 split (vectors)" "$CONF_ATK/$CONF_POS" \
+    '## Suite 1 — conformance \([0-9]+ cases: [0-9]+ positive, [0-9]+ attacks\)' \
+    "## Suite 1 — conformance ($CONF_TOTAL cases: $CONF_POS positive, $CONF_ATK attacks)" \
+    spec/vectors/CLASSIFICATION.md
+fi
+
+if [ -n "$MUTEXEC" ]; then
+  sync "suite 2 (CLAUDE.md)" "$MUTEXEC" \
+    'mutate_executor\.py( +)# [0-9]+/[0-9]+' "mutate_executor.py\1# $MUTEXEC" \
+    CLAUDE.md
+  sync "suite 2 (verify.sh)" "$MUTEXEC" \
+    'run mutate_executor\.py( +)"[0-9]+/[0-9]+"' "run mutate_executor.py\1\"$MUTEXEC\"" \
+    tools/verify.sh
+  sync "suite 2 (README sample)" "$MUTEXEC" \
+    'Suite 2  executor mutation — RESULT: [0-9]+/[0-9]+ killed' \
+    "Suite 2  executor mutation — RESULT: $MUTEXEC killed" \
+    README.md
+  sync "suite 2 (dossier header)" "$MUTEXEC" \
+    '## Suite 2 — Implementation mutation \([0-9]+/[0-9]+ kill\)' \
+    "## Suite 2 — Implementation mutation ($MUTEXEC kill)" \
+    dossier/05-TEST-EVIDENCE.md
+  sync "suite 2 (reproduction)" "$MUTEXEC" \
+    'mutate_executor\.py( +)# expected: [0-9]+/[0-9]+ killed' \
+    "mutate_executor.py\1# expected: $MUTEXEC killed" \
+    dossier/07-REPRODUCTION.md
+  # ANCHORED ON THE ROW'S OWN WORDS, and this one bit on its first run. The
+  # bare '\*\*[0-9]+/[0-9]+ kill\*\*' pattern matched TWO rows of that table
+  # and rewrote "Mutation controls on the proofs | **9/9 kill**" to the executor
+  # figure -- a sync that corrupts an unrelated published claim while printing
+  # SYNC. Caught by reading the diff, which is not a control; the anchor is.
+  #
+  # The anchor is the trailing prose rather than the row LABEL because the label
+  # is followed by a table '|', and '|' is this function's sed delimiter.
+  sync "suite 2 (summary)" "$MUTEXEC" \
+    '\*\*[0-9]+/[0-9]+ kill\*\* — every check is load-bearing' \
+    "**$MUTEXEC kill** — every check is load-bearing" \
+    dossier/01-EXECUTIVE-SUMMARY.md
+fi
+
+# The aggregate. Ten files, four phrasings, one sum of three lists -- so a
+# mutant added to any one suite moves a number in the Dockerfile, the compose
+# file and both .github templates at once. That is precisely the coupling
+# nobody re-greps for.
+#
+# The compose and entrypoint lines are synced TOGETHER and deliberately:
+# ACP-72 made the compose comment quote the entrypoint's banner verbatim and
+# selftest.sh compares them, so they must move in the same run or the gate
+# reports a mismatch this script created.
+if [ -n "$MUT_TOTAL" ]; then
+  sync "mutants (CLAUDE.md sum)" "$MUT_TOTAL" \
+    '[0-9]+ \+ [0-9]+ \+ [0-9]+ = \*\*[0-9]+ mutants\*\*' \
+    "$MUT_E + $MUT_A + $MUT_U = **$MUT_TOTAL mutants**" \
+    CLAUDE.md
+  sync "mutants (not the N)" "$MUT_TOTAL" \
+    'not the [0-9]+ mutants' "not the $MUT_TOTAL mutants" \
+    CLAUDE.md
+  sync "mutants (do not express)" "$MUT_TOTAL" \
+    'express the [0-9]+ mutants' "express the $MUT_TOTAL mutants" \
+    dossier/06-RESIDUAL-RISK.md crates/acp-conformance/src/lib.rs
+  sync "mutants (Dockerfile)" "$MUT_TOTAL" \
+    'and the [0-9]+ mutants' "and the $MUT_TOTAL mutants" \
+    Dockerfile
+  sync "mutants (image banner)" "$MUT_TOTAL" \
+    'suites \+ harness \+ [0-9]+ mutants' "suites + harness + $MUT_TOTAL mutants" \
+    tools/demonstrator-entrypoint.sh deploy/docker-compose.yml
+  sync "mutants (compose split)" "$MUT_TOTAL" \
+    '\([0-9]+ executor \+ [0-9]+ ack \+ [0-9]+ audit = [0-9]+ mutants\)' \
+    "($MUT_E executor + $MUT_A ack + $MUT_U audit = $MUT_TOTAL mutants)" \
+    deploy/docker-compose.yml
+  sync "mutants (obligations)" "$MUT_TOTAL" \
+    '\*\*[0-9]+ mutants: [0-9]+ executor, [0-9]+ acknowledgement, [0-9]+ audit\.\*\*' \
+    "**$MUT_TOTAL mutants: $MUT_E executor, $MUT_A acknowledgement, $MUT_U audit.**" \
+    spec/vectors/OBLIGATIONS.md
+  sync "mutants (obligations row)" "$MUT_TOTAL" \
+    '\*\([0-9]+ mutants, no case rows\)\*' "*($MUT_TOTAL mutants, no case rows)*" \
+    spec/vectors/OBLIGATIONS.md
+  # README publishes the same fact TWICE, in two phrasings that drifted apart
+  # once already ("30 mutation controls" beside "34 of them: 24 executor..."
+  # while the suites held 35). selftest.sh asserts both, so both are synced --
+  # syncing one of a pair is how a pair comes to disagree.
+  sync "mutants (README total)" "$MUT_TOTAL" \
+    '[0-9]+ mutation controls' "$MUT_TOTAL mutation controls" \
+    README.md
+  sync "mutants (README split)" "$MUT_TOTAL" \
+    '[0-9]+ of them: [0-9]+ executor, [0-9]+ acknowledgement, [0-9]+ audit' \
+    "$MUT_TOTAL of them: $MUT_E executor, $MUT_A acknowledgement, $MUT_U audit" \
+    README.md
+  # And the classification file's own phrasing, which is a third one again.
+  sync "mutants (vector cases)" "$MUT_TOTAL" \
+    '\*\*[0-9]+ mutation cases\*\* — [0-9]+ executor, [0-9]+ ack, [0-9]+ audit' \
+    "**$MUT_TOTAL mutation cases** — $MUT_E executor, $MUT_A ack, $MUT_U audit" \
+    spec/vectors/CLASSIFICATION.md
+  sync "mutants (PR template)" "$MUT_TOTAL" \
+    'that [0-9]+ mutants locate' "that $MUT_TOTAL mutants locate" \
+    .github/PULL_REQUEST_TEMPLATE.md
+  sync "mutants (contributing)" "$MUT_TOTAL" \
+    '\*\*[0-9]+ mutants\*\* must keep being killed: [0-9]+ executor, [0-9]+ ack, [0-9]+ audit' \
+    "**$MUT_TOTAL mutants** must keep being killed: $MUT_E executor, $MUT_A ack, $MUT_U audit" \
+    .github/CONTRIBUTING.md
 fi
 
 if [ -n "$REGISTRY" ]; then

@@ -186,6 +186,21 @@ run_mutant "tr8-adapter-refuse (unregistered schema_id defaulted)" acp-decision 
   '    let fidelity = pol.adapters.get(sid).cloned().unwrap_or_default();
     env.insert("fidelity".into(), Value::Str(fidelity));')"
 
+# ACP-74, the §8.3.1 parameter domain. The mutation is the reference's own
+# defect, transplanted: a float falls through to the STRING arm, a string never
+# compares equal to a number, and every numeric clause mentioning that parameter
+# stops firing. It is a RESTORE mutant rather than a deletion one -- there was no
+# check to delete, which is why no mutation run of any kind found this and a
+# hand probe of an input the corpus never spells did.
+run_mutant "8.3.1-param-domain (float becomes a string again)" acp-decision "$(sub \
+  crates/acp-decision/src/lib.rs \
+  '            fn visit_f64<E: serde::de::Error>(self, _v: f64) -> Result<ParamValue, E> {
+                Err(E::custom(PARAM_DOMAIN_MSG))
+            }' \
+  '            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<ParamValue, E> {
+                Ok(ParamValue::Str(v.to_string()))
+            }')"
+
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then
   printf '  %d/%d Rust decision-path mutants killed.\n' "$PASS" "$PASS"

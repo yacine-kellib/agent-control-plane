@@ -1,6 +1,6 @@
 # Vector classification — which suite cases can become shared data, and which cannot
 
-**Against ACP-SPEC-001 v1.3.15 · 86 cases across four suites · ACP-1 (VEC-1)**
+**Against ACP-SPEC-001 v1.3.17 · 87 cases across four suites · ACP-1 (VEC-1)**
 
 This file classifies every case in the four suites that a shared vector corpus could
 plausibly cover. It is the derivation behind [`OBLIGATIONS.md`](OBLIGATIONS.md); read that
@@ -43,7 +43,7 @@ feature — that is a VEC-2 input, not a hedge.
 ## What the corpus cannot carry, and what replaces it
 
 **Signatures are not transportable, so no vector carries one.** This is not new — CLAUDE.md
-has said so since v1.3.14 — but it is load-bearing here, because 66 of the 86 cases involve
+has said so since v1.3.14 — but it is load-bearing here, because 66 of the 87 cases involve
 a signed artifact. If it had no answer, the extractable count would be near zero rather
 than 48.
 
@@ -92,7 +92,7 @@ depend on that vocabulary existing. They are marked `sig-mutation` below.
 
 ---
 
-## Suite 1 — conformance (52 cases: 9 positive, 43 attacks)
+## Suite 1 — conformance (53 cases: 9 positive, 44 attacks)
 
 Where a case fails closed, the rule and the raising function were taken from a run, not
 from the docstring.
@@ -159,6 +159,7 @@ from the docstring.
 | `a_CR3_extra_primitive` | **vector** | `9.3-1` | `sig-mutation`: add an undeclared third primitive. |
 | `a_CR2_legacy_scalar_signature` | **vector** | `9.3-1` | `sig-mutation`: collapse the signature map to a bare string. |
 | `a_CR1_unknown_suite` | **vector** | `CR-4` | Receipt `alg: rot13`. |
+| `a_EL1_float_param_lowers_the_grade` | obligation | `8.3.1` | A Proposal parameter written `22.0` rather than `22`. **Not vector-expressible, and the reason is the defect itself.** JSON has one number type, so a data file cannot pin the *lexeme*: a conformant reader may hand `22.0` back as an integer and the case evaporates into its own control. Carrying it needs either a format that preserves number spelling or a declared mutation — "re-spell this parameter as a non-integral number" — in the VEC-3 vocabulary. |
 | `a_PBKEY_swapped_attester_registry` | **vector** | `9.3-4` | `sig-mutation`: the receipt is issued under a bundle whose attester registry differs, so its `policy_bundle_hash` no longer matches the Executor's. Needs the vector to carry two bundle trees, or one plus a declared registry mutation. |
 
 **26 vector · 17 obligation.**
@@ -256,19 +257,19 @@ audit chain hashes canonical CBOR, or declare the canonicalisation in the vector
 
 | Suite | Cases | Vector-expressible | Obligation |
 | --- | ---: | ---: | ---: |
-| Conformance (Suite 1) | 52 | 29 | 23 |
+| Conformance (Suite 1) | 53 | 29 | 24 |
 | Canonical CBOR (Suite 5) | 8 | 7 | 1 |
 | Signed acknowledgement (Suite 9) | 14 | 11 | 3 |
 | Audit / anchor / accumulator (Suite 7) | 12 | 1 | 11 |
-| **Total** | **86** | **48** | **38** |
+| **Total** | **87** | **48** | **39** |
 
-Plus **35 mutation cases** — 25 executor, 6 ack, 4 audit — which are obligations by
+Plus **36 mutation cases** — 26 executor, 6 ack, 4 audit — which are obligations by
 definition and get no per-case rows: a mutant deletes a line of the implementation's own
 source, and no data file can ask another implementation to do that. They are the
 repository's evidence that its checks are load-bearing, and that evidence does not
 transfer. VEC-6 must ask each implementation to produce its own.
 
-**48 of 86 cases, or 56%, could become shared data.** Forty-seven of the 48 depend on the
+**48 of 87 cases, or 55%, could become shared data.** Forty-seven of the 48 depend on the
 seed-declaration mechanism above; the forty-eighth is AU-1's chain derivation, which
 carries no key material at all and is blocked on the canonicalisation note in Suite 7
 instead; eight further depend on a declared signature-mutation

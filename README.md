@@ -65,17 +65,17 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 81/81
-  OK   Suite 1  conformance — RESULT: 52/52 — CONFORMANT
-  OK   Suite 2  executor mutation — RESULT: 25/25 killed
+  OK   ALL attacks (consolidated registry) — RESULT: 82/82
+  OK   Suite 1  conformance — RESULT: 53/53 — CONFORMANT
+  OK   Suite 2  executor mutation — RESULT: 26/26 killed
   ...
 ```
 
-Fourteen suite lines in all, spanning 10 numbered suites, and 35 mutation controls across three of them.
+Fourteen suite lines in all, spanning 10 numbered suites, and 36 mutation controls across three of them.
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
-**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 35 of them: 25 executor, 6 acknowledgement, 4 audit.
+**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 36 of them: 26 executor, 6 acknowledgement, 4 audit.
 
 Two gates, and the difference matters:
 
@@ -386,7 +386,7 @@ tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
 Other languages, if you want to run them:
 
 ```bash
-cargo check --workspace && cargo test --workspace   # Rust: 137 tests
+cargo check --workspace && cargo test --workspace   # Rust: 141 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 1 project
 ```
 
@@ -420,7 +420,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (97 assertions)
+./tools/selftest.sh               # tests the tooling itself (99 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

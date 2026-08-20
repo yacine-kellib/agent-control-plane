@@ -14,7 +14,7 @@
 //!    carrying a signature is not portable between them.
 //!
 //! 2. **Passing the corpus is a partial claim.** Vectors express
-//!    input -> verdict. They do not express the 35 mutants, ordering
+//!    input -> verdict. They do not express the 36 mutants, ordering
 //!    properties such as AU-7 anchor-before-release, partition behaviour, or
 //!    render-path distinctness. Those are per-implementation obligations,
 //!    enumerated in `spec/vectors/OBLIGATIONS.md`. This crate must not report

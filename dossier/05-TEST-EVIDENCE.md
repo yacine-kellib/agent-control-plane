@@ -15,19 +15,19 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ---
 
-## Suite 1 — Conformance (52/52)
+## Suite 1 — Conformance (53/53)
 
 `python3 reference/suites/conformance.py`
 
-Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature, an irreversible action below floor-HIGH with no notice channel named in the bundle (DR-13).
+Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature, an irreversible action below floor-HIGH with no notice channel named in the bundle (DR-13), a Proposal parameter spelled as a JSON float so that every numeric clause stops firing (EL-2).
 
-Nine positive paths, which is why the suite total is 52 and not 43: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, a sampled action is treated as irreversible, and an irreversible action below floor-HIGH executes while leaving a committed notice. **43 attacks must fail closed; 9 honest paths must execute.**
+Nine positive paths, which is why the suite total is 53 and not 44: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, a sampled action is treated as irreversible, and an irreversible action below floor-HIGH executes while leaving a committed notice. **44 attacks must fail closed; 9 honest paths must execute.**
 
 *(This paragraph said 44 and 36 while the suite printed 45. The drift predates the AT-3 fix below and is corrected here rather than quietly: a number in the prose that no longer matches a number the code prints is a defect in this repository, whichever direction it drifted.)*
 
 **Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist. The DR-13 row above is what that limit looks like when it bites: it is here because an **external** corpus harness found the gap, not because this suite's enumeration reached it. See Suite 2's sixth lesson.
 
-## Suite 2 — Implementation mutation (25/25 kill)
+## Suite 2 — Implementation mutation (26/26 kill)
 
 `python3 reference/suites/mutate_executor.py`
 
@@ -50,6 +50,14 @@ Restoring the consent check then **masked** the threshold mutant — the fourth 
 **A sixth, and it is the largest of them: this method cannot find a check that was never written.** The five lessons above are all about checks that exist — whether they are load-bearing, whether they mean the right thing, whether one hides another. Every one of them presumes the check is in the source for a mutant to delete. DR-13's case had no check at all: an `IRREVERSIBLE` action graded below floor-HIGH executed with nobody notified, because §9.6's clauses were scoped to floor-HIGH and nothing below it read the reversibility class the Executor had just computed. Twenty-four mutants ran green against that gap for four releases, and correctly so — there was nothing to delete. The prose differential (Suite 6) could not see it either, because it compares two readings of a document that does not mention the case.
 
 It was found by the external-corpus harness on its **first run** (case `fx-04`), which is the argument for that harness restated as a result rather than as an intention. **The blind spot of a suite written by the defender is not in its checks, it is in its enumeration** — and no amount of rigour applied to the enumeration you have will surface the one you do not. Now closed by DR-13 and mutation-proven like the rest (25th mutant), which is worth saying plainly: the fix is held to this suite's standard, but this suite is not what would have found it.
+
+**A seventh, and it is the sharpest of them, because the code was neither missing nor wrong: it had two arms and needed three.** `recompute_floor_risk` typed each Proposal parameter as `("num", v) if isinstance(v, int) else ("str", v)`. Nothing about that line is a check. It refuses nothing, so there is no branch to delete and nothing for the fourth lesson's "means the wrong thing" to bite on either — it is a **dispatch**, and its `else` silently absorbed a case it was never meant to hold. A JSON `22.0` is the same number as `22` under RFC 8259 and became a *string*; a string never compares equal to a number; every clause mentioning that parameter evaluated `false`; and a `raise_to` that cannot fire cannot raise. `port: 22` graded HIGH and waited for two humans. `port: 22.0` graded MEDIUM and executed with none.
+
+*Generalisation:* **a two-way dispatch over an open domain has a silent third case, and the silent case takes whichever arm is written last.** Look for the `else` that was written as "everything else is a string" and ask what else there actually is.
+
+**How it was found matters more than what it was.** 52 conformance cases, 25 mutants, 81 registry attacks and a 30,000-case cross-language differential all agreed — because not one of them spells a number as a float. The generated corpus cannot produce the input, so scaling it produces more agreement and no more evidence. It was found by asking, of the generator, *what can this never emit?* and going there deliberately. That question has now paid twice in two days: the same question found an EL-1 integer literal past `i64` being reinterpreted as a field reference, also in the permissive direction, also invisible to 30,000 generated cases.
+
+The guard is the second **restore** mutant in this repository, after CR-4's: it puts the two-arm dispatch back and requires the attack to succeed. Deletion mutants cannot express "this used to be missing a case", so a defect of this shape can only be proven caught by reconstructing it.
 
 ## Suite 3 — Ledger partition (9/9)
 
@@ -120,7 +128,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (81/81, 4/4)
+## Suite 10 — consolidated registry and composition (82/82, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

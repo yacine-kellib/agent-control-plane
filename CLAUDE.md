@@ -15,16 +15,16 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (97 assertions)
+./tools/selftest.sh                # tests the tooling itself (99 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
 
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
-PYTHONPATH=../src python3 conformance.py          # 52/52
-PYTHONPATH=../src python3 attack_registry.py      # 81/81  (--compose → 4/4)
-PYTHONPATH=../src python3 mutate_executor.py      # 25/25  deletes each check, asserts the attack succeeds
+PYTHONPATH=../src python3 conformance.py          # 53/53
+PYTHONPATH=../src python3 attack_registry.py      # 82/82  (--compose → 4/4)
+PYTHONPATH=../src python3 mutate_executor.py      # 26/26  deletes each check, asserts the attack succeeds
 PYTHONPATH=../src python3 ack_suite.py            # 14/14  (--mutate → 6/6)
 PYTHONPATH=../src python3 audit_suite.py          # 12/12  (--mutate → 4/4)
 PYTHONPATH=../src python3 partition_suite.py      # 9/9
@@ -45,7 +45,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 137 tests
+cargo check --workspace && cargo test --workspace   # Rust: 141 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 1 project
 ```
 
@@ -106,7 +106,7 @@ Four failures, three shapes. 2026-08-17 burned ~4M tokens and produced no artifa
 
 **Never fork `reference/src/*.py`. Import them.** Those modules carry mutation-test markers in comments — `# AU-7-anchor-before-release (mutation target)`, `# AC-5-anchor-release (do not move)`, `# AU-6-suspend-sampling`. `mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by reading the source text and deleting them, then assert the matching attack succeeds. A copied-and-edited executor silently voids the repository's own evidence. When new domain behaviour is needed, subclass and extend (see `sim/release.py:ResearchGate`).
 
-**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 25 + 6 + 4 = **35 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
+**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 26 + 6 + 4 = **36 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
 
 **Make the code work. Never shape the test around the code.** The failure mode this repository is most exposed to is not a bug, it is a green run that means nothing — and every incentive points at manufacturing one, because the whole argument rests on numbers replaying. So:
 
@@ -142,7 +142,7 @@ The reason this stopped being a modelling detail is worth keeping: HMAC is symme
 
 `HybridKey` derives **both** halves from its seed. It must stay that way: `sim.supervise` is seven OS processes, and an unseeded ML-DSA keygen gives each process a different key for the same identity. That was a real defect, found by this rule not existing.
 
-**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 35 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
+**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 36 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
 
 ## Writing style for this repository
 

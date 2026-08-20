@@ -100,8 +100,8 @@ Every input consumed for a control decision is classified: **recomputed** by the
 |-----------|--------|
 | Mechanized proofs (Dafny 4.9.1 / Z3 4.12.1) | **36 verified, 0 errors** |
 | Mutation controls on the proofs | **9/9 kill** |
-| Conformance suite | **52/52** — 43 attacks fail closed, 9 honest paths execute |
-| Implementation mutation testing | **25/25 kill** — every check is load-bearing |
+| Conformance suite | **53/53** — 44 attacks fail closed, 9 honest paths execute |
+| Implementation mutation testing | **26/26 kill** — every check is load-bearing |
 | Ledger partition semantics | **9/9** — CL-6 holds |
 | Executor × distributed ledger integration | **6/6** |
 | Canonical CBOR encoding | **8/8** |

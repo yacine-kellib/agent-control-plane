@@ -686,7 +686,7 @@ else
   # reached all of them -- a script that silently ran zero would otherwise
   # print a green nothing.
   N=$(printf '%s' "$OUT" | grep -c 'KILL')
-  [ "$N" -eq 11 ]; chk $? "and all eleven mutants actually ran (counted $N)"
+  [ "$N" -eq 12 ]; chk $? "and all twelve mutants actually ran (counted $N)"
 fi
 
 printf '\n\033[1m== EL-1 differential: Python vs Rust on generated source ==\033[0m\n'
@@ -727,6 +727,37 @@ printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 # which is the same defect as the mutation counts and the Rust test count, in
 # the file whose entire job is catching that defect.
 #
+printf '\n\033[1m== spec: the vector classification totals equal its own rows ==\033[0m\n'
+
+# ACP-74/ACP-76. `spec/vectors/CLASSIFICATION.md` carries a per-case table and a
+# Totals table stating the same three numbers, and nothing compared them. Adding
+# one conformance case moves the row count and leaves the Totals row saying what
+# it said yesterday -- a published claim contradicting the table three screens
+# above it, in the file that tells a second implementer how much of this
+# repository's evidence is shareable.
+#
+# It is NOT a sync-counts target on purpose: the vector/obligation split is a
+# JUDGEMENT made per case, not something a run can derive. What a machine can
+# do is insist the summary agrees with the rows it summarises.
+CLS=spec/vectors/CLASSIFICATION.md
+if [ ! -f "$CLS" ]; then
+  bad "$CLS is missing — the classification check cannot run"
+else
+  ROWS=$(grep -cE '^\| `[a-zA-Z_0-9]+` \|' "$CLS")
+  VEC=$(grep -E '^\| `[a-zA-Z_0-9]+` \|' "$CLS" | grep -c '\*\*vector\*\*')
+  OBL=$((ROWS - VEC))
+  STATED=$(grep -oE '^\| \*\*Total\*\* \| \*\*[0-9]+\*\* \| \*\*[0-9]+\*\* \| \*\*[0-9]+\*\* \|' "$CLS" \
+           | grep -oE '[0-9]+' | tr '\n' ' ')
+
+  # The detector must be able to see rows at all. A changed table style would
+  # otherwise make ROWS=0, OBL=0, and a stated 0/0/0 would "agree" -- the
+  # vacuous-green shape this file exists to refuse.
+  [ "$ROWS" -gt 50 ]; chk $? "the per-case detector finds rows at all (counted $ROWS)"
+
+  [ "$STATED" = "$ROWS $VEC $OBL " ]
+  chk $? "the Totals row equals the rows it summarises (rows say $ROWS/$VEC/$OBL, table says ${STATED:-none})"
+fi
+
 printf '\n\033[1m== spec: clause ids are defined exactly once ==\033[0m\n'
 
 # v1.3.15 defined CL-7 TWICE -- "ledger writes are check-then-mutate" (v1.3.9)

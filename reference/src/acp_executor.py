@@ -257,6 +257,50 @@ def evaluate(src: str, env: dict) -> bool:
     return _ev(_P(src).parse(), env)
 
 
+def bind_param(name: str, v: Any) -> tuple:
+    """
+    §8.3.1: bind ONE Proposal parameter into the evaluation environment.
+
+    THE DOMAIN IS INTEGERS AND STRINGS. Nothing else has a type here, and
+    §8.3.1 says so twice: "Numeric literals are integers", and every FieldRef
+    "MUST resolve to a field declared in a typing environment derived from the
+    Proposal schema".
+
+    Until v1.3.16 this was one ternary at the call site --
+    `("num", v) if isinstance(v, int) else ("str", v)` -- and it had no else
+    branch for "neither". A FLOAT is not an int, so it fell through to the
+    string arm, and a string never compares equal to a number: `_ev` returns
+    False on `l[0] != r[0]`. Every numeric clause mentioning that parameter
+    silently stopped firing, which for a `raise_to` is the PERMISSIVE
+    direction, because a clause that cannot fire cannot raise.
+
+    RFC 8259 has ONE number type. `22` and `22.0` denote the same number, and
+    the Proposal is written by the party under verification, so the spelling is
+    attacker-chosen. Against this repository's own reference bundle,
+    `port: 22` graded HIGH and was refused for want of a quorum while
+    `port: 22.0` graded MEDIUM and EXECUTED with no attestations at all
+    (ACP-74). Same class as the `i64` literal the Rust parser accepted as a
+    field reference: a value the implementation cannot represent must never
+    take the permissive branch.
+
+    BOOL IS REFUSED TOO, and that is not tidiness. `isinstance(True, int)` is
+    True in Python, so a JSON `true` used to bind as `("num", True)` and
+    compare equal to `1`. `acp_decision::ParamValue` has no Bool arm, so
+    `flag == 1` meant one thing here and another there -- an accident of one
+    language's type system deciding a control outcome. Refusing in both is the
+    only reading that is the same reading.
+
+    REFUSED, NOT COERCED. `float(22.0) -> 22` looks helpful and is a second
+    definition of a number: it leaves `22.5` with no home, and it decides on
+    the Proposal's behalf which of two spellings the author meant.
+    """
+    #                                      (8.3.1-param-domain mutation target)
+    if isinstance(v, bool) or not isinstance(v, (int, str)):
+        raise FailClosed("8.3.1", f"parameter {name!r} is a {type(v).__name__}, "
+                                  f"outside the §8.3.1 value domain (int | str)")
+    return ("num", v) if isinstance(v, int) else ("str", v)
+
+
 # ------------------------------------------------------- consumption ledger
 class Ledger:
     """CL-1..CL-6 plus the DS-6f origin binding. Linearizable by construction."""
@@ -602,7 +646,7 @@ class Executor:
             raise FailClosed("8.4-3", "no risk function for task_type")
         env = {}
         for k, v in proposal.get("params", {}).items():
-            env[k] = ("num", v) if isinstance(v, int) else ("str", v)
+            env[k] = bind_param(k, v)
         for res in proposal.get("targets", []):
             # FLOOR ONLY (TR-5): context raises are deliberately ignored here.
             env[f"{res}.effective_tier"] = ("tier", TIER[self.bundle.floor_of(res)])

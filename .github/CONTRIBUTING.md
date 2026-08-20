@@ -9,7 +9,7 @@ If you are sending code, the rules below are not style preferences. Each one exi
 ```bash
 python3 -m pip install --break-system-packages cryptography dilithium-py
 ./tools/verify.sh --suites      # proofs + 15 suites. Must be green. No key needed.
-./tools/selftest.sh             # tests the tooling itself (97 assertions)
+./tools/selftest.sh             # tests the tooling itself (99 assertions)
 ```
 
 A clean `--suites` run prints exactly **18** result lines: 1 prerequisites + 1 proofs + 15 suites + 1 external-corpus harness. If it prints 17, Dafny is missing and the proof step was skipped.
@@ -34,7 +34,7 @@ Those modules carry mutation-test markers in their comments:
 # AU-6-suspend-sampling
 ```
 
-`mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by **reading the source text** and deleting them, then assert the matching attack now succeeds. **35 mutants** must keep being killed: 25 executor, 6 ack, 4 audit.
+`mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by **reading the source text** and deleting them, then assert the matching attack now succeeds. **36 mutants** must keep being killed: 26 executor, 6 ack, 4 audit.
 
 A copied-and-edited executor voids that evidence silently. When you need new behaviour, subclass and extend — `sim/release.py:ResearchGate` is the pattern.
 

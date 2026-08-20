@@ -16,7 +16,7 @@ paste the last few lines here
 ```
 
 - [ ] `./tools/verify.sh --suites` is green — **18** result lines, 0 failures
-- [ ] `./tools/selftest.sh` passes (97 assertions) — required if you touched anything in `tools/`
+- [ ] `./tools/selftest.sh` passes (99 assertions) — required if you touched anything in `tools/`
 
 <!-- 17 lines instead of 18 means Dafny is not installed and the proof step was skipped. -->
 
@@ -31,7 +31,7 @@ Editing any file under a signed root (`spec dossier reference crates packages si
 
 ## Rules this PR does not break
 
-- [ ] I did not copy `reference/src/*.py`. Those modules carry mutation markers that 35 mutants locate by reading the source text — a fork voids that evidence silently. Subclass and extend instead.
+- [ ] I did not copy `reference/src/*.py`. Those modules carry mutation markers that 36 mutants locate by reading the source text — a fork voids that evidence silently. Subclass and extend instead.
 - [ ] I added no model-side filtering, scoring or judging of model output (§5.1a)
 - [ ] I did not relax a fail-safe default — unknown is never LOW (P-4)
 - [ ] No verifier in this change accepts a derived security value from the party it is verifying (RES-8)

@@ -68,23 +68,142 @@ impl std::fmt::Display for Refusal {
 
 impl std::error::Error for Refusal {}
 
+/// The clause that governs the Proposal parameter domain.
+///
+/// §8.3.1: "Numeric literals are integers", and every FieldRef "MUST resolve to
+/// a field declared in a typing environment derived from the Proposal schema".
+/// Exported so a caller that wraps a deserialisation failure can name the rule
+/// that fired instead of forwarding "data did not match any variant" — the
+/// cross-language differential compares **which rule refused**, and a refusal
+/// with no name has not been shown to agree with anything.
+pub const PARAM_DOMAIN_CLAUSE: &str = "8.3.1";
+
+/// The message every domain refusal below carries. Begins with the clause, and
+/// `the_domain_refusal_names_its_clause` asserts that it still does.
+const PARAM_DOMAIN_MSG: &str =
+    "8.3.1: a Proposal parameter must be an integer or a string";
+
 /// One Proposal parameter.
 ///
-/// Integers and strings only, matching `acp_executor.py`'s
-/// `("num", v) if isinstance(v, int) else ("str", v)`.
+/// Integers and strings only. Nothing else has a type in the §8.3.1
+/// environment, and the deserialiser below is where that is enforced — by
+/// construction, so there is no second door and no check a caller can forget.
 ///
-/// **`isinstance(v, int)` is `True` for `bool` in Python**, so a JSON `true`
-/// becomes `("num", True)` there and compares equal to `1`. This enum has no
-/// `Bool`, so a boolean parameter is a divergence rather than a silent
-/// coercion — surfaced by [`ParamValue`]'s deserialiser refusing it. That is
-/// deliberate: reproducing Python's bool-is-an-int would import an accident of
-/// its type system into a security decision, and silently accepting it as a
-/// string would let `flag == 1` mean something different in each language.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
-#[serde(untagged)]
+/// # Why this is hand-written rather than `#[serde(untagged)]` (ACP-74)
+///
+/// It used to be untagged, which refused a float for the right reason and with
+/// the wrong error: serde reported "data did not match any variant", carrying
+/// no clause. That is fine until the differential asks *which rule refused*.
+///
+/// The reference had the same domain and no refusal at all. `isinstance(v, int)`
+/// is false for a float, so `port: 22.0` fell through to the STRING arm, a
+/// string never compares equal to a number, and every numeric clause mentioning
+/// that parameter silently stopped firing — the permissive direction, since a
+/// clause that cannot fire cannot raise. Against the reference bundle,
+/// `port: 22` graded HIGH and was refused for want of a quorum while
+/// `port: 22.0` **executed with no attestations at all**. RFC 8259 has one
+/// number type; `22` and `22.0` are the same number, and the Proposal is
+/// written by the party under verification.
+///
+/// # bool is refused, and that is not tidiness
+///
+/// `isinstance(True, int)` is `True` in Python, so a JSON `true` bound as
+/// `("num", True)` there and compared equal to `1`. This enum has no `Bool`
+/// arm. Accepting it as a string instead would let `flag == 1` mean one thing
+/// in each language, which is an accident of one type system deciding a control
+/// outcome. Both sides refuse now, so both sides read the same.
+///
+/// # An integer too large for `i64` is refused, not narrowed
+///
+/// serde_json parses an integer beyond `u64` as an `f64`, so it arrives at
+/// `visit_f64` and is refused with everything else outside the domain. Same
+/// decision as the EL-1 literal in `acp-el1`, and for the same reason: a value
+/// this implementation cannot represent must never take the permissive branch.
+/// Python compares the real value, so the divergence is disclosed rather than
+/// hidden — it is pinned in `tools/check-el1-differential.py`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamValue {
     Num(i64),
     Str(String),
+}
+
+impl<'de> serde::Deserialize<'de> for ParamValue {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Domain;
+
+        impl<'de> serde::de::Visitor<'de> for Domain {
+            type Value = ParamValue;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(PARAM_DOMAIN_MSG)
+            }
+
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<ParamValue, E> {
+                Ok(ParamValue::Num(v))
+            }
+
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<ParamValue, E> {
+                // Above `i64::MAX` this is out of range, not merely large.
+                // Refused rather than wrapped: a wrapped threshold compares
+                // SMALLER than the policy author wrote, which is permissive.
+                i64::try_from(v)
+                    .map(ParamValue::Num)
+                    .map_err(|_| E::custom(PARAM_DOMAIN_MSG))
+            }
+
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<ParamValue, E> {
+                Ok(ParamValue::Str(v.to_owned()))
+            }
+
+            fn visit_string<E: serde::de::Error>(self, v: String) -> Result<ParamValue, E> {
+                Ok(ParamValue::Str(v))
+            }
+
+            // Everything below is a REFUSAL, spelled out one arm at a time.
+            //
+            // serde's default arms already error, but with a message about
+            // types rather than about the clause, and the clause is the payload
+            // the differential compares. They are also the arms an attacker
+            // chooses, so leaving them implicit means the interesting half of
+            // this type is the half nobody wrote down.
+            //
+            // (8.3.1-param-domain mutation target: make visit_f64 return
+            // `Ok(ParamValue::Str(v.to_string()))` and the reference's defect is
+            // back exactly as it was — the float becomes a string and every
+            // numeric clause mentioning it stops firing.)
+            fn visit_f64<E: serde::de::Error>(self, _v: f64) -> Result<ParamValue, E> {
+                Err(E::custom(PARAM_DOMAIN_MSG))
+            }
+
+            fn visit_bool<E: serde::de::Error>(self, _v: bool) -> Result<ParamValue, E> {
+                Err(E::custom(PARAM_DOMAIN_MSG))
+            }
+
+            fn visit_unit<E: serde::de::Error>(self) -> Result<ParamValue, E> {
+                Err(E::custom(PARAM_DOMAIN_MSG))
+            }
+
+            fn visit_none<E: serde::de::Error>(self) -> Result<ParamValue, E> {
+                Err(E::custom(PARAM_DOMAIN_MSG))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                _: A,
+            ) -> Result<ParamValue, A::Error> {
+                Err(serde::de::Error::custom(PARAM_DOMAIN_MSG))
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                _: A,
+            ) -> Result<ParamValue, A::Error> {
+                Err(serde::de::Error::custom(PARAM_DOMAIN_MSG))
+            }
+        }
+
+        d.deserialize_any(Domain)
+    }
 }
 
 /// The Proposal, as the verifier independently received it.

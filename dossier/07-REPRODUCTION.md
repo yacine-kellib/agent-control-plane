@@ -64,8 +64,8 @@ Until v1.3.12 the attacks lived in eight separate files, so a reader running `co
 ## Replay the tests
 
 ```bash
-python3 reference/suites/conformance.py           # expected: 52/52 CONFORMANT
-python3 reference/suites/mutate_executor.py       # expected: 25/25 killed
+python3 reference/suites/conformance.py           # expected: 53/53 CONFORMANT
+python3 reference/suites/mutate_executor.py       # expected: 26/26 killed
 python3 reference/suites/partition_suite.py       # expected: 9/9 CL-6 HOLDS
 python3 reference/suites/partition_integration.py # expected: 6/6 INTEGRATION HOLDS
 python3 reference/suites/cbor_suite.py            # expected: 8/8 AT-8a HOLDS

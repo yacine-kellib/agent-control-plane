@@ -221,6 +221,47 @@ def a_X1_risk_downgrade():
     ex.execute(receipt(b, p, atts=[], risk_level_floor_only="LOW"), p)
 
 
+def a_EL1_float_param_lowers_the_grade():
+    """
+    THE SAME NUMBER, SPELLED DIFFERENTLY, BUYS A LOWER GRADE.
+
+    X1 forged the risk field and was caught by recomputation. This attacks the
+    recomputation itself: it does not lie about the grade, it changes the input
+    the grade is computed FROM, in a way that RFC 8259 says is not a change at
+    all. JSON has one number type. `22` and `22.0` denote the same number, and
+    the Proposal is written by the party under verification.
+
+    Through v1.3.16 a parameter was typed by `isinstance(v, int)`, with the
+    string arm as the else. A float is not an int, so `port: 22.0` bound as a
+    STRING, `_ev` returned False on the type mismatch, and the clause that
+    raises firewall changes on sensitive ports stopped firing:
+
+        port=22    (int)   -> HIGH   -> refused, INV-1-HIGH wants two humans
+        port=22.0 (float)  -> MEDIUM -> EXECUTED with no attestations at all
+        port=9999  (int)   -> MEDIUM -> EXECUTED   (control: MEDIUM does run)
+
+    The target is `sandbox` (T0) deliberately, so the tier arm of the clause is
+    false and the port arm is the only thing deciding. Against `prod-db` the
+    first clause grades HIGH regardless and the attack would appear to fail for
+    a reason that has nothing to do with it.
+
+    The control is asserted here rather than described, because the attack's
+    whole content is the DIFFERENCE between the two spellings. If the integer
+    spelling ever stops grading HIGH this function must fail loudly instead of
+    passing for the wrong reason -- which is what a witness chosen without
+    checking which assignment separates the readings did to the first Z1 test.
+    """
+    b, ex = fresh()
+    p = proposal(target="sandbox")
+    p["params"]["port"] = 22
+    assert ex.recompute_floor_risk(p) == "HIGH", \
+        "control failed: the integer spelling no longer grades HIGH, so this " \
+        "attack is not measuring the float"
+
+    p["params"]["port"] = 22.0
+    ex.execute(receipt(b, p, atts=[]), p)
+
+
 def a_no_attestation():
     b, ex = fresh()
     p = proposal()
@@ -860,6 +901,7 @@ ATTACKS = [
     ("CR-3 extra undeclared primitive",  a_CR3_extra_primitive,        "9.3-1"),
     ("CR-2 legacy scalar signature",     a_CR2_legacy_scalar_signature, "9.3-1"),
     ("CR-1 unknown suite",               a_CR1_unknown_suite,          "CR-4"),
+    ("EL-1 float param lowers grade",    a_EL1_float_param_lowers_the_grade, "8.3.1"),
     ("PB-KEY swapped attester registry", a_PBKEY_swapped_attester_registry, "9.3-4"),
 ]
 

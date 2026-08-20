@@ -43,7 +43,7 @@ COPY tools/ ./tools/
 COPY MANIFEST.sha256 release-key.pub ./
 
 # sim/ imports the reference modules rather than forking them, which is what
-# lets the demonstrator inherit the 52/52 conformance result and the 35 mutants
+# lets the demonstrator inherit the 53/53 conformance result and the 36 mutants
 # instead of being a second implementation with no evidence behind it.
 ENV PYTHONPATH=/acp/reference/src
 ENV PYTHONUNBUFFERED=1

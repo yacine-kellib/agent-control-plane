@@ -22,6 +22,89 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — the same number, spelled differently, removed the human quorum
+
+**Specification moves v1.3.15 → v1.3.17** (there is no spec v1.3.16; package v1.3.16 shipped
+the document unchanged at v1.3.15, and the skip keeps one version string mapped to one
+artifact under X5). New clause: **EL-2**.
+
+`ACP-74`. Found while establishing the entry conditions for `ACP-45` slice 4 — not by reading
+the code, and not by any suite. By asking what inputs the corpus can never produce.
+
+`Executor.recompute_floor_risk` typed every Proposal parameter with one line:
+
+```python
+env[k] = ("num", v) if isinstance(v, int) else ("str", v)
+```
+
+Two arms, and no third. `isinstance(22.0, int)` is `False`, so a float bound as a **string**.
+A string never compares equal to a number — `_ev` returns `False` on the type mismatch — so
+every clause mentioning that parameter silently stopped firing, which for a `raise_to` is the
+permissive direction, because **a clause that cannot fire cannot raise**.
+
+RFC 8259 has one number type. `22` and `22.0` denote the same number, and the Proposal is
+written by the party under verification, so the spelling is adversary-chosen. Against this
+repository's own reference bundle, with the target floored at T0 so that only the port clause
+can decide:
+
+```
+clause: action == 'allow' && ( port in [ 22 , 3389 ] || tier >= T2 )
+
+  port=22       (int  ) grade=HIGH   -> refused [INV-1-HIGH]    <- control
+  port=22.0     (float) grade=MEDIUM -> EXECUTED                <- the defect
+  port=9999     (int  ) grade=MEDIUM -> EXECUTED                <- control
+```
+
+The float receipt executes with **no attestations at all**. Writing `22.0` instead of `22`
+removed the two-person quorum INV-1-HIGH exists to require.
+
+**Nothing in the repository could have found it, and that is the part worth keeping.** 52
+conformance cases, 25 executor mutants, 81 registry attacks and a 30,000-case cross-language
+EL-1 differential all agreed — because not one of them spells a number as a float. Mutation
+testing could not help either: every mutant here works by *deleting* a check, and there was
+no check to delete. The defect was a present line with no third arm. That is the limit
+`ACP-31` already recorded for CR-4's rank table, met a second time, and the reason the new
+mutant is a **restore** mutant: it puts the two-way test back and requires the attack to
+succeed, reproducing the defect's shape rather than its absence.
+
+**Refused, not coerced.** `22.0 -> 22` looks like the helpful repair and is a second
+definition of a number: it leaves `22.5` with no home and decides on the author's behalf
+which spelling was meant. `bool` is refused for the same reason one layer over —
+`isinstance(True, int)` is `True` in Python, so a JSON `true` used to compare equal to `1`
+here while `acp_decision::ParamValue` refused it, an accident of one language's type system
+deciding a control outcome. Both sides refuse now, so both sides read the same.
+
+| | |
+| --- | --- |
+| `reference/src/acp_executor.py` | `bind_param()` — the third arm, refusing under `8.3.1` |
+| `crates/acp-decision/src/lib.rs` | `ParamValue`'s deserialiser hand-written, so the refusal **names its clause** instead of reporting "data did not match any variant" |
+| `spec/ACP-SPEC-001.md` | **EL-2**: the environment's value domain, and the refusal outside it |
+| conformance | 52 → **53** (`EL-1 float param lowers grade`); registry 81 → **82** |
+| executor mutants | 25 → **26**; Rust decision-path mutants 11 → **12** |
+| `acp-decision` tests | 9 → **13** |
+
+The conformance case asserts its own **control** — that the integer spelling still grades
+HIGH — rather than describing it, because the entire content of the attack is the difference
+between two spellings. A witness chosen without checking which assignment separates the two
+readings is what the first Z1 test did, and it passed for the wrong reason until a mutant
+said so.
+
+**A second, smaller defect fell out of the same run.** `attack_registry.py`'s footer printed
+"20 executor checks" while `MUTANTS` held 25 — a published count with no executable source,
+stale for long enough that nothing records when it stopped being true, and outside
+`sync-counts.sh`'s reach because nothing had told it the number existed. All three footer
+counts are **derived** now. A count that is computed cannot go stale.
+
+**Disclosed and not fixed:** `ACP-75`. `canon()`'s AT-8a float refusal checks only the
+**top-level** object, and every reachable call site passes a dict, so it has never fired.
+Meanwhile every receipt this repository builds carries float timestamps *inside the signed
+canonical bytes* (`issued_at: 1000.0`), which is why making the guard recursive is a
+wire-format decision rather than a patch — and Python spells `1e-07` where Rust spells
+`1e-7`, so the two canonicalisers diverge on floats they both accept. That is an
+encoding-split waiting on the slice that has to reproduce a receipt's signed bytes in Rust.
+
+---
+
 ## Unreleased since v1.3.14 — no implemented custody tier could sign a production receipt
 
 `ACP-61`. Found by asking what would sign a Decision Receipt in production, which nothing

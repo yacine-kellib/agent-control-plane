@@ -52,6 +52,19 @@ MUTANTS = [
                                     f"object schema violation missing={missing} extra={extra}")
 ''', "a_Z4_optional_field"),
 
+    # ACP-74. The mutant deletes the domain check and leaves the v1.3.16
+    # ternary standing, so the float falls through to the STRING arm again.
+    # Note what it proves and what it does not: deletion mutants can only
+    # ask whether a check is load-bearing. This defect was a present line
+    # that MEANT THE WRONG THING, and no mutant of any kind found it -- a
+    # hand probe of an input the corpus never spells did. Same limit
+    # ACP-31 recorded for CR-4's rank table.
+    ("§8.3.1 param domain [ACP-74]",
+     '''    if isinstance(v, bool) or not isinstance(v, (int, str)):
+        raise FailClosed("8.3.1", f"parameter {name!r} is a {type(v).__name__}, "
+                                  f"outside the §8.3.1 value domain (int | str)")
+''', "a_EL1_float_param_lowers_the_grade"),
+
     ("risk RECOMPUTATION [X1/TR-8]",
      ("        risk = self.recompute_floor_risk(proposal)",
       "        risk = receipt.get('risk_level_floor_only') or self.recompute_floor_risk(proposal)"),

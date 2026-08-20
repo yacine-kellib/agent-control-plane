@@ -72,7 +72,7 @@ The repository now holds a second implementation surface (Rust, TypeScript) alon
 
 ### RES-P1 — passing the shared corpus is a partial claim
 
-Conformance vectors express *input → verdict*. They do not express the 35 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
+Conformance vectors express *input → verdict*. They do not express the 36 mutants (which work by deleting a check from source and re-running), ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. A second implementation can therefore pass every vector while none of its checks are load-bearing and none of its orderings are correct. Those properties are **per-implementation obligations**, enumerated separately; an implementation that ships a vector runner and no mutation suite has demonstrated agreement on inputs, not soundness.
 
 ### RES-P2 — notifier/approval independence is structural, and no longer publicly checkable
 
