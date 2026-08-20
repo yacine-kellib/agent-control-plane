@@ -19,14 +19,18 @@ with no executable consumer is this project's recurring defect: it produced thre
 corrections in a single day (the schema describing an artifact nobody builds, AU-1's audit
 chain disagreeing with the reference, and `CL-7` naming two normative rules).
 
-**Nothing here runs.** The architecture this document specifies has no implementation. The four Rust
-services' `main()` returns `ExitCode::FAILURE` and the two TypeScript services have
-no entry point at all (ACP-63), and four components named
-throughout — the API gateway, the KMS signing substrate, the audit service and the egress
-proxy — have no source directory at all. The one that matters most is the KMS: custody tiers
-T2 (cloud KMS) and T3 (HSM) are **declared and not implemented**, T0 refuses to sign for
-production and T1 wipes its key after one signature, so **no implemented custody tier can
-serve as an online production receipt signer**. A specification for a system that does not
+**Nothing here runs.** The architecture this document specifies has no implementation in this
+repository. The six services it names left in the two-repository split (ACP-66) and are now
+**absent rather than scaffold** — which is weaker, not stronger: a `main()` that exits non-zero
+is at least a refusal a reader can observe, and a missing directory is nothing at all. Four
+components named throughout — the API gateway, the KMS signing substrate, the audit service and
+the egress proxy — have no source directory in either repository. On custody, corrected: tier T2
+(cloud KMS) **is implemented** as of ACP-61 behind the `kms` feature, but what is implemented is
+the custody *policy* and the `KmsBackend` trait a deployment implements against its own KMS —
+not a cloud SDK, and not a backend. Tier T3 (HSM) remains **declared and not implemented**. T0
+refuses to sign for production and T1 wipes its key after one signature, so **no tier in a
+default build can serve as an online production receipt signer**, and a `--features kms` build
+can only do so once the deployment has supplied a backend. A specification for a system that does not
 exist is a design document wearing normative clothing, and it should be read as one until
 the gate says otherwise.
 
@@ -308,9 +312,12 @@ One constraint decides the whole mechanism, and it is stated before any profile 
 
   *What this profile does not include, said because the custody tier invites the opposite reading.* It does not require separated verification. A mandate that fixes hardware custody does not thereby supply an independent auditor, and custody tier T3 is not shorthand for *everything the other profiles have, plus an HSM*. A deployment needing both is configured for two profiles.
 
-- **DP-27 (Normative Disclosure). Two of the three profiles above are DECLARABLE AND NOT OPERABLE in any build in this repository, and a deployment MUST NOT claim a profile it cannot operate.** Specifically:
+- **DP-27 (Normative Disclosure — CORRECTED in this revision; see the note below). A profile this repository cannot operate MUST NOT be claimed by a deployment, and operability is a property of the BUILD rather than of the specification.** Specifically:
 
-  - Custody tier T2 and custody tier T3 are declared and not implemented. The `kms` and `hsm` Cargo features are empty; enabling one adds no backend, and the signer constructor refuses both tiers unconditionally even in a build with the feature on, because an in-memory key is not a KMS and accepting it there would put a T3 label on process memory. `OfflineSigner` is the only `Signer` implementation in the workspace. There is no `KmsSigner` and no `HsmSigner`.
+  - Custody tier **T3 is declared and not implemented**. The `hsm` Cargo feature is empty; enabling it adds no backend, and the signer constructor refuses the tier unconditionally even in a build with the feature on, because an in-memory key is not an HSM and accepting it there would put a T3 label on process memory. There is no `HsmSigner`.
+  - Custody tier **T2 is implemented**, as of ACP-61, behind the `kms` feature as `KmsSigner`. What is implemented is the custody **policy** and the `KmsBackend` trait a deployment implements against its own KMS — not a cloud SDK. So a default build still cannot operate T2 (`CustodyTier::T2::is_operable()` is `cfg!(feature = "kms")`), and a `--features kms` build can operate it only once a backend exists. `tools/selftest.sh` runs the feature build and asserts that its T2 tests pass, because a tier compiled out of the only Rust command the gate runs would pass forever by not existing — the same defect as an unrun mutant reporting SURVIVE.
+
+    *A correction worth recording.* Until this revision this clause stated that "the `kms` and `hsm` Cargo features are empty", that the constructor "refuses both tiers unconditionally", and that "there is no `KmsSigner`". All three were false from the moment ACP-61 landed. The error was in the safe direction — it understated what exists rather than overstating it — and that is exactly why nothing caught it: a disclosure that claims *less* capability trips no test, offends no reviewer, and reads as appropriate humility. **Normative text with no executable consumer is this document's named recurring defect (§9), and this is an instance of it inside the clause that discloses instances of it.** Nothing in the gate compares this section against `crates/acp-crypto/src/custody.rs`; until something does, the next divergence will also ship.
   - Custody tier T1 signs for production and its key is wiped after one signature, which is what *air-gapped host, key zeroized after use* means when written as code. It is therefore an offline bundle-signing arrangement and is not a substitute for an online receipt-signing key at any tier.
   - The `slhdsa128s` suite parses and fails closed. Its primitive is named `pq-slh` and is deliberately not aliased to the ML-DSA primitive, so a bundle naming that suite is refused as unsupported rather than verified against a lattice key.
   - Consequently `separated-verification` and `mandated-custody` are names for arrangements this repository can describe and cannot produce. `single-domain` is the only profile whose custody floor and suite floor are both operable here.
@@ -723,7 +730,7 @@ This is the shortest normative section in this document, and the length is the f
 
 ## 9. Executable Consumers and Conformance Status (Normative Disclosure)
 
-**Most of this document is not checked by anything, and that is the accurate result rather than a gap to be papered over.** Nothing in this repository boots: every service `main()` under `services/` exits non-zero by construction so a scaffold cannot be mistaken for a running control plane, and the only system that actually runs end to end is the Python reference plus `sim.supervise`, which is real OS processes over stdio pipes. A deployment specification describes network segmentation, credential domains, boot ordering, dependency loss and substrate guarantees — none of which is observable from a repository that ships no deployment. So the register below has a **NOT CHECKED** majority, and it says so in the first paragraph rather than in a footnote after the table.
+**Most of this document is not checked by anything, and that is the accurate result rather than a gap to be papered over.** Nothing in this repository boots: since ACP-66 the services are not here at all, so there is not even a scaffold refusing to start, and the only system that actually runs end to end is the Python reference plus `sim.supervise`, which is real OS processes over stdio pipes. A deployment specification describes network segmentation, credential domains, boot ordering, dependency loss and substrate guarantees — none of which is observable from a repository that ships no deployment. So the register below has a **NOT CHECKED** majority, and it says so in the first paragraph rather than in a footnote after the table.
 
 This matters more here than the honesty is worth on its own. The recurring defect this repository has published corrections for three times in one day is **normative text with no executable consumer** — a schema describing an artifact nobody builds (ACP-50), the audit chain formula (AU-1) disagreeing with the reference so per-anchor independent verifiability (AU-3a) could not hold (ACP-57), and one clause id (`CL-7`) naming two different normative rules while both meanings were cited (ACP-56). A deployment specification is the most exposed document this project could write, because so little of it can be executed. The countermeasure is not to manufacture coverage. It is to name, per clause group, the command that goes red — or to say plainly that none does, and to name the check that would.
 
@@ -809,7 +816,7 @@ Ranges are cited by section and clause range. Where the check cell names a comma
 
 The limits come before the claims here, as they do in the specification's Security Considerations (ACP-SPEC-001 §15) and in `dossier/06-RESIDUAL-RISK.md`. Two things separate this section from those, and both are weaknesses rather than strengths.
 
-First, **these are residuals of a document, not of a running system.** Nothing specified here boots: no service in this repository has a startable entry point, and every Rust `main()` exits non-zero by design, so a deployment residual cannot be demonstrated the way a ledger residual can be demonstrated by running the partition suites. The residuals below were found by reading, and reading is the method that found the three corrections ACP-SPEC-001 §1 publishes.
+First, **these are residuals of a document, not of a running system.** Nothing specified here boots: since ACP-66 no service is in this repository at all, so a deployment residual cannot be demonstrated the way a ledger residual can be demonstrated by running the partition suites. The residuals below were found by reading, and reading is the method that found the three corrections ACP-SPEC-001 §1 publishes.
 
 Second, and worse, **no command in this repository goes red if any clause in this section is violated.** §9 records that per clause group rather than leaving it to be inferred, and each clause below repeats it in its own terms. This is not an aside. A deployment specification is the artifact most exposed to the defect ACP-SPEC-001 §1 records recurring three times in one day — normative text with no executable consumer — precisely because so little of it is executable, and a residual section that implied coverage it does not have would be a fourth instance rather than a disclosure of the first three.
 
