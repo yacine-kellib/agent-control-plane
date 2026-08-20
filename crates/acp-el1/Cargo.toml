@@ -1,0 +1,18 @@
+[package]
+name = "acp-el1"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# No dependencies, deliberately.
+#
+# EL-1 is a closed, total little language: a lexer, a two-level precedence
+# parser and a fold over an environment. Reaching for a parser combinator
+# crate would put the normative precedence rule inside a dependency's
+# behaviour, and §1246's conformance requirement is that the parser be tested
+# AS THE DEPLOYMENT'S OWN. A parser the deployment did not write is one it
+# cannot answer for.
+[dependencies]
+
+[dev-dependencies]

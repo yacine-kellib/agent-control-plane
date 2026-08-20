@@ -6,6 +6,7 @@ members = [
     "crates/acp-bundle",
     "crates/acp-bundle-cli",
     "crates/acp-conformance",
+    "crates/acp-el1",
 ]
 
 [workspace.package]
@@ -20,3 +21,4 @@ acp-core = { path = "crates/acp-core" }
 # the lock file via serde_json, so adding it here pulls nothing new down.
 serde = { version = "1", features = ["derive"] }
 acp-crypto = { path = "crates/acp-crypto" }
+acp-el1 = { path = "crates/acp-el1" }

@@ -9,7 +9,7 @@ If you are sending code, the rules below are not style preferences. Each one exi
 ```bash
 python3 -m pip install --break-system-packages cryptography dilithium-py
 ./tools/verify.sh --suites      # proofs + 15 suites. Must be green. No key needed.
-./tools/selftest.sh             # tests the tooling itself (91 assertions)
+./tools/selftest.sh             # tests the tooling itself (93 assertions)
 ```
 
 A clean `--suites` run prints exactly **18** result lines: 1 prerequisites + 1 proofs + 15 suites + 1 external-corpus harness. If it prints 17, Dafny is missing and the proof step was skipped.

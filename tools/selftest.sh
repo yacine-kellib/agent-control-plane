@@ -662,6 +662,33 @@ has 'x-acp-absent' "and names the missing rule instead of guessing a default"
 
 [ -n "$sdir" ] && rm -rf "$sdir"
 
+printf '\n\033[1m== EL-1 parser mutants (ACP-45) ==\033[0m\n'
+
+# The parser is OUTSIDE the proof TCB. Annex B quantifies over parsed `Expr`
+# values and the Z1 differential generated ASTs, so the entire assurance
+# apparatus sat downstream of the ambiguity and could not see it (RES-10:
+# every proof has a boundary, and the defect will be found immediately outside
+# it). §1246 therefore makes parser conformance its own obligation, on SOURCE
+# TEXT, against the deployment's own parser.
+#
+# `cargo test --workspace` above already runs the EL-1 suite. That is not the
+# claim: a suite that cannot fail passes forever. This runs four mutants and
+# requires each to be KILLED. It has already earned it -- the first Z1 witness
+# test survived the precedence mutant, because the assignment it chose does not
+# separate the two readings.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; EL-1 mutants not checked\n'
+else
+  OUT=$(./tools/mutate-el1.sh 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "every EL-1 parser mutant is killed (rc=$rc)"
+  # An unrun mutant is not a caught one. The script reports ERROR rather than
+  # KILL when a mutant fails to build, and this asserts the run actually
+  # reached four of them -- a script that silently ran zero would otherwise
+  # print a green nothing.
+  N=$(printf '%s' "$OUT" | grep -c 'KILL')
+  [ "$N" -eq 4 ]; chk $? "and all four mutants actually ran (counted $N)"
+fi
+
 printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 
 # README.md and CLAUDE.md both publish how many assertions this script makes.
