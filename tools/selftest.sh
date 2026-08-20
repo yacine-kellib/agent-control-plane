@@ -686,7 +686,7 @@ else
   # reached all of them -- a script that silently ran zero would otherwise
   # print a green nothing.
   N=$(printf '%s' "$OUT" | grep -c 'KILL')
-  [ "$N" -eq 12 ]; chk $? "and all twelve mutants actually ran (counted $N)"
+  [ "$N" -eq 16 ]; chk $? "and all sixteen mutants actually ran (counted $N)"
 fi
 
 printf '\n\033[1m== EL-1 differential: Python vs Rust on generated source ==\033[0m\n'

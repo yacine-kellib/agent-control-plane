@@ -45,7 +45,7 @@ python3 -m sim.supervise --checks  # process-isolation properties only
 python3 -m sim.scoreboard          # the deliverable
 python3 -m sim.acceptance          # 11 pass, 1 partial, 0 fail
 
-cargo check --workspace && cargo test --workspace   # Rust: 147 tests
+cargo check --workspace && cargo test --workspace   # Rust: 151 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 1 project
 ```
 

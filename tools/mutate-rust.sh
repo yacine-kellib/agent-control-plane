@@ -201,6 +201,38 @@ run_mutant "8.3.1-param-domain (float becomes a string again)" acp-decision "$(s
                 Ok(ParamValue::Str(v.to_string()))
             }')"
 
+# ======================================================= acp-decision (receipt)
+#
+# CR-4 runs BEFORE the signature. Delete the floor check and the input is still
+# refused -- at 9.3-1 -- so a test asserting only "refused" survives this. The
+# test asserts the CLAUSE, which is the whole reason refusals are named.
+run_mutant "cr4-floor-skipped (a hybrid satisfies an slhdsa floor)" acp-decision "$(sub \
+  crates/acp-decision/src/receipt.rs \
+  '    if !suite.satisfies_floor(suite_of(floor)) {' \
+  '    if false {')"
+
+# CR-1: an unknown suite resolved to a known one rather than refused. This is
+# the defaulting a wire parser invites, and it hands the attacker suite choice.
+run_mutant "cr1-unknown-defaults (unknown alg becomes ed25519)" acp-decision "$(sub \
+  crates/acp-decision/src/receipt.rs \
+  '    Suite::from_wire(name).ok_or_else(|| Refusal::new(CLAUSE_UNKNOWN_SUITE, "unknown signature suite"))' \
+  '    Ok(Suite::from_wire(name).unwrap_or(Suite::Ed25519))')"
+
+# CR-3: drop a primitive from the verdict set instead of presenting it. A
+# stripped post-quantum leg then reaches the combiner as a suite that never had
+# one -- "mostly valid" is a downgrade, not a near miss.
+run_mutant "cr3-primitive-dropped (stripped PQ leg passes)" acp-decision "$(sub \
+  crates/acp-decision/src/receipt.rs \
+  '        verdicts.push((part.primitive, verdict));' \
+  '        if part.primitive != Primitive::Pq { verdicts.push((part.primitive, verdict)); }')"
+
+# §9.3 step 2: the receipt verifies, the suite meets the floor, and the answer
+# is DENY. Without this check that receipt executes.
+run_mutant "9.3-2-decision-unchecked (a signed DENY executes)" acp-decision "$(sub \
+  crates/acp-decision/src/receipt.rs \
+  '    if decision != "ALLOW" {' \
+  '    if false {')"
+
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then
   printf '  %d/%d Rust decision-path mutants killed.\n' "$PASS" "$PASS"

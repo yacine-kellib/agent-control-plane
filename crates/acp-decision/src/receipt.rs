@@ -278,4 +278,99 @@ mod tests {
         // it should change deliberately rather than be discovered.
         assert!(canon(&serde_json::json!({"issued_at": 1000.0})).is_ok());
     }
+
+    // ---------------------------------------------------------------- end to end
+    //
+    // The four tests below drive `verify_receipt` with a REAL hybrid signature,
+    // because three of its checks are unreachable otherwise: CR-3 and step 2 sit
+    // behind signature verification, and a test that never gets a valid
+    // signature can only ever assert the refusal it stops at first.
+    //
+    // Deterministic keys from a fixed seed. `KeyMaterial::from_seed` derives
+    // BOTH halves from it, which is not a convenience -- an unseeded ML-DSA
+    // keygen gives a different key per process for the same identity, and that
+    // was a real defect here once.
+
+    use acp_crypto::{CustodyTier, Environment, KeyMaterial, OfflineSigner, Signer};
+
+    fn signed(suite: Suite, payload: &[u8]) -> (ReceiptKey, Vec<SignaturePart>) {
+        let key = KeyMaterial::from_seed(b"acp-45-slice-4-receipt-gate");
+        let rk = ReceiptKey {
+            classical: *key.public().classical(),
+            pq: key.public().pq().to_vec(),
+        };
+        let signer = OfflineSigner::new(CustodyTier::T1, suite, key).unwrap();
+        let sig = signer.sign(payload, Environment::Production).unwrap();
+        let parts = sig
+            .parts()
+            .iter()
+            .map(|(prim, bytes)| SignaturePart { primitive: *prim, bytes: bytes.clone() })
+            .collect();
+        (rk, parts)
+    }
+
+    #[test]
+    fn a_well_formed_allow_receipt_passes_the_gate() {
+        // The control. Without it every assertion below is satisfied by a gate
+        // that refuses everything, which is the "uniformly broken" trap.
+        let suite = Suite::HybridEd25519MlDsa65;
+        let payload = canon(&serde_json::json!({"decision": "ALLOW"})).unwrap();
+        let (key, parts) = signed(suite, &payload);
+        assert!(
+            verify_receipt("hybrid-ed25519-mldsa65", SuiteId::Ed25519, &key, &payload, &parts, "ALLOW").is_ok(),
+            "the gate refused a receipt that is valid in every respect"
+        );
+    }
+
+    #[test]
+    fn cr4_a_hybrid_signature_does_not_satisfy_an_slhdsa_floor_at_the_gate() {
+        // Kills `cr4-floor-skipped`. Note WHICH clause is asserted: delete the
+        // floor check and this input still fails -- at 9.3-1, because the key
+        // is right but the floor was the thing that should have stopped it. A
+        // test asserting only "refused" would survive the mutant.
+        let suite = Suite::HybridEd25519MlDsa65;
+        let payload = canon(&serde_json::json!({"decision": "ALLOW"})).unwrap();
+        let (key, parts) = signed(suite, &payload);
+        let e = verify_receipt(
+            "hybrid-ed25519-mldsa65", SuiteId::Slhdsa128s, &key, &payload, &parts, "ALLOW",
+        )
+        .unwrap_err();
+        assert_eq!(e.clause, CLAUSE_SUITE_FLOOR, "CR-4 did not fire: {e}");
+    }
+
+    #[test]
+    fn cr3_a_stripped_pq_leg_is_refused_even_though_the_classical_one_is_genuine() {
+        // Kills `cr3-primitive-dropped`. This is the whole point of conjunctive
+        // composition: one real signature plus one missing is not "mostly
+        // valid", it is a downgrade to the primitive the attacker can forge.
+        let suite = Suite::HybridEd25519MlDsa65;
+        let payload = canon(&serde_json::json!({"decision": "ALLOW"})).unwrap();
+        let (key, parts) = signed(suite, &payload);
+        let classical_only: Vec<_> = parts
+            .iter()
+            .filter(|p| p.primitive == Primitive::Classical)
+            .cloned()
+            .collect();
+        assert_eq!(classical_only.len(), 1, "fixture no longer has a classical leg");
+        let e = verify_receipt(
+            "hybrid-ed25519-mldsa65", SuiteId::Ed25519, &key, &payload, &classical_only, "ALLOW",
+        )
+        .unwrap_err();
+        assert_eq!(e.clause, CLAUSE_SIGNATURE, "a stripped PQ leg passed: {e}");
+    }
+
+    #[test]
+    fn step2_a_validly_signed_deny_does_not_execute() {
+        // Kills `9.3-2-decision-unchecked`. The signature is genuine and the
+        // suite meets the floor -- everything is in order except the answer,
+        // which is exactly the receipt an attacker replays if step 2 is absent.
+        let suite = Suite::HybridEd25519MlDsa65;
+        let payload = canon(&serde_json::json!({"decision": "DENY"})).unwrap();
+        let (key, parts) = signed(suite, &payload);
+        let e = verify_receipt(
+            "hybrid-ed25519-mldsa65", SuiteId::Ed25519, &key, &payload, &parts, "DENY",
+        )
+        .unwrap_err();
+        assert_eq!(e.clause, CLAUSE_DECISION, "a signed DENY was released: {e}");
+    }
 }
