@@ -23,4 +23,9 @@ acp-crypto.workspace = true
 serde.workspace = true
 # The canonical encoder. See the workspace note on preserve_order.
 serde_json.workspace = true
+# AT-8a id derivation: "sha256:" + hex over the object's canonical bytes. Not
+# hashing-in-general -- the attestation id IS a hash of signed bytes, and both
+# languages must derive it identically or Y1b compares two different things.
+# Already in the lock file via acp-crypto, so this pulls nothing new down.
+sha2 = "0.10"
 

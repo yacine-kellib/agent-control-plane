@@ -233,6 +233,54 @@ run_mutant "9.3-2-decision-unchecked (a signed DENY executes)" acp-decision "$(s
   '    if decision != "ALLOW" {' \
   '    if false {')"
 
+# ================================================ acp-decision (§9.3 step 7b)
+#
+# AT-9 IS TWO REQUIREMENTS AND BOTH ARE BELOW. There is deliberately NO mutant
+# restoring the v1.3.14 line `need_roles = entries[0].required_count`: it was
+# written for the reference, it SURVIVED, and the reasoning is recorded in
+# reference/suites/mutate_executor.py. AT-9's consent check forces every entry's
+# `required_count` to equal `quorum_k`, so reading entries[0] yields the
+# bundle's own number and the substitution changes nothing. The masking is real,
+# not a test defect. The recomputation is labelled defence in depth in the
+# module docs rather than dressed up as a control, and the two branches that CAN
+# refuse are the two below.
+
+# AT-9's SECOND requirement: consent. The invariant holds -- two distinct
+# approvals for k=2 -- but both attesters signed objects stating a quorum of
+# three. Delete this and the action runs on a basis nobody agreed to.
+run_mutant "at9-consent (stated-vs-applied quorum unchecked)" acp-decision "$(sub \
+  crates/acp-decision/src/quorum.rs \
+  '        if stated != policy.quorum_k {' \
+  '        if false {')"
+
+# AT-3: the threshold comparison itself. Delete it and a quorum of one executes
+# a floor-HIGH action, which is INV-1-HIGH failing outright.
+run_mutant "at3-quorum-comparison (a quorum of one satisfies k=2)" acp-decision "$(sub \
+  crates/acp-decision/src/quorum.rs \
+  '    if got < need {' \
+  '    if false {')"
+
+# AT-2: the proposer counting toward their own quorum. The threshold IS met on
+# this input, so only distinctness stops it.
+run_mutant "at2-self-approval (the proposer approves themselves)" acp-decision "$(sub \
+  crates/acp-decision/src/quorum.rs \
+  '    if approvals.contains(&operator) {' \
+  '    if false {')"
+
+# ================================================== acp-bundle (the registry)
+#
+# PB-7 is the OTHER half of INV-1-HIGH and it is enforced at bundle LOAD, not on
+# the quorum path -- a registry that cannot support its own quorum is malformed
+# everywhere it is used. acp-decision deliberately does not restate it, so the
+# mutant belongs against the existing site: without this check the holder of ONE
+# private key signs two objects, labels them with two enrolled names, and
+# satisfies k=2 alone. Same break as reading the threshold out of the
+# attestation, reached through the registry instead.
+run_mutant "pb7-registry-key-distinctness (one key, two identities)" acp-bundle "$(sub \
+  crates/acp-bundle/src/verify.rs \
+  '                if seen.contains(key) {' \
+  '                if false {')"
+
 printf '\n\033[1m== Result ==\033[0m\n'
 if [ $FAIL -eq 0 ]; then
   printf '  %d/%d Rust decision-path mutants killed.\n' "$PASS" "$PASS"
