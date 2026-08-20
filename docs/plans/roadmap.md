@@ -97,14 +97,38 @@ has not produced a control — it has produced documentation, and this repositor
 already published one of those (RV-1 was reachable only through the floor-HIGH gate for
 four releases; DR-13 gave it effect).
 
+**THE GOAL, stated 2026-08-20 because it was not written down and the table below was
+being read as if it were the goal.** *"A complete architecture working from end to end —
+all the services built, console and so on."* Not a library another product links against;
+a system that runs. That reading was recorded wrongly for two days as "a Rust control
+plane embedded in the user's own SaaS", which is true about the language and wrong about
+the deliverable.
+
+**Two consequences the table below did not carry**, both now ticketed:
+
+- **ACP-62 is load-bearing, not a side ticket.** Ingress, KMS, audit and egress proxy have
+  no source directory at all. "End to end" is unreachable without them and no phase owns
+  them.
+- **ACP-77 — there is no console, and the specification requires humans who have no
+  interface.** DR-9/AT-* need two named people to read a proposal and sign; DR-13 needs an
+  addressee to receive a notice; A-8's lying-screen defence needs a screen. Door A is the
+  machine door and is nearly built. Door B is the human door and does not exist. Note the
+  DR-2 constraint before any of it is designed: a single console rendering both the notice
+  and the approval **is** the shared render path the rule forbids.
+
+Counting what the goal actually needs: **ten services and a console**, of which six are
+scaffold, four have no source, and one has never been mentioned.
+
 | # | Phase | Why it is here and not later | Blocked until |
 | --- | --- | --- | --- |
 | 8 | **Generated types** — `tools/codegen.sh` from `spec/schemas/` to Rust and TS | Cheapest now, when there is exactly ONE consumer. `acp-bundle/verify.rs` reads five named fields out of `serde_json::Value`, which is field access. Five services hand-writing structs is five second definitions of one object — the encoding-split defect multiplied, in the layer where it is least visible. | nothing |
 | 9 | **The decision path in Rust** — §8.4 grading, floors, RV-1, DR-13, CR-3/CR-4, AT-* quorum | This is the authorisation logic itself. Today it exists only in Python; the bundle is its *input*, and an input with no evaluator is a rule store nothing reads. | 8 |
 | 10 | **Ledger and anchor** — append-only, AU-7 anchor-before-release, CL-1..7 partition behaviour | Ordering and temporal properties. `OBLIGATIONS.md` already records that these are **not vector-expressible**, so they need per-implementation tests and cannot be inherited from a corpus. | 9 |
 | 11 | **The two doors** — `services/notifier`, `services/approval` *(now in the PRIVATE product repo — ACP-66 moved `services/` out; the Executor-side check that closes T-32 stays here)* | Where **T-32 closes**. It has been OPEN because the notifier self-certifies its own independence, and closing it needs the Executor to check *two distinct signed service identities named in the signed bundle*. The bundle can now carry them and is verified on read — so this is the open conformance item the rule store actually unblocks. | 9 |
+| 11.5 | **The four with no source** — ingress, KMS, audit, egress proxy (ACP-62) | Added 2026-08-20. They are named all through the architecture and exist nowhere. A refusing scaffold first, like the other six, so the gap lives in the build rather than in a ticket. | 9 |
 | 12 | **Wire it together** — the demonstrator stops being a demonstrator | Services stop exiting non-zero **one at a time, each when it is real**. §9.7's latency budget must be **re-measured**: verify-on-every-read costs one hybrid verification per read, and that number was written before the cost existed. | 10, 11 |
-| 13 | **Substrate** — Podman / Kubernetes / Terraform | Unchanged from the reasoning below. Deliberately last. | 12 |
+| 12.5 | **The console** (ACP-77) — the approval surface, the notice surface, and the operator view | Added 2026-08-20. **Its architecture must be decided before its first commit**: DR-2 forbids the notifier and the approval path sharing anything above the wire format, so this is two separately-built consoles or the render-path distinctness claim dies. Cheap to decide now, close to unpayable after a component library is chosen. | 11, 12 |
+| 13 | **Substrate** — Podman / Kubernetes / Terraform | Unchanged from the reasoning below. Deliberately last — **and, under the goal above, not optional**. A system that runs end to end has to run somewhere. | 12 |
 
 **Where Track B joins.** The vector corpus is not on this critical path and should not be
 allowed to block it. It pays off at phase 9: the Rust decision path needs a differential
