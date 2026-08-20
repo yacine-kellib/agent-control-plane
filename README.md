@@ -52,7 +52,7 @@ python3 -m pip install --break-system-packages cryptography dilithium-py
 ./tools/verify.sh
 ```
 
-Abridged output. A complete run prints 19 result lines across five numbered sections:
+Abridged output. A complete run prints 20 result lines across five numbered sections:
 
 ```
 == 1. Integrity ==
@@ -420,7 +420,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (83 assertions)
+./tools/selftest.sh               # tests the tooling itself (87 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

@@ -688,29 +688,45 @@ dupe_ids() {
     | grep -oE '[A-Z]{2,4}-[0-9]+[a-z]?' | sort | uniq -d
 }
 
-D=$(dupe_ids spec/ACP-SPEC-001.md)
-if [ -z "$D" ]; then
-  ok "every clause id in ACP-SPEC-001 is defined exactly once"
-else
-  bad "clause ids defined more than once: $(echo "$D" | tr '\n' ' ')"
-fi
+# ACP-65: this scanned spec/ACP-SPEC-001.md BY LITERAL PATH, so ACP-DEPLOY-001's
+# 85 clause ids were never checked at all and a duplicate DP- id would have
+# shipped green. Every normative document in spec/ is scanned now, and the
+# manufactured collision below is derived from EACH document's own first id
+# rather than hardcoding CL-6 -- a hardcoded id from one document proves
+# nothing about another.
+for SPECFILE in spec/ACP-*.md; do
+  SPECNAME=$(basename "$SPECFILE" .md)
 
-# THE ASSERTION ABOVE IS VACUOUS ON ITS OWN. A detector whose regex matched
-# nothing -- a changed bullet style, a renamed file -- reports the same green
-# line as a document with no duplicates, and that is the exact failure this
-# block was written to answer. So a collision is MANUFACTURED on every run and
-# the detector must name it. The sabotage is a copy: the real spec is never
-# written to, because a restore step that fails leaves the normative source
-# corrupted.
-SPECCOPY=$(mktemp); cp spec/ACP-SPEC-001.md "$SPECCOPY"
-printf -- '- **CL-6.** manufactured collision — selftest\n' >> "$SPECCOPY"
-D=$(dupe_ids "$SPECCOPY")
-if [ "$D" = "CL-6" ]; then
-  ok "and the detector names a manufactured duplicate (CL-6) rather than passing"
-else
-  bad "manufactured CL-6 collision was NOT detected (got '$(echo "$D" | tr '\n' ' ')')"
-fi
-rm -f "$SPECCOPY"
+  D=$(dupe_ids "$SPECFILE")
+  if [ -z "$D" ]; then
+    ok "every clause id in $SPECNAME is defined exactly once"
+  else
+    bad "$SPECNAME: clause ids defined more than once: $(echo "$D" | tr '\n' ' ')"
+  fi
+
+  # THE ASSERTION ABOVE IS VACUOUS ON ITS OWN. A detector whose regex matched
+  # nothing -- a changed bullet style, a renamed file, a document that uses a
+  # different convention -- reports the same green line as a document with no
+  # duplicates, and that is the exact failure this block was written to answer.
+  # So a collision is MANUFACTURED per document and the detector must name it.
+  # The sabotage is a copy: the real spec is never written to, because a restore
+  # step that fails leaves the normative source corrupted.
+  FIRSTID=$(grep -oE '^[[:space:]]*-[[:space:]]+\*\*[A-Z]{2,4}-[0-9]+[a-z]?' "$SPECFILE" \
+            | grep -oE '[A-Z]{2,4}-[0-9]+[a-z]?' | head -1)
+  if [ -z "$FIRSTID" ]; then
+    bad "$SPECNAME: the clause-id detector matched NOTHING — the check is vacuous here"
+  else
+    SPECCOPY=$(mktemp); cp "$SPECFILE" "$SPECCOPY"
+    printf -- '- **%s.** manufactured collision — selftest\n' "$FIRSTID" >> "$SPECCOPY"
+    D=$(dupe_ids "$SPECCOPY")
+    if [ "$D" = "$FIRSTID" ]; then
+      ok "and the detector names a manufactured duplicate ($FIRSTID) in $SPECNAME"
+    else
+      bad "$SPECNAME: manufactured $FIRSTID collision NOT detected (got '$(echo "$D" | tr '\n' ' ')')"
+    fi
+    rm -f "$SPECCOPY"
+  fi
+done
 
 # ACP-63's six scaffold assertions moved to the product repository together
 # with the services they check (ACP-66). They cannot stay here: services/ is
@@ -724,6 +740,40 @@ if python3 tools/check-flow-legs.py >/dev/null 2>&1; then
 else
   bad "ACP-DEPLOY-001 Annex A: a leg cites an obligation nothing enforces"
 fi
+
+# --- ACP-71: DP-27's custody claims must match custody.rs -----------------------
+# DP-27 is a Normative Disclosure. It said "there is no `KmsSigner`" for weeks
+# after ACP-61 created one. Nothing compared the prose to the code, so the
+# divergence was invisible -- and it survived because it erred in the SAFE
+# direction: a disclosure claiming less capability than exists trips no test and
+# reads as humility. This compares both directions.
+custody_says () {   # honours a substituted file, which is what makes the falsification possible
+  grep -qE "pub struct ${1}Signer" "${2:-crates/acp-crypto/src/custody.rs}" && echo yes || echo no
+}
+spec_claims () {    # what ACP-DEPLOY-001 asserts about a tier
+  grep -qF "$1" spec/ACP-DEPLOY-001.md && echo yes || echo no
+}
+
+CODE_T2=$(custody_says Kms); DOC_T2=$(spec_claims 'Custody tier **T2 is implemented**')
+CODE_T3=$(custody_says Hsm); DOC_T3=$(spec_claims 'Custody tier **T3 is declared and not implemented**')
+if [ "$CODE_T2" = "$DOC_T2" ] && [ "$CODE_T3" != "$DOC_T3" ]; then
+  ok "ACP-DEPLOY-001 DP-27 agrees with custody.rs on which tiers are implemented"
+else
+  bad "DP-27 disagrees with custody.rs — KmsSigner=$CODE_T2 doc-says-T2-implemented=$DOC_T2, HsmSigner=$CODE_T3 doc-says-T3-unimplemented=$DOC_T3"
+fi
+
+# MANUFACTURED: delete KmsSigner from a COPY of custody.rs and the comparison must
+# go red. Without this the check passes whenever the grep pattern rots, which is
+# the same defect one level up. The real source is never written to.
+CUSTODYCOPY=$(mktemp)
+sed 's/pub struct KmsSigner/pub struct REMOVED_BY_SELFTEST/' \
+  crates/acp-crypto/src/custody.rs > "$CUSTODYCOPY"
+if [ "$(custody_says Kms "$CUSTODYCOPY")" = "no" ] && [ "$DOC_T2" = "yes" ]; then
+  ok "and removing KmsSigner from a copy makes the comparison disagree, as it must"
+else
+  bad "removing KmsSigner from a copy did NOT change the comparison — the check is vacuous"
+fi
+rm -f "$CUSTODYCOPY"
 
 # --- ACP-66 guard 1: the product half must not come back ----------------------
 # The split is only worth something if it stays split. A file reappearing under

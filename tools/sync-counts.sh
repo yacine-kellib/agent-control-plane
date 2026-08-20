@@ -150,10 +150,28 @@ printf '  attack registry    %s (attack_registry.py)\n' "$REGISTRY"
 # count is what we publish. The printed TOTAL already includes the
 # self-counting final assertion, so it is the published figure directly — see
 # the comment above that block in selftest.sh before changing this.
-ASSERTIONS=$(./tools/selftest.sh 2>/dev/null \
+# One selftest run, two derivations. It used to be run once for ASSERTIONS; the
+# gate line count is measured inside the same run, so taking both from one
+# invocation costs nothing and cannot disagree with itself.
+SELFOUT=$(./tools/selftest.sh 2>/dev/null || true)
+ASSERTIONS=$(printf '%s\n' "$SELFOUT" \
   | grep -oE 'tooling self-test (passed|FAILED) \([0-9]+ assertions\)' \
   | grep -oE '[0-9]+')
 printf '  selftest assertions %s  (selftest.sh)\n' "${ASSERTIONS:-?}"
+
+# ACP-68. The gate's line count is taken from the MEASURED figure selftest prints
+# as "(got N)", never from the constant it compares against -- syncing prose to
+# the expectation would let a wrong expectation propagate itself, which is the
+# instrument rewriting its own answer.
+#
+# tools/selftest.sh and this file are NEVER sync targets for the same reason.
+LINES=$(printf '%s\n' "$SELFOUT" | grep -oE 'result lines: prereqs \+ proofs .*\(got [0-9]+\)' \
+  | grep -oE 'got [0-9]+' | grep -oE '[0-9]+')
+SUITES=$((LINES - 3))          # minus prerequisites, proofs and the harness line
+LINES_NO_DAFNY=$((LINES - 1))  # section 3 prints SKIP where Dafny is absent
+LINES_FULL=$((LINES + 2))      # plus integrity and signature, which --suites omits
+printf '  gate result lines   %s   (measured; %s suites, %s without Dafny, %s full)\n' \
+  "$LINES" "$SUITES" "$LINES_NO_DAFNY" "$LINES_FULL"
 
 printf '\n\033[1m== syncing ==\033[0m\n'
 
@@ -188,6 +206,57 @@ sync "signed roots (deploy spec)" "$ROOTS_N" \
 sync "rust tests" "$RUST" \
   '# Rust: [0-9]+ tests' "# Rust: $RUST tests" \
   README.md CLAUDE.md
+
+# ACP-68: every file below published a count that no derivation reached. The
+# suite count alone was written four different ways and had drifted to 13 and 14
+# in different files simultaneously. RELEASE.md's v1.3.13 changelog section is
+# deliberately NOT a target -- "all 13 suites" is correct history, and syncing it
+# would rewrite the past to match the present.
+sync "gate suites (proofs +)" "$SUITES" \
+  'proofs \+ [0-9]+ suites' "proofs + $SUITES suites" \
+  README.md CLAUDE.md RELEASE.md .github/CONTRIBUTING.md .github/SECURITY.md \
+  .github/workflows/verify.yml deploy/docker-compose.yml dossier/07-REPRODUCTION.md
+
+sync "gate suites (all N)" "$SUITES" \
+  'all [0-9]+ suites' "all $SUITES suites" \
+  dossier/00-INDEX.md
+
+sync "gate suites (+ harness)" "$SUITES" \
+  '[0-9]+ suites \+ harness' "$SUITES suites + harness" \
+  tools/demonstrator-entrypoint.sh
+
+sync "gate suites (1 proofs +)" "$SUITES" \
+  '1 proofs \+ [0-9]+ suites' "1 proofs + $SUITES suites" \
+  .github/CONTRIBUTING.md
+
+sync "gate suites (comma form)" "$SUITES" \
+  '1 proofs, [0-9]+ suites' "1 proofs, $SUITES suites" \
+  dossier/07-REPRODUCTION.md
+
+sync "gate result lines (bold)" "$LINES" \
+  '\*\*[0-9]+\*\* result lines' "**$LINES** result lines" \
+  README.md CLAUDE.md .github/CONTRIBUTING.md .github/PULL_REQUEST_TEMPLATE.md \
+  dossier/07-REPRODUCTION.md
+
+sync "gate result lines (plain)" "$LINES" \
+  'Expect [0-9]+ result lines' "Expect $LINES result lines" \
+  .github/workflows/verify.yml
+
+sync "gate result lines (exactly)" "$LINES" \
+  'exactly [0-9]+ lines' "exactly $LINES lines" \
+  .github/workflows/verify.yml
+
+sync "gate lines, no Dafny" "$LINES_NO_DAFNY" \
+  'prints [0-9]+ result lines instead of' "prints $LINES_NO_DAFNY result lines instead of" \
+  .github/workflows/verify.yml
+
+sync "gate lines, full run" "$LINES_FULL" \
+  'complete run prints [0-9]+ result lines' "complete run prints $LINES_FULL result lines" \
+  README.md
+
+sync "selftest assertions (PR)" "$ASSERTIONS" \
+  'passes \([0-9]+ assertions\)' "passes ($ASSERTIONS assertions)" \
+  .github/PULL_REQUEST_TEMPLATE.md
 
 if [ -n "$ASSERTIONS" ]; then
   sync "selftest assertions" "$ASSERTIONS" \

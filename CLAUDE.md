@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (83 assertions)
+./tools/selftest.sh                # tests the tooling itself (87 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
@@ -93,7 +93,14 @@ The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`
 
 ## Rules specific to this repository
 
-**Agents and workflows are for FINDING, never for WRITING.** Searching, auditing, reviewing, running a differential, sweeping for a defect class — fan out, that is what parallelism is good at. Drafting a document, a specification, or any single coherent artifact — inline, one writer. A document written by N agents and reviewed by 4N agents is a merge conflict, not a document, and the assembly step that makes it readable is the step doing the actual work. This has now failed twice: 2026-08-17 burned ~4M tokens and produced no artifact at all, and 2026-08-18 burned 1.5M and produced one only after the run was killed and the pieces were assembled by hand. Both times the lesson was already written down somewhere advisory and did not hold. It is here because this file is binding.
+**Fan out only on work you have already scoped, and NEVER on verification.** Agents and workflows may write, not just find — the failure mode was never parallelism, it is dispatching before the task is assessed, and it is spending a fleet on what one reader should do.
+
+- **NEVER fan out an adversarial, refuter, judge or second-opinion pass.** This is the most expensive mistake available here. N refuters over M findings is N×M agents to reach a verdict one reader reaches by opening the file — and it is not even good verification: kill-biased refuters plus unanimity-to-survive converge on zero findings regardless of what is true, so the fleet costs millions and reports nothing. **Findings are verified by hand, by the session, against the actual file.** No exception for a run that feels large, and none for the word *ultracode*: an opt-in to parallelism is not an opt-in to waste.
+- **Establish the facts inline first.** Anything one command answers — does the build pass, does this file exist, what does this line say — is answered by running the command, never by an agent. An agent that runs one shell command costs three or four orders of magnitude more than the command, and returns the same string.
+- **Fan out when the work is genuinely wide *and* already understood**: many files to sweep for one defect class, many independent fixes whose boundaries you have already drawn, many perspectives on one decision. "Already understood" means you can name each agent's file set before you launch. If you cannot, you are paying agents to do your scoping.
+- **One writer per artifact, still.** A document, a specification, or any single coherent file is written inline. N agents editing one file is a merge conflict, not a draft. N agents editing N *disjoint* files is fine — and the disjointness is something you verify before dispatch, not something you hope for.
+
+Four failures, three shapes. 2026-08-17 burned ~4M tokens and produced no artifact at all; 2026-08-18 burned 1.5M and produced one only after the run was killed and the pieces were assembled by hand — wrong *shape*. 2026-08-19 dispatched agents to run single shell commands the session could have run itself — right shape, absurd price. **The same day, twice, an adversarial verification fleet was launched over findings one reader could have checked — 6.6M tokens on the first — and the rule against exactly that was already sitting in session memory when the second was launched.** A lesson recorded somewhere advisory does not hold. That is why they are all here.
 
 **Never take "what's next" from a handoff's ticket pointer.** A handoff names the ticket that was next *when it was written*; it does not name the goal, and the two diverge the moment priorities move. State the goal, get it confirmed, then act. On 2026-08-18 a handoff naming `ACP-2` sent a session into the vector corpus while the actual goal — a production Rust control plane embedded in the user's own SaaS — made `ACP-45` the next unit of work. The roadmap says so in as many words: Track B "is not on this critical path."
 

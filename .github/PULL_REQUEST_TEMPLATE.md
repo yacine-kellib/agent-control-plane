@@ -16,7 +16,7 @@ paste the last few lines here
 ```
 
 - [ ] `./tools/verify.sh --suites` is green — **18** result lines, 0 failures
-- [ ] `./tools/selftest.sh` passes (81 assertions) — required if you touched anything in `tools/`
+- [ ] `./tools/selftest.sh` passes (87 assertions) — required if you touched anything in `tools/`
 
 <!-- 17 lines instead of 18 means Dafny is not installed and the proof step was skipped. -->
 
