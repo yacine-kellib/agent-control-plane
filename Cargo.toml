@@ -7,6 +7,7 @@ members = [
     "crates/acp-bundle-cli",
     "crates/acp-conformance",
     "crates/acp-el1",
+    "crates/acp-decision",
 ]
 
 [workspace.package]
@@ -22,3 +23,4 @@ acp-core = { path = "crates/acp-core" }
 serde = { version = "1", features = ["derive"] }
 acp-crypto = { path = "crates/acp-crypto" }
 acp-el1 = { path = "crates/acp-el1" }
+acp-decision = { path = "crates/acp-decision" }

@@ -1,0 +1,23 @@
+[package]
+name = "acp-decision"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The wire types, and with them the four fail-safe accessors this crate exists
+# to CONSUME. acp-core's module docs already named this moment: "phase 9 puts
+# the decision path in Rust, which is where a floors lookup returning `High`
+# would have started being read." Until now those defaults set values nothing
+# read, which by this repository's own rule makes them documentation rather
+# than controls.
+acp-core.workspace = true
+# The §8.3.1 expression language. `raise_to[].if` is EL-1 source, so the fold
+# below cannot grade anything without it.
+acp-el1.workspace = true
+# Proposals arrive as canonical JSON. serde is already in the lock file.
+serde.workspace = true
+
+[dev-dependencies]
+serde_json = "1"

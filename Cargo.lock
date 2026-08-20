@@ -52,6 +52,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "acp-decision"
+version = "0.0.0"
+dependencies = [
+ "acp-core",
+ "acp-el1",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "acp-el1"
 version = "0.0.0"
 

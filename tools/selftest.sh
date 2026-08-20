@@ -662,31 +662,31 @@ has 'x-acp-absent' "and names the missing rule instead of guessing a default"
 
 [ -n "$sdir" ] && rm -rf "$sdir"
 
-printf '\n\033[1m== EL-1 parser mutants (ACP-45) ==\033[0m\n'
+printf '\n\033[1m== Rust decision-path mutants (ACP-45) ==\033[0m\n'
 
 # The parser is OUTSIDE the proof TCB. Annex B quantifies over parsed `Expr`
-# values and the Z1 differential generated ASTs, so the entire assurance
-# apparatus sat downstream of the ambiguity and could not see it (RES-10:
-# every proof has a boundary, and the defect will be found immediately outside
-# it). §1246 therefore makes parser conformance its own obligation, on SOURCE
-# TEXT, against the deployment's own parser.
+# values and the Z1 differential generated ASTs, so the whole assurance
+# apparatus sat downstream of the ambiguity and could not see it (RES-10: every
+# proof has a boundary, and the defect will be found immediately outside it).
+# The §8.4 fold below it is where a grade can come out lower than the policy
+# author wrote, which is the only direction that matters.
 #
-# `cargo test --workspace` above already runs the EL-1 suite. That is not the
-# claim: a suite that cannot fail passes forever. This runs four mutants and
-# requires each to be KILLED. It has already earned it -- the first Z1 witness
-# test survived the precedence mutant, because the assignment it chose does not
-# separate the two readings.
+# `cargo test --workspace` above already runs both suites. That is not the
+# claim: a suite that cannot fail passes forever. This breaks each named check
+# in turn and requires the suite to go RED. It has already earned it twice --
+# the first Z1 witness test survived the precedence mutant, and the
+# out-of-range integer literal silently became a field reference.
 if ! command -v cargo >/dev/null 2>&1; then
-  printf '  \033[33mSKIP\033[0m cargo is not installed; EL-1 mutants not checked\n'
+  printf '  \033[33mSKIP\033[0m cargo is not installed; Rust mutants not checked\n'
 else
-  OUT=$(./tools/mutate-el1.sh 2>&1); rc=$?
-  [ $rc -eq 0 ]; chk $? "every EL-1 parser mutant is killed (rc=$rc)"
+  OUT=$(./tools/mutate-rust.sh 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "every Rust decision-path mutant is killed (rc=$rc)"
   # An unrun mutant is not a caught one. The script reports ERROR rather than
   # KILL when a mutant fails to build, and this asserts the run actually
-  # reached four of them -- a script that silently ran zero would otherwise
+  # reached all of them -- a script that silently ran zero would otherwise
   # print a green nothing.
   N=$(printf '%s' "$OUT" | grep -c 'KILL')
-  [ "$N" -eq 4 ]; chk $? "and all four mutants actually ran (counted $N)"
+  [ "$N" -eq 11 ]; chk $? "and all eleven mutants actually ran (counted $N)"
 fi
 
 printf '\n\033[1m== EL-1 differential: Python vs Rust on generated source ==\033[0m\n'
