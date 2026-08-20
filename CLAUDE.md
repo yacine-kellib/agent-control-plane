@@ -156,6 +156,12 @@ The prose is deliberately self-critical and states limits before strengths — `
 
 Anything checkable by a command must be checked by a command, not by inspection and not by asking a model. `tools/selftest.sh` exists for that: it proves `list` and `sign` agree, that the signer halts on unknown file types, that a bad key leaves `MANIFEST.sha256` byte-identical, that `--suites` prints 18 result lines with no failures, that a mutation suite whose mutants cannot import reports ERROR rather than KILL, and that every file count published in prose equals the number the signer actually covers. Three real defects have been found by writing those assertions.
 
+## The plan is not in this repository
+
+**Before answering "what do we build next", before proposing a plan, and before asking any sequencing question: read `docs/plans/zero-to-one.md` in the private product repo.** Its companion there is `docs/private/ziffer-build-architecture.md`, the authoritative component inventory — sixteen components, their trust domains, what each holds, and its build state. Between them they hold the build order, the technology decisions, and what "done" means per step. The roadmap here (`git show main:docs/plans/roadmap.md`) is *phase*-level and is **not** that plan; Linear holds tickets and is not it either.
+
+**When something new is found, update that plan — never start another document.** On 2026-08-20 a session listed the plan file in a directory listing, skipped it, and began writing a fourth planning artifact — while that plan already contained three of the things the session was reporting as discoveries. `ls` is not reading. A fourth description of one object is the two-definitions defect this repository has published corrections for three times.
+
 ## Current state
 
 On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingress, the real-signature swap, and `sim/llm_agent.py` with its suite and fixture corpus. `RELEASE.md` is stamped v1.3.14 and carries *Unreleased since v1.3.14* sections for everything after it.
