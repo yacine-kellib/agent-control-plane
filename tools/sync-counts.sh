@@ -221,9 +221,13 @@ sync "gate suites (all N)" "$SUITES" \
   'all [0-9]+ suites' "all $SUITES suites" \
   dossier/00-INDEX.md
 
+# ACP-72: deploy/docker-compose.yml is a target here because it now QUOTES the
+# entrypoint's banner verbatim, and selftest.sh asserts the two match. Sync them
+# together or the next suite-count change updates the entrypoint, leaves the
+# quote behind, and turns that assertion red with no derivation able to fix it.
 sync "gate suites (+ harness)" "$SUITES" \
   '[0-9]+ suites \+ harness' "$SUITES suites + harness" \
-  tools/demonstrator-entrypoint.sh
+  tools/demonstrator-entrypoint.sh deploy/docker-compose.yml
 
 sync "gate suites (1 proofs +)" "$SUITES" \
   '1 proofs \+ [0-9]+ suites' "1 proofs + $SUITES suites" \

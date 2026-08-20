@@ -775,6 +775,65 @@ else
 fi
 rm -f "$CUSTODYCOPY"
 
+# --- ACP-72: the in-image gate is described once, by the thing that runs it ---
+# deploy/docker-compose.yml said the in-image gate ran "proofs + 15 suites".
+# Eight lines away tools/demonstrator-entrypoint.sh prints "proofs SKIPPED: no
+# Dafny in this image", and the Dockerfile installs no Dafny -- so the compose
+# comment advertised a proof run that cannot happen, and a reader trusting it
+# would count a skipped proof as a passed one.
+#
+# What makes it worth a check rather than an edit: the ACP-68 count pass TOUCHED
+# THAT LINE. It corrected "13 suites" to "15 suites" and left the false "proofs +"
+# prefix standing, because a pass that re-derives numbers does not read claims.
+# Nothing compared the two descriptions of one run, so the prose fix closed the
+# instance and not the class -- the ACP-43/ACP-68 shape, one level up.
+#
+# The rule asserted: the runner is the authority. Whatever the entrypoint ECHOES
+# is what compose must carry, VERBATIM. A paraphrase that agrees today is the
+# defect in its dormant form.
+gate_banner () {    # the banner from the verify) case, not whichever echo comes first
+  awk '/^  verify\)/,/^    ;;/' "${1:-tools/demonstrator-entrypoint.sh}" \
+    | sed -n 's/.*echo "== \(.*\) ==".*/\1/p' | head -1
+}
+
+BANNER=$(gate_banner)
+if [ -z "$BANNER" ]; then
+  bad "the entrypoint's verify) banner was not found — every check below it is vacuous"
+else
+  ok "the entrypoint's verify) case publishes a gate banner"
+  if grep -qF "$BANNER" deploy/docker-compose.yml; then
+    ok "and deploy/docker-compose.yml describes that run in the runner's own words"
+  else
+    bad "deploy/docker-compose.yml does not carry the entrypoint's banner: $BANNER"
+  fi
+fi
+
+# MANUFACTURED, TWICE, because this check has two independent ways to rot.
+#
+# One: the extractor stops matching -- a renamed case label, a changed banner
+# style -- and $BANNER goes empty, at which point `grep -qF ""` matches every
+# file on earth and the comparison passes forever. Feeding it an entrypoint with
+# no verify) case must produce an empty banner.
+ENTRYCOPY=$(mktemp)
+sed 's/^  verify)/  RENAMED_BY_SELFTEST)/' tools/demonstrator-entrypoint.sh > "$ENTRYCOPY"
+if [ -z "$(gate_banner "$ENTRYCOPY")" ]; then
+  ok "and an entrypoint with no verify) case yields no banner rather than a blank match"
+else
+  bad "a renamed verify) case still yielded a banner — the extractor matches the wrong echo"
+fi
+rm -f "$ENTRYCOPY"
+
+# Two: the comparison itself. Restore the false claim on a COPY of compose and
+# the check must name the file. The real compose is never written to.
+COMPOSECOPY=$(mktemp)
+grep -vF "$BANNER" deploy/docker-compose.yml > "$COMPOSECOPY"
+if [ -n "$BANNER" ] && ! grep -qF "$BANNER" "$COMPOSECOPY"; then
+  ok "and a compose file stripped of the banner fails the comparison, as it must"
+else
+  bad "stripping the banner from a copy did NOT fail the comparison — the check is vacuous"
+fi
+rm -f "$COMPOSECOPY"
+
 # --- ACP-66 guard 1: the product half must not come back ----------------------
 # The split is only worth something if it stays split. A file reappearing under
 # services/, orchestrator/ or packages/acp-client is not a merge accident for a
@@ -829,9 +888,23 @@ rm -f "$TMPIDX"
 # Skipped branches lower the total honestly: a run without cargo makes fewer
 # assertions and must publish fewer, which is why this compares against the
 # count of what actually ran rather than a constant in the script.
+#
+# ACP-72: this scanned ONE phrasing -- 'tests the tooling itself (N assertions)'
+# -- and .github/PULL_REQUEST_TEMPLATE.md publishes the same number as
+# '`./tools/selftest.sh` passes (N assertions)'. That file was therefore free to
+# go stale while this assertion reported green, which is the ACP-65 shape: a
+# check scoped to where the defect was last seen rather than to the claim.
+#
+# The pattern is now the PARENTHESISED count, because that is what separates a
+# live claim from history. RELEASE.md and docs/plans/roadmap.md both cite old
+# figures -- "went from 27 assertions to 29", "published 34 assertions while
+# making 45" -- and both are correct as written about released versions. Neither
+# is parenthesised, so neither is scanned. A parenthesised count is a claim about
+# THIS run and must equal it; if a future note needs to quote an old figure in
+# parentheses, this will fail loudly, which is the right way round.
 EXPECT=$((TOTAL + 1))
 PUBLISHED=$(git ls-files '*.md' \
-  | xargs grep -ho 'tests the tooling itself ([0-9]\{1,\} assertions)' 2>/dev/null \
+  | xargs grep -ho '([0-9]\{1,\} assertions)' 2>/dev/null \
   | grep -o '[0-9]\{1,\}' | sort -u)
 if [ -z "$PUBLISHED" ]; then
   bad "no tracked .md publishes an assertion count (the check would be vacuous)"
