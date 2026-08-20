@@ -21,6 +21,11 @@ acp-core = { path = "crates/acp-core" }
 # The generated wire types derive Serialize/Deserialize. serde is already in
 # the lock file via serde_json, so adding it here pulls nothing new down.
 serde = { version = "1", features = ["derive"] }
+# Canonical bytes are JSON in the reference (AT-8a models canonical CBOR
+# with canonical JSON), so the Rust side must emit the same bytes to be
+# checkable against it at all. Default features only: `preserve_order`
+# would make Map an IndexMap and silently destroy sorted-key canonicality.
+serde_json = { version = "1", default-features = false, features = ["std"] }
 acp-crypto = { path = "crates/acp-crypto" }
 acp-el1 = { path = "crates/acp-el1" }
 acp-decision = { path = "crates/acp-decision" }

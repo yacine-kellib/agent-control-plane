@@ -41,6 +41,8 @@ use acp_core::generated::{Floors, NoticeTargets, Reversibility, Risk, RiskFuncti
 use acp_el1::{Env, Value};
 
 mod grade;
+pub mod receipt;
+
 pub use grade::{grade_floor_risk, notice_recipients, recompute_reversibility};
 
 /// A refusal, carrying the clause that governs it.

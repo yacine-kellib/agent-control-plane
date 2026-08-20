@@ -16,8 +16,11 @@ acp-core.workspace = true
 # The §8.3.1 expression language. `raise_to[].if` is EL-1 source, so the fold
 # below cannot grade anything without it.
 acp-el1.workspace = true
+# Slice 4: the receipt gate. CR-3's conjunctive combiner and CR-4's containment
+# already live here; this crate consumes them rather than restating either.
+acp-crypto.workspace = true
 # Proposals arrive as canonical JSON. serde is already in the lock file.
 serde.workspace = true
+# The canonical encoder. See the workspace note on preserve_order.
+serde_json.workspace = true
 
-[dev-dependencies]
-serde_json = "1"
