@@ -1,0 +1,48 @@
+# Publish docs/ to GitHub Pages as static files.
+#
+# WHY A WORKFLOW RATHER THAN THE BUILT-IN SETTING. Pointing the Pages setting at
+# main /docs uses the legacy builder, which runs Jekyll over the directory. That
+# failed here twice with no usable message, and adding .nojekyll did not fix it,
+# so the processor was not the whole problem. This path uploads the directory
+# verbatim and deploys it -- no build step, nothing to interpret, and a failure
+# shows up as a normal Actions log instead of "Page build failed."
+#
+# WHAT THIS PUBLISHES: exactly the tracked contents of docs/. docs/private/ is
+# gitignored and therefore absent from the repository, so it cannot reach the
+# site by way of this workflow. docs/ also sits outside the eight signed ROOTS,
+# so nothing here interacts with MANIFEST.sha256.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. `cancel-in-progress: false` because cancelling a
+# half-finished deploy is how a site ends up serving a partial upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
