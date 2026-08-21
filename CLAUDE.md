@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (106 assertions)
+./tools/selftest.sh                # tests the tooling itself (110 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
@@ -68,7 +68,8 @@ Dependencies: `cryptography` and `dilithium-py`. Since v1.3.14 **`sim/` needs th
 spec/          THE NORMATIVE SOURCE — ACP-SPEC-001.md, schemas/, vectors/
 dossier/       THE ARGUMENT — 00–07, annexes/. Not code.
 reference/     Python. Permanent. src/ suites/ proofs/
-crates/        Rust — acp-core, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
+crates/        Rust — acp-core, acp-crypto, acp-el1, acp-decision, acp-bundle,
+               acp-bundle-cli, acp-conformance
 packages/      TS — acp-types, generated from spec/schemas by codegen.sh
 sim/           the business simulation (companion to Annex D)
 deploy/        docker-compose.yml  (no k8s/ — the substrate is deliberately deferred,
@@ -85,7 +86,7 @@ docs/          working documents — deliberately OUTSIDE the signed roots
 
 The suites reach `reference/src` via `PYTHONPATH`, exported by `tools/verify.sh`. Keep sys.path manipulation in the runner, not in library code.
 
-**The services are gone from this repository (ACP-66).** All six — four Rust, two TypeScript — moved to the private product repository, and `ROOTS` shrank with them. ACP-63's six scaffold assertions left `selftest.sh` at the same time, because a check that reads absent files passes vacuously. **They have no executable consumer anywhere right now**, which is disclosed rather than closed. What is genuinely implemented here: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3 — **T2 implemented** behind the `kms` feature as `KmsSigner`, T3 still declared-not-implemented behind `hsm`); and the canonical tree hash in `acp-bundle`.
+**The services are gone from this repository (ACP-66).** All six — four Rust, two TypeScript — moved to the private product repository, and `ROOTS` shrank with them. ACP-63's six scaffold assertions left `selftest.sh` at the same time, because a check that reads absent files passes vacuously. **They have no executable consumer anywhere right now**, which is disclosed rather than closed. What is genuinely implemented here: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition, the real Ed25519/ML-DSA-65 primitives, and `custody.rs` (the `Signer` trait and tiers T0–T3 — **T2 implemented** behind the `kms` feature as `KmsSigner`, T3 still declared-not-implemented behind `hsm`); the canonical tree hash in `acp-bundle`; the §8.3.1 expression language in `acp-el1`, parsed and evaluated, total at evaluation and failing closed at `8.3.1` on a parse error; and in `acp-decision`, the §8.4 grading fold, the receipt gate, the `AT-*` quorum, and §9.3 composed in the order the specification states it. **`acp-decision` holds the stateless half of that checklist and no more** — steps 6, 9 and 10 and the DR-1 deferred-release gate are absent rather than stubbed, `UNIMPLEMENTED_STEPS` names each one with the ticket that owns it, and a `Passed` therefore means only that the stateless half found nothing. Both crates do have an executable consumer: `tools/check-el1-differential.py` and `tools/check-decision-differential.py` run them against the Python reference from `selftest.sh`. **This inventory went stale by being exhaustive** — `acp-el1` and `acp-decision` landed with ACP-45's slices and were not added here, so the paragraph a new session reads to learn what Rust does understated it by the whole decision path; a crate landing is an edit to this sentence, not just to `crates/`.
 
 **T2's tests run only under `--features kms`, and that is a gate line, not a build flag.** `cargo test --workspace` uses default features, so the tier would be compiled out of the only Rust command any gate runs and its tests would pass forever by not existing — the same defect as an unrun mutant reporting SURVIVE. `selftest.sh` runs the feature build and asserts it yields **more** tests than the default one. Any future tier or primitive added behind a feature needs the same treatment, or it is unchecked by construction.
 

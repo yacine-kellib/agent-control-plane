@@ -24,7 +24,7 @@
 //! | 4 | policy basis and epoch | ✅ *(epoch **compare** only — the high-water mark is ACP-46)* |
 //! | 5 | temporal position and L-14 window | ✅ |
 //! | 6 | receipt nonce single-use (CL-2) | ❌ **ACP-46** — needs a ledger that survives restart |
-//! | 7 | TR-8 recomputation, RV-3 | ✅ [`grade`] |
+//! | 7 | TR-8 recomputation, RV-3 | ✅ [`crate::grade_floor_risk`] |
 //! | 7b | the AT-\* quorum | ✅ [`quorum::verify_quorum`] |
 //! | 8 | tenant scoping | ✅ |
 //! | 9 | live capability recheck | ❌ **Context Store** — no provider chosen (§8.8) |
@@ -55,7 +55,8 @@
 //! | `receipt.policy_bundle_hash` | **B** | compared against the verifier's own bundle — see the residual below |
 //! | `receipt.bundle_epoch` | **B** | compared against the verifier's own bundle |
 //! | `receipt.issued_at` / `expires_at` | **B** | signature-covered; `now` is the verifier's clock, never the receipt's |
-//! | `receipt.risk_level_floor_only` | **R** | recomputed by [`grade::grade_floor_risk`] and compared (TR-8/X1) |
+//! | `now` (the [`decide`] parameter) | **T** | the caller's reading of the verifier's clock. This crate reads no clock and compares it against nothing, and it alone decides whether step 5 refuses — residual 3 |
+//! | `receipt.risk_level_floor_only` | **R** | recomputed by [`crate::grade_floor_risk`] and compared (TR-8/X1) |
 //! | `receipt.reversibility` | **R** | recomputed from the signed bundle and compared (RV-3) |
 //! | `receipt.fidelity` | **R** | recomputed from the adapter binding and compared (TR-8) |
 //! | `receipt.tenant_id` | **B** | compared against the Proposal's, which the verifier received independently |
@@ -87,7 +88,23 @@
 //! both. The residual is that a caller passing a hash from anywhere other than
 //! a verified bundle silently voids step 4.
 //!
-//! **3. Everything [`UNIMPLEMENTED_STEPS`] names is a residual too**, and the
+//! **3. `now` is `T`: the verifier's clock as the *caller* supplies it.** It is
+//! not the receipt's — the reference threads a `_now` field through the signed
+//! body, and a verifier taking its notion of the present from the party it is
+//! verifying would be RES-8 with a clock — but neither is it derived here. This
+//! crate reads no clock, so nothing in it can check the value against anything:
+//! a caller passing a stale or forward `now` voids the expiry and skew checks
+//! entirely while `issued_at` and `expires_at` stay signature-covered and
+//! unaltered, and the refusal that then does not happen leaves no trace. Only
+//! L-14's window ceiling survives such a caller, because it compares the two
+//! receipt fields against each other and never reads the clock. The differential
+//! cannot catch this by construction — the harness passes the same value to both
+//! sides, so a wrong clock is wrong identically in Python and in Rust. Closing it
+//! means a time source the verifier holds and can state the provenance of; it
+//! does **not** mean this crate calling `SystemTime::now()` itself, which moves
+//! the same trust one frame inward and makes the checklist untestable besides.
+//!
+//! **4. Everything [`UNIMPLEMENTED_STEPS`] names is a residual too**, and the
 //! larger one. A `Passed` from this module is not "the receipt may be
 //! consumed"; it is "the stateless half of §9.3 found nothing".
 
@@ -171,6 +188,8 @@ pub struct Outcome {
 /// a verifier taking its notion of the present from the party it is verifying
 /// would be RES-8 with a clock, so it is a parameter here and the harness
 /// passes the same value to both sides.
+/// That makes it `T` at this crate's boundary, not `R`: see residual 3 in the
+/// module docs for what a caller can silently switch off with it.
 pub fn decide(
     receipt_json: &serde_json::Value,
     proposal_json: &serde_json::Value,

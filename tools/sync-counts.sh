@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# sync-counts.sh — re-derive every published count from the tooling and write it
-# back into the prose that publishes it.
+# sync-counts.sh — re-derive the published counts THIS FILE HAS A RULE FOR, and
+# write them back into the prose that publishes them.
 #
 #   ./tools/sync-counts.sh           rewrite the published counts
 #   ./tools/sync-counts.sh --check   report drift, change nothing
@@ -25,7 +25,29 @@
 #   present, which is the opposite of what a release note is for.
 # - Numbers written as words ("across sixteen cases"). They are prose and they
 #   are rewritten by whoever changes the sentence around them.
-# - Anything under spec/ or dossier/. Those are the argument, not the readme.
+# - Anything no rule below names. Coverage is exactly the target lists in the
+#   sync rules: there is no directory sweep, no default and no deny-list, so a
+#   count in a file no rule names has no generator at all.
+#
+#   A correction worth recording: this bullet used to read "anything under
+#   spec/ or dossier/ — those are the argument, not the readme". It was false
+#   ONE COMMIT after it was written: the very next change to this file added
+#   four dossier targets, and spec/ followed later. So it stood for its whole
+#   life describing a boundary the rules below did not have, and nobody
+#   re-read it, because a comment has no gate. It read like a fence and was
+#   really a roster kept by hand — the defect class this script exists to
+#   close, recurring one level up, inside the closer.
+#
+#   The zone genuinely outside is docs/: no rule reaches it. So
+#   docs/plans/roadmap.md went on publishing "52 conformance cases" while the
+#   suite printed 53 — the ACP-42 / ACP-43 drift shape, alive outside the
+#   fence and undetected. Detection does not rescue it: selftest.sh scans
+#   every tracked .md, docs/ included, but for the single phrase
+#   "(N assertions)" and for nothing else, so a conformance count there is
+#   read by neither tool.
+#
+#   Publishing a count in a file no rule names is choosing to maintain it by
+#   hand; the honest repair is a rule here, not a careful hand edit there.
 #
 # It therefore reduces the hand-editing rather than eliminating it, and
 # `selftest.sh` remains the authority on whether anything was missed. Run this,
@@ -38,6 +60,16 @@ CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 
 DRIFT=0
+# ACP-83. A MISS is NOT drift and must not be folded into it. Drift is
+# expected in write mode -- writing is the whole point -- so DRIFT only
+# reaches the exit code under --check. A MISS is never expected: it means the
+# pattern matched nothing, so the sync is VACUOUS and the count it claims to
+# keep in step is unchecked. Counted separately, and it fails BOTH modes.
+#
+# It went unnoticed for a day because the script said 'this sync is vacuous'
+# and exited 0, and a handoff recorded that exit 0 as a green result. A
+# detector whose failure does not fail the build is documentation.
+VACUOUS=0
 
 # Rewrite one sed pattern across the named files, reporting whether it moved.
 #
@@ -112,6 +144,7 @@ sync() {
     printf '  \033[31mMISS\033[0m  %-28s pattern matched nothing — the published\n' "$label"
     printf '        claim moved or was deleted, so this sync is vacuous\n'
     DRIFT=1
+    VACUOUS=$((VACUOUS + 1))
   elif [ "$moved" -eq 0 ]; then
     printf '  \033[32mOK\033[0m    %-28s %s (%d occurrence(s))\n' "$label" "$want" "$hits"
   fi
@@ -381,12 +414,12 @@ if [ -n "$CONFORM" ]; then
     'run conformance\.py( +)"[0-9]+/[0-9]+"' "run conformance.py\1\"$CONFORM\"" \
     tools/verify.sh
   sync "suite 1 (README sample)" "$CONFORM" \
-    'Suite 1  conformance — RESULT: [0-9]+/[0-9]+' \
-    "Suite 1  conformance — RESULT: $CONFORM" \
+    'Suite 1  conformance([^0-9]+)RESULT: [0-9]+/[0-9]+' \
+    "Suite 1  conformance\1RESULT: $CONFORM" \
     README.md
   sync "suite 1 (dossier header)" "$CONFORM" \
-    '## Suite 1 — Conformance \([0-9]+/[0-9]+\)' \
-    "## Suite 1 — Conformance ($CONFORM)" \
+    '## Suite 1([^0-9]+)Conformance \([0-9]+/[0-9]+\)' \
+    "## Suite 1\1Conformance ($CONFORM)" \
     dossier/05-TEST-EVIDENCE.md
   sync "suite 1 (reproduction)" "$CONFORM" \
     'conformance\.py( +)# expected: [0-9]+/[0-9]+ CONFORMANT' \
@@ -401,8 +434,8 @@ fi
 # that rots quietly: the total stays right while "43 attacks" becomes 44.
 if [ -n "$CONF_ATK" ]; then
   sync "suite 1 split (summary)" "$CONF_ATK/$CONF_POS" \
-    '\*\*[0-9]+/[0-9]+\*\* — [0-9]+ attacks fail closed, [0-9]+ honest paths execute' \
-    "**$CONFORM** — $CONF_ATK attacks fail closed, $CONF_POS honest paths execute" \
+    '\*\*[0-9]+/[0-9]+\*\*([^0-9]+)[0-9]+ attacks fail closed, [0-9]+ honest paths execute' \
+    "**$CONFORM**\1$CONF_ATK attacks fail closed, $CONF_POS honest paths execute" \
     dossier/01-EXECUTIVE-SUMMARY.md
   sync "suite 1 split (why not N)" "$CONF_TOTAL/$CONF_ATK" \
     'the suite total is [0-9]+ and not [0-9]+' \
@@ -413,8 +446,8 @@ if [ -n "$CONF_ATK" ]; then
     "**$CONF_ATK attacks must fail closed; $CONF_POS honest paths must execute.**" \
     dossier/05-TEST-EVIDENCE.md
   sync "suite 1 split (vectors)" "$CONF_ATK/$CONF_POS" \
-    '## Suite 1 — conformance \([0-9]+ cases: [0-9]+ positive, [0-9]+ attacks\)' \
-    "## Suite 1 — conformance ($CONF_TOTAL cases: $CONF_POS positive, $CONF_ATK attacks)" \
+    '## Suite 1([^0-9]+)conformance \([0-9]+ cases: [0-9]+ positive, [0-9]+ attacks\)' \
+    "## Suite 1\1conformance ($CONF_TOTAL cases: $CONF_POS positive, $CONF_ATK attacks)" \
     spec/vectors/CLASSIFICATION.md
 fi
 
@@ -426,12 +459,12 @@ if [ -n "$MUTEXEC" ]; then
     'run mutate_executor\.py( +)"[0-9]+/[0-9]+"' "run mutate_executor.py\1\"$MUTEXEC\"" \
     tools/verify.sh
   sync "suite 2 (README sample)" "$MUTEXEC" \
-    'Suite 2  executor mutation — RESULT: [0-9]+/[0-9]+ killed' \
-    "Suite 2  executor mutation — RESULT: $MUTEXEC killed" \
+    'Suite 2  executor mutation([^0-9]+)RESULT: [0-9]+/[0-9]+ killed' \
+    "Suite 2  executor mutation\1RESULT: $MUTEXEC killed" \
     README.md
   sync "suite 2 (dossier header)" "$MUTEXEC" \
-    '## Suite 2 — Implementation mutation \([0-9]+/[0-9]+ kill\)' \
-    "## Suite 2 — Implementation mutation ($MUTEXEC kill)" \
+    '## Suite 2([^0-9]+)Implementation mutation \([0-9]+/[0-9]+ kill\)' \
+    "## Suite 2\1Implementation mutation ($MUTEXEC kill)" \
     dossier/05-TEST-EVIDENCE.md
   sync "suite 2 (reproduction)" "$MUTEXEC" \
     'mutate_executor\.py( +)# expected: [0-9]+/[0-9]+ killed' \
@@ -446,8 +479,8 @@ if [ -n "$MUTEXEC" ]; then
   # The anchor is the trailing prose rather than the row LABEL because the label
   # is followed by a table '|', and '|' is this function's sed delimiter.
   sync "suite 2 (summary)" "$MUTEXEC" \
-    '\*\*[0-9]+/[0-9]+ kill\*\* — every check is load-bearing' \
-    "**$MUTEXEC kill** — every check is load-bearing" \
+    '\*\*[0-9]+/[0-9]+ kill\*\*([^0-9]+)every check is load-bearing' \
+    "**$MUTEXEC kill**\1every check is load-bearing" \
     dossier/01-EXECUTIVE-SUMMARY.md
 fi
 
@@ -501,8 +534,8 @@ if [ -n "$MUT_TOTAL" ]; then
     README.md
   # And the classification file's own phrasing, which is a third one again.
   sync "mutants (vector cases)" "$MUT_TOTAL" \
-    '\*\*[0-9]+ mutation cases\*\* — [0-9]+ executor, [0-9]+ ack, [0-9]+ audit' \
-    "**$MUT_TOTAL mutation cases** — $MUT_E executor, $MUT_A ack, $MUT_U audit" \
+    '\*\*[0-9]+ mutation cases\*\*([^0-9]+)[0-9]+ executor, [0-9]+ ack, [0-9]+ audit' \
+    "**$MUT_TOTAL mutation cases**\1$MUT_E executor, $MUT_A ack, $MUT_U audit" \
     spec/vectors/CLASSIFICATION.md
   sync "mutants (PR template)" "$MUT_TOTAL" \
     'that [0-9]+ mutants locate' "that $MUT_TOTAL mutants locate" \
@@ -526,8 +559,8 @@ if [ -n "$REGISTRY" ]; then
     "run attack_registry.py\\1\"$REGISTRY\"\\2\"ALL attacks" \
     tools/verify.sh
   sync "registry (README sample)" "$REGISTRY" \
-    '\(consolidated registry\) — RESULT: [0-9]+/[0-9]+' \
-    "(consolidated registry) — RESULT: $REGISTRY" \
+    '\(consolidated registry\)([^0-9]+)RESULT: [0-9]+/[0-9]+' \
+    "(consolidated registry)\1RESULT: $REGISTRY" \
     README.md
   sync "registry (dossier)" "$REGISTRY" \
     'consolidated registry and composition \([0-9]+/[0-9]+, 4/4\)' \
@@ -536,6 +569,17 @@ if [ -n "$REGISTRY" ]; then
 fi
 
 printf '\n\033[1m== Result ==\033[0m\n'
+# ACP-83, checked before anything else: a vacuous sync is a worse outcome than
+# drift. Drift means a number is stale and this script can fix it. A MISS means
+# the script CANNOT SEE the number any more, so every future run reports
+# success about a claim nobody is checking. Exit 3, distinct from 1 (drift) and
+# 2 (halt), so a caller can tell the three apart.
+if [ $VACUOUS -ne 0 ]; then
+  printf '  \033[31m%d check(s) matched nothing — this run is VACUOUS for them.\033[0m\n' "$VACUOUS"
+  echo "  Every MISS above is a published count that is no longer being kept in"
+  echo "  step. Repair the pattern; do NOT repair the prose to suit the pattern."
+  exit 3
+fi
 if [ $CHECK -eq 1 ]; then
   if [ $DRIFT -eq 0 ]; then
     echo "  every published count matches the tooling."

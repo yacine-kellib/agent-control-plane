@@ -384,7 +384,7 @@ The dossier is the argument; the spec is the normative source. Read `06` before 
 spec/          THE NORMATIVE SOURCE - ACP-SPEC-001.md, schemas/, vectors/
 dossier/       THE ARGUMENT - 00–07, annexes/. Not code.
 reference/     Python. Permanent. src/ suites/ proofs/
-crates/        Rust - acp-core, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
+crates/        Rust - acp-core, acp-el1, acp-decision, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
 packages/      TypeScript - acp-types, generated from spec/schemas by codegen.sh
 sim/           the business simulation (companion to Annex D)
 deploy/        docker-compose.yml  (no k8s/ - the substrate is deliberately deferred)
@@ -393,7 +393,9 @@ tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
 
 **What is real:** the Python reference implementation in `reference/` and everything that replays from it. That is the artifact the evidence is about.
 
-**What was scaffold has left.** The four Rust services and the two TypeScript ones moved to a separate repository, so nothing here has a `main()` that could be mistaken for a running control plane - there is no longer anything to mistake. What remains in `crates/` is implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition and the real Ed25519/ML-DSA-65 primitives; the canonical tree hash in `acp-bundle`; and the offline CLI in `acp-bundle-cli`, which the gate builds twice. `crates/acp-conformance` is the one exception and says so: it is waiting on the vector corpus (VEC-2), which has not been extracted.
+**What was scaffold has left.** The four Rust services and the two TypeScript ones moved to a separate repository, so nothing here has a `main()` that could be mistaken for a running control plane - there is no longer anything to mistake. Seven crates remain, and their absences come first. `acp-decision` composes the §9.3 receipt-consumption checklist in specification order, but only its **stateless** half: the receipt-nonce single-use check, the live capability recheck, origin pinning and the DR-1 deferred-release gate are absent - not stubbed, not approximated - and its exported `UNIMPLEMENTED_STEPS` names each one with the ticket that owns it. `acp-conformance` is emptier still and says so: it is waiting on the vector corpus (VEC-2), which has not been extracted. What is implemented: in `acp-decision`, the §8.4 grading fold, the receipt gate and the AT-* quorum, exercised by `tools/mutate-rust.sh`, which breaks each named check and requires the suite to go red; the fail-safe defaults in `acp-core`, which nothing else in `crates/` reads - until `acp-decision` consumed them they set values no Rust branch looked at, which by this repository's own rule made them documentation rather than controls; `acp-el1`, the §8.3.1 expression language, dependency-free because a precedence rule living inside someone else's parser is one this deployment cannot answer for; in `acp-crypto`, CR-3 hybrid composition and the real Ed25519/ML-DSA-65 primitives; the canonical tree hash in `acp-bundle`; and the offline CLI in `acp-bundle-cli`, which the gate builds twice.
+
+*A correction, published rather than quietly fixed.* Until this edit the paragraph above named five crates and read as an exhaustive inventory - "what remains in `crates/` is implemented", then "the one exception" - while `acp-el1` had been in the tree since ACP-45's first slice and `acp-decision` since its third. Every one of that ticket's six slices edited this file and left the sentence standing, including the one that composed §9.3. `tools/sync-counts.sh` re-derives the published counts in this README; nothing re-derives the prose around them, and an inventory no script checks is a claim nobody checks.
 
 `spec/` is the only normative source - Rust and TypeScript types are *generated* from `spec/schemas`, never hand-written. Two hand-maintained definitions of one object is the encoding-split defect at the source level.
 
@@ -434,7 +436,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (106 assertions)
+./tools/selftest.sh               # tests the tooling itself (110 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing - which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

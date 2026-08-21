@@ -42,7 +42,7 @@ afterthought.
 
 | ID | Ticket | Size | Notes |
 |----|--------|------|-------|
-| VEC-8 | Rust vector runner in `crates/acp-conformance`: read the same corpus, evaluate each case, report pass/fail. Depends on implementing enough of the Rust executor (policy evaluation over the bundle) to reach a verdict — so it pulls real `acp-core` work with it, plus Executor work that now lives in the product repository (ACP-66) and therefore crosses the repository boundary. Likely splits into several tickets once VEC-1 reveals the corpus shape. | L | Blocked by VEC-1..4 |
+| VEC-8 | Rust vector runner in `crates/acp-conformance`: read the same corpus, evaluate each case, report pass/fail. **A correction worth recording:** this row used to place the Executor work across the repository boundary, on the grounds that it left with the services (ACP-66). That is contradicted — ACP-45 slice 6 composed the §9.3 checklist in *this* repository, in `crates/acp-decision`, over `acp-core`'s generated types and `acp-crypto`. The blocker is the corpus: `spec/vectors/` holds `CLASSIFICATION.md` and `OBLIGATIONS.md` and no vectors, so a runner has nothing to read. What is left after that is a residual rather than a boundary — `acp-decision` implements the stateless steps only and names each absent one with its owner (nonce single-use and DS-6 origin pinning need the ledger, ACP-46; the deferred-release gate, ACP-47; the live capability recheck waits on a Context Store provider), so a corpus case whose verdict depends on one of those must be classified blocked, not counted green. Likely splits into several tickets once VEC-1 reveals the corpus shape. | L | Blocked by VEC-1..4 |
 
 ---
 

@@ -1,10 +1,25 @@
-//! The §8.4 grading fold: floors, risk functions, RV-1 reversibility, DR-13.
+//! The stateless half of §9.3 in Rust: the receipt gate, the §8.4 grading fold
+//! (floors, risk functions, RV-1 reversibility, DR-13), the AT-\* quorum, and
+//! the composition that runs them in the order the specification states.
 //!
-//! This is the half of the decision path that turns a Proposal plus signed
-//! policy into a **recomputed** risk grade. It holds no crypto and no ledger;
-//! ACP-45's later slices add those. What it does hold is every place a grade
-//! can come out lower than the policy author wrote, which is the only
-//! direction that matters.
+//! Read the absences first. There is no ledger, so the CL-2 receipt-nonce
+//! check and DS-6 origin pinning are not here (ACP-46); the remaining gaps are
+//! declared one by one, each naming its owner, in
+//! [`decide::UNIMPLEMENTED_STEPS`] rather than approximated. What *is* here is
+//! crypto — [`receipt`] verifies CR-1, CR-4 and CR-3 through `acp-crypto`, and
+//! [`quorum`] verifies attester signatures — and, in the grading fold, every
+//! place a grade can come out lower than the policy author wrote, which is the
+//! only direction that matters.
+//!
+//! **A correction worth recording.** Until this edit the paragraph above said
+//! the crate "holds no crypto and no ledger; ACP-45's later slices add those".
+//! That was true the day slice 3 landed the grading fold alone (2a3a730).
+//! Slices 4–6 added the receipt gate, the quorum and the composition, and the
+//! sentence stayed — a85b776, slice 6 itself, edited this file and left it
+//! standing. Only the "no ledger" half was still true. Nothing executes a
+//! module doc, so nothing turned red: the same shape as the branch-name
+//! paragraph `CLAUDE.md` publishes a correction about, and the same shape as
+//! normative text with no executable consumer.
 //!
 //! # TR-8, and why every input here is recomputed
 //!

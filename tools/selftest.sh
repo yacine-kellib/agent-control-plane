@@ -782,6 +782,56 @@ else
   [ $? -ne 0 ]; chk $? "and a stale BLOCKED entry is caught rather than shrinking the denominator"
 fi
 
+printf '\n\033[1m== a vacuous sync FAILS the run (ACP-83) ==\033[0m\n'
+
+# The defect this closes: `sync-counts.sh` printed "pattern matched nothing --
+# the published claim moved or was deleted, so this sync is vacuous" and then
+# EXITED 0. Three checks were dead for a day, and a handoff recorded that exit
+# 0 as a green absorbed result.
+#
+# The trigger was cosmetic. Commit 825f1b3 replaced em dashes with hyphens in
+# README.md -- "style, and NOT because anything was found" -- and three sync
+# patterns anchored on the em dash. NINE of 62 did; the other six survived only
+# because dossier/ and spec/vectors/ had not been cleaned yet.
+#
+# The repair is not "be careful with dashes", and it is emphatically not
+# restoring the punctuation -- that would make README's typography load-bearing
+# for a check nobody would guess depends on it. No pattern anchors on a dash any
+# more, and THIS is what keeps that honest: a detector whose failure does not
+# fail the build is documentation.
+#
+# The probe drives the REAL sync() function, lifted out of the real file, rather
+# than re-running the whole script: sync-counts.sh derives its counts from
+# `cargo test --workspace` and every Python suite, so a full second run would
+# add minutes to this gate to test three lines of exit logic. Extracting the
+# function keeps the subject genuine -- it is the shipped code, not a copy of it
+# -- while costing milliseconds.
+T=$(mktemp -d)
+{
+  echo 'CHECK=1; DRIFT=0; VACUOUS=0'
+  sed -n '/^sync() {/,/^}$/p' tools/sync-counts.sh
+  # A pattern no file can contain. Not a broken regex -- a VALID pattern that
+  # matches nothing, which is exactly the shape a renamed claim produces.
+  echo "sync \"probe\" \"9/9\" 'ZZQQ-CANNOT-MATCH-[0-9]+/[0-9]+' 'ZZQQ' README.md"
+  awk '/== Result ==/,0' tools/sync-counts.sh
+} > "$T/probe.sh"
+
+grep -q 'ZZQQ-CANNOT-MATCH' "$T/probe.sh" && grep -q 'VACUOUS' "$T/probe.sh"
+chk $? "the vacuity probe carries both the unmatchable pattern and the real exit logic"
+
+OUT=$(cd "$T" 2>/dev/null; bash "$T/probe.sh" 2>&1); rc=$?
+
+# Both halves are asserted. A run that failed for an unrelated reason would
+# satisfy the exit-code half on its own and prove nothing about the MISS path.
+printf '%s' "$OUT" | grep -q 'matched nothing'
+chk $? "a pattern that matches nothing is reported as MISS, not passed over"
+
+[ "$rc" -ne 0 ]; chk $? "and a vacuous sync FAILS the run (rc=$rc, must not be 0)"
+
+printf '%s' "$OUT" | grep -q 'VACUOUS'
+chk $? "and the result says VACUOUS rather than reporting ordinary drift"
+rm -rf "$T"
+
 printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'
 
 # README.md and CLAUDE.md both publish how many assertions this script makes.

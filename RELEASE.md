@@ -100,8 +100,20 @@ counts are **derived** now. A count that is computed cannot go stale.
 Meanwhile every receipt this repository builds carries float timestamps *inside the signed
 canonical bytes* (`issued_at: 1000.0`), which is why making the guard recursive is a
 wire-format decision rather than a patch — and Python spells `1e-07` where Rust spells
-`1e-7`, so the two canonicalisers diverge on floats they both accept. That is an
-encoding-split waiting on the slice that has to reproduce a receipt's signed bytes in Rust.
+`1e-7`, so the two canonicalisers diverge on floats they both accept. **That
+encoding-split is no longer waiting on anything; it is open and only half-pinned.**
+`ACP-45` slice 4 shipped `canon()` itself and slice 6 wired it to a real receipt body —
+`crates/acp-decision/src/decide.rs` canonicalises the body it verifies through
+`receipt::canon` — so the Rust that reproduces a receipt's signed bytes exists now, and it
+matches the reference bug for bug on purpose, saying so in its own doc comment.
+`canon_refuses_a_top_level_float_and_accepts_a_nested_one` asserts both halves of the
+guard, so its *shape* cannot move without a test naming the change; **no test pins the
+spelling.** The two languages agree byte for byte on every float the fixtures actually
+carry (`1000.0`, `1120.0`) and part only in exponent notation (`1.5e-09` against `1.5e-9`),
+which is the whole reason nothing is red. A receipt carrying a float in that range would be
+signed by one side and refused by the other, and at a verifier an encoding split is
+indistinguishable from a forgery — the spelling, like `22.0`, being chosen by the party
+under verification.
 
 ---
 

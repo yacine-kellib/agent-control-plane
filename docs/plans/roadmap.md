@@ -259,12 +259,19 @@ Recorded so the next reader does not have to rediscover them.
   2026-08-18 the branch carries the whole rule store, steps 1–7, alongside the defect
   fixes and the spec at v1.3.15. Resolved, and left here because the reverse observation
   was recorded above it.
-- **Phase 9 is half done, and the table above does not say so.** `ACP-45` is six
-  slices; 1–3 are shipped (`crates/acp-el1`, the Python↔Rust EL-1 differential,
-  `crates/acp-decision`). Slices 4–6 — the receipt gate (CR-1/CR-3/CR-4), AT-* quorum, and
-  suite 12's R/B/T classification with the 53-case differential — are not started. The
-  slice breakdown lives in ACP-45's comments, not here, because a table that tracks
-  progress is a number that is wrong on the next commit (see below).
+- ~~**Phase 9 is half done, and the table above does not say so.**~~ Superseded
+  2026-08-21: all six of `ACP-45`'s slices have shipped, and the first of the three this
+  entry called "not started" landed under five hours after the entry was written.
+  Slice 4, the receipt gate (CR-1/CR-3/CR-4), at `4c1accd`/`f489fe4`; slice 5, the AT-*
+  quorum, at `d64299d`; slice 6, §9.3 composed in Rust with suite 12's R/B/T
+  classification, at `a85b776`. **The limit first: the §9.3 differential landed PARTIAL
+  and prints that it did.** `acp-decision` implements the STATELESS half, so the cases
+  that turn on a durable ledger (ACP-46), the Context Store (§8.8), the deferred-release
+  gate (ACP-47), or a refusal that lands at bundle load before §9.3 is entered
+  (`acp-bundle`) are reported BLOCKED with their owners named, not dropped from the
+  denominator — six slices shipped is not phase 9 closed. The slice breakdown still lives
+  in ACP-45's comments, not here, because a table that tracks progress is a number that is
+  wrong on the next commit (see below), which this entry has just demonstrated on itself.
 - **`CLAUDE.md`'s "Current state" no longer publishes a commit count.** It said "11
   commits ahead" and was wrong within a day; any number written there is wrong on the next
   commit. `git log --oneline main..HEAD` is written down instead. Same class as ACP-43.
