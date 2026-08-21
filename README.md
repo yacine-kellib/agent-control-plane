@@ -70,7 +70,7 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   150 files match MANIFEST.sha256
+  OK   151 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -289,6 +289,8 @@ Door B is deliberately unfiltered. Text is unbounded, there is no closed grammar
 
 Door A is controllable because actions are a closed, enumerable set: a finite list, each with a declared risk and reversibility. Deciding about one is arithmetic over trusted bytes rather than a judgement about meaning.
 
+**The two doors are a principle, not two architectures — and that distinction is easy to get backwards.** An earlier revision of the specification sorted *use cases* into Door A and Door B, and v1.3.0 retired that sorting: what actually varied between them was **intent fidelity**, which is a property of an ingress adapter rather than a separate architecture. There is now one pipeline, one enforcement core, and a **fidelity class** stamped on every Proposal by the adapter and never settable by the client — `F-HIGH` where no free text reaches the Proposal, `F-LOW` where a translator model produced it. §2.4 puts it in four words: *intent fidelity is a **dial**, not a **door***. The asymmetry above survives that change untouched, as a normative principle in §5.1a. So Door A and Door B are still the right words for what this section describes; what was retired is the taxonomy, not the doors.
+
 That asymmetry is why prompt injection is out of scope here rather than defended against. The injection succeeds, on the door where success means nothing. Same move that fixed SQL injection: nobody won by writing better sanitisers, they made it impossible for data to become a statement.
 
 > Five rounds of adversarial review found five violations of one rule: a verifier must never accept a derived security value from the party it is verifying. Every one of them was in machinery the previous fix had introduced. Two more turned up inside the proof artifacts. A sixth was found by re-running the classification method against the current version, and is fixed in this release.
@@ -310,6 +312,7 @@ Note the shape: it does not say the system is safe. It says what must be true si
 - That any human read a notification (A-8). Authentication is not comprehension.
 - That the notifier's declared independence is verified at run time. T-32, open: the runtime check is a lint, not a control.
 - That anything here is a running control plane. The services that would be one live in a separate repository and are not part of this argument. What is here is a specification, a reference implementation, and the evidence about them.
+- **That the premise is novel.** Capability-security literature, and DeepMind's CaMeL specifically, reach the same conclusion. §2 says so in the specification's own words: the contribution "is not the insight but its *rigorization*" — the invariant analysis, the conformance regime, the receipt and ledger construction, and the mechanized proof obligations. Evaluate those, not the premise.
 - **That an independent adversarial review has taken place. It has not.** See [below](#wanted-an-adversarial-reviewer).
 
 Full treatment: [`dossier/06-RESIDUAL-RISK.md`](dossier/06-RESIDUAL-RISK.md), which comes *before* the positive claims in the intended reading order.
@@ -427,7 +430,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 150 files across 8 signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 151 files across 8 signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
@@ -436,7 +439,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (110 assertions)
+./tools/selftest.sh               # tests the tooling itself (114 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing - which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

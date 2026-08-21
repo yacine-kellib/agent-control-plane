@@ -12,10 +12,34 @@ obligation that reads as a control and is a sentence. That is the failure the
 document is most exposed to, because a clause id resolving in the spec proves
 only that someone WROTE the rule, never that anything APPLIES it.
 
+It also asserts DP-83's other half, which had no consumer at all until ACP-78:
+every leg NAMES THE ARTIFACT it carries, every artifact name comes from a CLOSED
+vocabulary declared in the annex, and every vocabulary entry cites a clause or
+section that actually contains the term. A coined name -- a second vocabulary for
+an object the specification already names, which is the defect DP-16 forbids one
+layer down -- cannot survive that last check.
+
+And it resolves DP-7's five enumerated inbound crossings against the register.
+That is what found the missing time-source leg: DP-7 named the crossing, the
+register omitted it, and nothing compared the two.
+
 WHAT IT DOES NOT CATCH, stated so the claim is not read wider than it is:
 it does not check the leg cites the RIGHT clause, nor that the enforcement sits
 at the point the leg names. A leg citing DR-9 passes on DR-9 being raised
 anywhere. That is a weaker claim than the document makes and is the residual.
+
+Two more residuals, both from the ACP-78 checks. The vocabulary check asserts the
+cited span CONTAINS the term, never that it uses it in the sense the leg means --
+a term used in passing satisfies it. And the DP-7 check matches an enumerated
+crossing to an artifact the register carries SOMEWHERE; it does not check the
+leg's direction or its endpoints, so a crossing enumerated inbound and recorded
+only outbound would pass. Both are narrower than they look and are stated here
+rather than left to be assumed wider.
+
+The DP-7 match falls back to an artifact's head noun, because DP-7 writes
+"signed bundle bytes" where the vocabulary says "Policy Bundle". That looseness
+already produced one false pass -- see the comment in dp7_crossings() -- and it
+is the part of this file most likely to pass for the wrong reason next.
 """
 import re, sys, pathlib
 
@@ -68,6 +92,12 @@ EXEMPT = {
  "AU-2":  "database constraints, not application raises",
  "AU-3":  "external anchoring mechanism; the ordering obligation raises AU-7",
  "AU-4":  "runs outside the production domain; no in-process raise site",
+ "12.5":  "NTS time discipline is a HOST obligation, not an application raise, and"
+          " nothing in either repository exercises it -- ACP-DEPLOY-001 says so in"
+          " as many words: 'nothing at all exercises the NTS-loss cap'. This"
+          " exemption records an UNCHECKED normative MUST, not a covered one. If a"
+          " time-source branch is ever built and this line still reads the same,"
+          " the exemption has become a lie -- the wording 11.3 already carries",
  "11.3":  "the reconciliation job is UNIMPLEMENTED. It runs in the anchor"
           " verifier's trust domain by AU-4, never the production domain, so no"
           " in-process raise could carry it even once it exists. Annex A discloses"
@@ -89,25 +119,107 @@ EXEMPT = {
 }
 
 def cited_clauses(doc):
-    """Annex A rows: | leg | crossing | obligations |.
+    """Annex A rows: | leg | crossing | artifact | obligations |.
 
     A row declaring no receiving obligation is a DP-85 disclosure, not a gap,
     and is returned separately so it is counted and shown rather than skipped.
+
+    A row that is NEITHER is returned as malformed and FAILS. It used to be
+    dropped in silence -- `if ids:` with no else -- so a row whose obligation
+    cell stopped parsing simply left the register, the denominator shrank, and
+    the run still printed PASS. Adding the artifact column would have done
+    exactly that to all 36 rows at once. A check whose coverage can fall to zero
+    while it reports success is the failure this repository exists to argue
+    about, so a row now leaves this function through one of three named doors.
     """
-    obliged, declared_none = {}, []
+    obliged, declared_none, malformed, artifacts = {}, [], [], {}
     for line in doc.splitlines():
         m = re.match(r'\|\s*(F\d\.\d)\s*\|', line)
         if not m: continue
+        leg = m.group(1)
         cells = [c.strip() for c in line.split('|')]
-        obligation = cells[3] if len(cells) > 4 else ""
+        # cells[0] is the empty string before the leading pipe
+        artifact   = cells[3] if len(cells) > 5 else ""
+        obligation = cells[4] if len(cells) > 5 else ""
+        artifacts[leg] = artifact
         if 'no receiving obligation' in obligation:
-            declared_none.append(m.group(1)); continue
+            declared_none.append(leg); continue
         # Two id shapes, and omitting the second silently skipped the most
         # important obligations in the register: the 9.3 executor steps.
         ids  = re.findall(r'\b((?:AT|AC|AQ|AU|B|CL|CP|CR|DR|DS|EO|PB|RAD|RES|RK|RV|TR|V|WE|P)-\d+[a-z]?)\b', obligation)
         ids += re.findall(r'\b(\d+\.\d+(?:-[0-9a-z]+)*)\b', obligation)
-        if ids: obliged[m.group(1)] = sorted(set(ids))
-    return obliged, declared_none
+        if ids: obliged[leg] = sorted(set(ids))
+        else:   malformed.append(leg)
+    return obliged, declared_none, malformed, artifacts
+
+
+# ------------------------------------------------------- DP-83's other half
+# The artifact vocabulary, and the resolver that proves each name is the
+# specification's own rather than one this register coined.
+
+def vocabulary(doc):
+    """The `| Artifact | Named at |` table, read as a closed set."""
+    vocab, seen_header = {}, False
+    for line in doc.splitlines():
+        if re.match(r'\|\s*Artifact\s*\|\s*Named at\s*\|', line):
+            seen_header = True; continue
+        if not seen_header: continue
+        if not line.startswith('|'): break
+        cells = [c.strip() for c in line.split('|')]
+        if len(cells) < 4 or set(cells[1]) <= set('- '): continue
+        vocab[cells[1]] = cells[2]
+    return vocab
+
+
+def cite_span(cite, docs):
+    """Resolve `§N.N` to its heading section, or a clause id to its bullet.
+
+    Returns None when the citation resolves nowhere, which is itself a failure:
+    a name defended by a citation that does not exist is an undefended name.
+    """
+    for text in docs:
+        lines = text.splitlines()
+        if cite.startswith("\u00a7"):
+            pat = r'^#{2,4}\s+' + re.escape(cite[1:]) + r'[\s.]'
+        else:
+            pat = r'^\s*-\s+\*\*' + re.escape(cite) + r'\b'
+        for i, l in enumerate(lines):
+            if re.match(pat, l):
+                j = i + 1
+                while j < len(lines) and not re.match(r'^#{2,4}\s', lines[j]) and (
+                       cite.startswith("\u00a7") or not re.match(r'^\s*-\s+\*\*[A-Z0-9]', lines[j])):
+                    j += 1
+                return "\n".join(lines[i:j])
+    return None
+
+
+def dp7_crossings(doc):
+    """DP-7's enumerated inbound crossings, as (numeral, text) pairs.
+
+    DP-7 attests that the control plane's inbound crossings are enumerated. The
+    register is where they are supposed to appear. Nothing compared the two
+    until ACP-78, and the comparison immediately found (v) -- the network time
+    source -- present in the clause and absent from the register.
+    """
+    m = re.search(r'-\s+\*\*DP-7\.[^\n]*', doc)
+    if not m: return []
+    parts = re.split(r'\((i|ii|iii|iv|v|vi|vii|viii|ix|x)\)\s*', m.group(0))
+    out = []
+    for k in range(1, len(parts) - 1, 2):
+        # Bound each item to ITS OWN clause. The last item runs on into DP-7's
+        # closing prose, and that prose is what made this check pass for the
+        # wrong reason during development: crossing (v) -- the network time
+        # source -- was satisfied by the artifact `audit record`, because the
+        # word "record" appears in "not in the deployment record is a topology
+        # defect". The missing leg this check exists to find would have been
+        # reported as covered. Found by deleting the leg AND its vocabulary row
+        # and watching the mutant survive; the orphan-vocabulary check had been
+        # doing the killing.
+        text = parts[k + 1]
+        cut = text.find(';')
+        if cut == -1: cut = text.find('. ')
+        out.append((parts[k], text if cut == -1 else text[:cut]))
+    return out
 
 def enforced(src):
     ids = set()
@@ -121,8 +233,10 @@ def enforced(src):
     return ids
 
 def main():
-    doc = DOC.read_text()
-    (legs, none_declared), have = cited_clauses(doc), enforced(SRC)
+    doc  = DOC.read_text()
+    spec = (ROOT / "spec/ACP-SPEC-001.md").read_text()
+    legs, none_declared, malformed, artifacts = cited_clauses(doc)
+    have = enforced(SRC)
     # a 9.3 step id enforces the checklist clauses the executor applies there
     have |= {i.split('-')[0] for i in have if i.startswith('9.3')}
     unenforced, ok = [], 0
@@ -132,13 +246,53 @@ def main():
             if label in have or any(h.startswith(label + "-") for h in have): ok += 1
             elif cid in EXEMPT: ok += 1
             else: unenforced.append((leg, cid))
-    print(f"legs with cited obligations: {len(legs)}   clause citations: {ok + len(unenforced)}")
+
+    # --- DP-83: the artifact half ------------------------------------------
+    vocab   = vocabulary(doc)
+    docs    = [spec, doc]
+    fails   = []
+    for leg in sorted(artifacts):
+        a = artifacts[leg]
+        if not a:
+            fails.append(f"{leg} names no artifact -- DP-83 requires one")
+        elif a not in vocab:
+            fails.append(f"{leg} carries '{a}', which is not in the artifact vocabulary")
+    for name, cite in sorted(vocab.items()):
+        span = cite_span(cite, docs)
+        if span is None:
+            fails.append(f"artifact '{name}' cites {cite}, which resolves nowhere")
+        elif name.lower() not in span.lower():
+            fails.append(f"artifact '{name}' cites {cite}, which does not contain the term"
+                         f" -- a coined name, not the specification's")
+    carried = set(artifacts.values())
+    for name in sorted(set(vocab) - carried):
+        fails.append(f"artifact '{name}' is declared and carried by no leg")
+
+    # --- DP-7: every enumerated inbound crossing has a leg ------------------
+    crossings = dp7_crossings(doc)
+    if not crossings:
+        fails.append("DP-7's enumerated crossings did not parse -- the check is vacuous")
+    for numeral, text in crossings:
+        low = text.lower()
+        if not any(n.lower() in low or n.split()[-1].lower() in low for n in carried if n):
+            fails.append(f"DP-7 crossing ({numeral}) names no artifact any leg carries"
+                         f" -- an enumerated crossing with no row")
+
+    for leg in malformed:
+        fails.append(f"{leg} cites no clause and declares no DP-85 exemption"
+                     f" -- it would once have been dropped in silence")
+
+    print(f"legs: {len(artifacts)}   with cited obligations: {len(legs)}   clause citations: {ok + len(unenforced)}")
     print(f"legs declaring NO obligation (DP-85): {len(none_declared)} {none_declared}")
     print(f"enforced or exempt: {ok}   UNENFORCED: {len(unenforced)}")
+    print(f"artifact vocabulary: {len(vocab)}   DP-7 crossings resolved: {len(crossings)}")
     for leg, cid in unenforced:
         print(f"  FAIL  {leg} cites {cid} -- no raise site, no marker, no exemption")
-    print("RESULT:", "PASS -- every cited obligation is enforced or exempted with a reason"
-          if not unenforced else f"FAIL -- {len(unenforced)} obligation(s) cite nothing that runs")
-    return 1 if unenforced else 0
+    for f in fails:
+        print(f"  FAIL  {f}")
+    bad = len(unenforced) + len(fails)
+    print("RESULT:", "PASS -- obligations enforced or exempted; every leg names a specified artifact"
+          if not bad else f"FAIL -- {bad} defect(s) in the leg register")
+    return 1 if bad else 0
 
 sys.exit(main())

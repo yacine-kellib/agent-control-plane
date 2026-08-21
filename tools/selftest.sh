@@ -935,12 +935,43 @@ done
 # exist and pass vacuously -- which is precisely the defect ACP-64 was filed
 # for. Do not re-add a version of them that skips when services/ is absent.
 
-# --- DP-87: every flow-leg obligation resolves to a mechanism -----------------
+# --- DP-83/DP-87: the leg register, and a negative control on the check -------
 if python3 tools/check-flow-legs.py >/dev/null 2>&1; then
-  ok "ACP-DEPLOY-001 Annex A: every cited leg obligation is enforced or exempted"
+  ok "ACP-DEPLOY-001 Annex A: obligations enforced or exempted, every leg names an artifact"
 else
-  bad "ACP-DEPLOY-001 Annex A: a leg cites an obligation nothing enforces"
+  bad "ACP-DEPLOY-001 Annex A: the leg register has a defect"
 fi
+
+# A checker asserted only by `exit 0` is satisfied by a checker that always
+# exits 0, and this one grew four new checks in ACP-78. So the register is
+# mutated back to its pre-ACP-78 state -- the F9.1 time-source leg and its
+# vocabulary row removed -- and the check must FAIL and must name DP-7's
+# crossing (v). That mutation is not hypothetical: it is exactly what the
+# register said until ACP-78, while DP-7 enumerated the crossing three hundred
+# lines above it and nothing compared the two.
+LEGDOC=spec/ACP-DEPLOY-001.md
+LEGBAK=$(mktemp)
+cp "$LEGDOC" "$LEGBAK"
+restore_legdoc() { [ -s "$LEGBAK" ] && cp "$LEGBAK" "$LEGDOC"; }
+trap 'restore_legdoc; rm -f "$LEGBAK"' INT TERM EXIT
+
+grep -v '^| F9\.1 ' "$LEGBAK" | grep -v '^| network time source | DP-7 |$' > "$LEGDOC"
+
+OUT=$(python3 tools/check-flow-legs.py 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "removing the time-source leg makes check-flow-legs FAIL (got $rc)"
+has 'DP-7 crossing \(v\) names no artifact any leg carries' \
+    "and it names DP-7 crossing (v), the enumerated crossing with no row"
+
+restore_legdoc
+trap - INT TERM EXIT
+cmp -s "$LEGBAK" "$LEGDOC"
+chk $? "the leg register is byte-identical again after the restore"
+rm -f "$LEGBAK"
+
+# Control: the unmutated register passes the same check. Without this line the
+# two assertions above are satisfied by a checker that fails on everything.
+OUT=$(python3 tools/check-flow-legs.py 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "and the restored register passes again (got $rc)"
 
 # --- ACP-71: DP-27's custody claims must match custody.rs -----------------------
 # DP-27 is a Normative Disclosure. It said "there is no `KmsSigner`" for weeks

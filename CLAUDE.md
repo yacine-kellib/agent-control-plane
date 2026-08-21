@@ -15,7 +15,7 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (110 assertions)
+./tools/selftest.sh                # tests the tooling itself (114 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
@@ -173,7 +173,7 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale three times by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence. It fired again on 2026-08-21, when the branch it named was archived and deleted in the same session that left the sentence standing — so the instruction works only if someone actually runs `git branch`. Run it.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 150 files across 8 roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 151 files across 8 roots.
 
 **Phase 8 is done (ACP-44).** `tools/codegen.sh` generates the Rust and TypeScript wire types from `spec/schemas/bundle/` and is the first thing that ever read those files — it found four defects on its first pass, one a live quorum bypass (ACP-53: PB-7 compared whole registry entries, so changing a `role` string let one key holder satisfy a k=2 quorum alone). **The fail-safe defaults live in the schema as `x-acp-absent` data**, not in a generator table, and the generator halts rather than guessing when a lookup table has no rule. `x-acp-ordered` is applied only where an order is declared — `SuiteId` gets no `Ord`, because CR-4 is containment and not rank. `tools/sync-counts.sh` re-derives every published count, which had been hand-work and had already recurred twice (ACP-42, ACP-43).
 

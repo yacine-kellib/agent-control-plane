@@ -935,42 +935,82 @@ Component names are **DP-16**'s. Clause ids are cited, never restated
 (**DP-84**). Legs marked *positive-path* carry the **DP-87** label and name
 their proof.
 
-| Leg | Crossing | Receiving obligation, cited |
-| --- | --- | --- |
-| F1.1 | proposing application → Ingress Adapter | V-3, B-6 |
-| F1.2 | Ingress Adapter → Input / Output Schema Validator | V-3, B-1 |
-| F1.3 | Input / Output Schema Validator → Policy Engine | B-1, B-6 |
-| F1.4 | LLM → Input / Output Schema Validator | B-3 — raw model output crosses to the validator and to nothing else |
-| F2.1 | authoring host → offline key custody | PB-2 |
-| F2.2 | offline key custody → signed bundle | PB-5, PB-7, PB-8 |
-| F2.3 | offline custody → Bundle Repository | *no receiving obligation — one-way transfer; the obligation is at every read below* |
-| F2.4 | Bundle Repository → Policy Engine | CR-1, CR-3, CR-4 |
-| F2.5 | Bundle Repository → KMS | RAD-4, RAD-3 |
-| F2.6 | Bundle Repository → Executor | 9.3-4 |
-| F3.1 | Context Store → Policy Engine | CP-2, P-4 |
-| F3.2 | Policy Engine → KMS | RAD-3, RAD-4 |
-| F3.3 | KMS → Executor | 9.3-1, 9.3-2, 9.3-3, 9.3-5, 9.3-7, 9.3-8, TR-8 |
-| F3.4 | Executor → Consumption Ledger | CL-2, CL-3, CL-6, CL-7 |
-| F3.5 | Context Store → Executor | 9.3-9 |
-| F4.1 | Policy Engine → Attestation Presentation Service | AT-3 |
-| F4.2 | Attestation Presentation Service → approver devices | AT-3 |
-| F4.3 | approver device → attestation object | AT-1, AT-8a |
-| F4.4 | approver devices → KMS | AT-8, AT-8b, AT-2, AT-9, PB-7 |
-| F5.1 | Executor internal hold | DR-1, DR-6 |
-| F5.2 | Executor → notification service | DR-2 |
-| F5.3 | notification service → attesters and operator | DR-3, DR-8 |
-| F5.4 | notified party → Executor | DR-9, ACK-1..6 (reference-level) |
-| F5.5 | notified party → Executor | DR-4, DR-5 |
-| F5.6 | Executor internal notice | DR-13 |
-| F6.1 | Executor → Audit subsystem | AU-2 |
-| F6.2 | Audit subsystem → chain store | AU-1 — *positive-path: `audit_suite.py`, "AU-1 clause derives implementation head"* |
-| F6.3 | chain store → anchor verifier | AU-7, AU-8 |
-| F6.4 | anchor verifier → reconciliation job | AU-4 |
-| F6.5 | reconciliation job → findings | 11.3 — checks (a)–(h), incl. AU-7 and AC-5 enforcement. *Unimplemented; see below* |
-| F7.1 | Executor → egress mechanism | *no receiving obligation — an egress mechanism is a deployment choice, not a component (§2); the obligation is B-4 at the Executor* |
-| F7.2 | egress mechanism → effect domain | B-4, D-2 |
-| F8.1 | operator → Ingress Adapter | the operator is the principal AT-2 and DR-9 are stated about. Distinctness is enforced at the Executor (AT-2, DR-9), not here |
-| F8.2 | notification service → operator | DR-3 — the operator is a required recipient, not only the attesters |
+**The artifact vocabulary is closed, and every name in it is the specification's
+own.** **DP-83** requires each leg to name the artifact it carries, and until
+this revision no row did — the register named source and destination and stopped
+there, so the one clause half `tools/check-flow-legs.py` did not read was the
+half that says *what crosses*. Naming artifacts invites a second vocabulary, which
+is the defect **DP-16** forbids one layer down, so each name below cites where the
+normative text uses it and the checker resolves that citation and asserts the term
+is there. A name whose citation does not contain it is a coined name and fails.
 
-**What this register still does not carry.** The **Input / Output Schema Validator** now has rows (F1.2–F1.4), but the reference topology folds its function into the Ingress Adapter, so F1.2 and F1.3 describe a separation the implementation does not make — a topology statement this register asserts and the code does not yet honour. The **reconciliation job** (F6.5) is **unimplemented**: `§11.3` appears in no reference module, and the exemption recorded in `tools/check-flow-legs.py` says so explicitly rather than treating the row as covered. Both are disclosed under **DP-86** rather than left to be noticed.
+| Artifact | Named at |
+| --- | --- |
+| external input | §3 |
+| prompt | M-3 |
+| raw model output | B-3 |
+| Proposal | §3 |
+| canonical Proposal | B-1a |
+| Policy Bundle | §8.2 |
+| Context read | §8.7 |
+| signing request | §9.1.1 |
+| Attestation Object | AT-1 |
+| Decision Receipt | §3 |
+| claim | CL-2 |
+| pending_release | DR-1 |
+| notification | DR-3 |
+| acknowledgement | DR-9 |
+| repudiation | DR-4 |
+| notice | DR-13 |
+| audit record | AU-7 |
+| chain_hash | AU-1 |
+| anchor | AU-3 |
+| findings | §11.3 |
+| target call | DS-2 |
+| network time source | DP-7 |
+
+| Leg | Crossing | Artifact | Receiving obligation, cited |
+| --- | --- | --- | --- |
+| F1.1 | proposing application → Ingress Adapter | external input | V-3, B-6 |
+| F1.2 | Ingress Adapter → Input / Output Schema Validator | external input | V-3, B-1 |
+| F1.3 | Input / Output Schema Validator → Policy Engine | Proposal | B-1, B-6 |
+| F1.4 | LLM → Input / Output Schema Validator | raw model output | B-3 — raw model output crosses to the validator and to nothing else |
+| F1.5 | Input / Output Schema Validator → model-serving component | prompt | *no receiving obligation — the receiver is in the untrusted domain (DP-6) and applies none. The residual is §5.1a: Door B is inert rather than filtered and carries no security property, so there is nothing for the receiver to verify. The constraints on this leg (M-1..M-7) bind the SENDER* |
+| F2.1 | authoring host → offline key custody | Policy Bundle | PB-2 |
+| F2.2 | offline key custody → signed bundle | Policy Bundle | PB-5, PB-7, PB-8 |
+| F2.3 | offline custody → Bundle Repository | Policy Bundle | *no receiving obligation — one-way transfer; the obligation is at every read below* |
+| F2.4 | Bundle Repository → Policy Engine | Policy Bundle | CR-1, CR-3, CR-4 |
+| F2.5 | Bundle Repository → KMS | Policy Bundle | RAD-4, RAD-3 |
+| F2.6 | Bundle Repository → Executor | Policy Bundle | 9.3-4 |
+| F3.1 | Context Store → Policy Engine | Context read | CP-2, P-4 |
+| F3.2 | Policy Engine → KMS | signing request | RAD-3, RAD-4 |
+| F3.3 | KMS → Executor | Decision Receipt | 9.3-1, 9.3-2, 9.3-3, 9.3-5, 9.3-7, 9.3-8, TR-8 |
+| F3.4 | Executor → Consumption Ledger | claim | CL-2, CL-3, CL-6, CL-7 |
+| F3.5 | Context Store → Executor | Context read | 9.3-9 |
+| F4.1 | Policy Engine → Attestation Presentation Service | canonical Proposal | AT-3 |
+| F4.2 | Attestation Presentation Service → approver devices | canonical Proposal | AT-3 |
+| F4.3 | approver device → attestation object | Attestation Object | AT-1, AT-8a |
+| F4.4 | approver devices → KMS | Attestation Object | AT-8, AT-8b, AT-2, AT-9, PB-7 |
+| F5.1 | Executor internal hold | pending_release | DR-1, DR-6 |
+| F5.2 | Executor → notification service | canonical Proposal | DR-2 |
+| F5.3 | notification service → attesters and operator | notification | DR-3, DR-8 |
+| F5.4 | notified party → Executor | acknowledgement | DR-9, ACK-1..6 (reference-level) |
+| F5.5 | notified party → Executor | repudiation | DR-4, DR-5 |
+| F5.6 | Executor internal notice | notice | DR-13 |
+| F6.1 | Executor → Audit subsystem | audit record | AU-2 |
+| F6.2 | Audit subsystem → chain store | chain_hash | AU-1 — *positive-path: `audit_suite.py`, "AU-1 clause derives implementation head"* |
+| F6.3 | chain store → anchor verifier | chain_hash | AU-7, AU-8 |
+| F6.4 | anchor verifier → reconciliation job | anchor | AU-4 |
+| F6.5 | reconciliation job → findings | findings | 11.3 — checks (a)–(h), incl. AU-7 and AC-5 enforcement. *Unimplemented; see below* |
+| F7.1 | Executor → egress mechanism | target call | *no receiving obligation — an egress mechanism is a deployment choice, not a component (§2); the obligation is B-4 at the Executor* |
+| F7.2 | egress mechanism → effect domain | target call | B-4, D-2 |
+| F8.1 | operator → Ingress Adapter | external input | the operator is the principal AT-2 and DR-9 are stated about. Distinctness is enforced at the Executor (AT-2, DR-9), not here |
+| F8.2 | notification service → operator | notification | DR-3 — the operator is a required recipient, not only the attesters |
+| F9.1 | network time source → receipt-issuing and receipt-verifying components | network time source | 12.5 — skew bounded per A-2 within the L-20 allowance |
+
+**Two legs were missing, and the register found them only when it was made to name artifacts.** **F1.5** — the prompt crossing from the control plane to a model-serving component, which **DP-6** places in the *untrusted* domain — was absent while its return leg **F1.4** was present, so the boundary was enumerated in one direction. **F9.1** — the network time source — was absent although **DP-7** enumerates it as inbound crossing **(v)** in this same document, and §12.5 makes it a normative dependency. Both are the failure **DP-83**'s rationale names: *a crossing that has no row cannot be miscounted, because it was never counted.* Neither was found by reading the register, which had been read many times; both fell out of asking each row what it carries. The checker now resolves **DP-7**'s five enumerated crossings against the register, so the omission cannot recur silently.
+
+**Three rows name an artifact where DP-83 requires a destination component, and that is disclosed rather than fixed here.** **F2.2** (→ *signed bundle*), **F4.3** (→ *attestation object*) and **F6.5** (→ *findings*) put the artifact in the destination slot, so each names two artifacts and no destination. Choosing the right destination is a statement about the topology rather than about the wire, and making it silently inside a revision about artifact names is how a register acquires a claim nobody decided. Filed as **ACP-86**.
+
+**What this register still does not carry.** The **Input / Output Schema Validator** now has rows (F1.2–F1.5), but the reference topology folds its function into the Ingress Adapter, so F1.2 and F1.3 describe a separation the implementation does not make — a topology statement this register asserts and the code does not yet honour. The **reconciliation job** (F6.5) is **unimplemented**: `§11.3` appears in no reference module, and the exemption recorded in `tools/check-flow-legs.py` says so explicitly rather than treating the row as covered. Both are disclosed under **DP-86** rather than left to be noticed.
 
