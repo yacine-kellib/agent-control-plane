@@ -156,20 +156,19 @@
 
   <h2>Every number here replays on your machine</h2>
   <div class="stats">
-    <div><b>36</b><span>proofs &middot; cover every case<br>not just the ones tried</span></div>
-    <div><b>82/82</b><span>attacks tried against it<br>every one refused</span></div>
-    <div><b>36/36</b><span>safety checks deleted<br>every one was caught</span></div>
+    <div><b>36</b><span>proved, not just tested<br>covers every case</span></div>
+    <div><b>82/82</b><span>ways to break it, tried<br>none of them worked</span></div>
+    <div><b>36/36</b><span>remove a protection<br>the tests notice</span></div>
   </div>
   <p style="margin-top:1.25rem">
-    A test tries some cases; a proof covers all of them, and a machine checks it rather than a
-    person reading it. They prove things like: whoever runs the system cannot approve their own
-    irreversible action, and an approval for one action cannot be reused for another.
+    A test tries some cases. A proof settles all of them. These settle questions like whether
+    whoever runs the system can approve their own irreversible action, and whether an approval
+    for one action can be reused for another. Both answers are no, permanently.
   </p>
   <p style="margin-top:1.25rem">
-    The 82 attacks are named and written out - "an approval is replayed onto a later action" is
-    one. The last row tests the tests: each safety check was deleted in turn, and the attack it
-    blocks then got through, which is how you know the check was doing something. A suite that
-    cannot fail proves nothing.
+    The 82 are every way we could think of to break it, written down and run. The last row
+    answers the question that invites: are those tests real, or would they pass whatever the
+    code did? Take any single protection out and the tests notice. All 36 times.
   </p>
   <p style="margin-top:1.25rem">Check them rather than believing them:</p>
   <pre>git clone https://github.com/yacine-kellib/agent-control-plane
