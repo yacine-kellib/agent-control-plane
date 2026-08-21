@@ -22,6 +22,128 @@ Reproduce everything in one command:
 
 ---
 
+## Unreleased since v1.3.14 — a type nobody wrote down let one approval be spent twice
+
+`b64:` occurred **exactly twice** in ACP-SPEC-001 through v1.3.17, both times inside
+§9.2's diagnostic JSON, and **no clause said whether the prefix was part of the value.**
+
+`attestation_id` is SHA-256 over the canonical CBOR encoding of the **whole** Attestation
+Object (AT-8a). So an issuer carrying `b64:AAAA…` and a verifier carrying `AAAA…` derive
+**two ids for one object** and claim **two ledger slots** — one human approval, consumed
+twice. That is **Z4** and **T-14** reopening, reached with **no optional field**, and
+therefore untouched by **AT-8b**, which closed the field-set ambiguity one layer above
+this one. At the verifier the mismatch is indistinguishable from a forgery.
+
+§11.2 pins `sha256:` to the character — *"carried, stored, anchored and fed forward as
+that string, never as the 32 raw digest bytes"* — and records why it had to: an
+implementer who fed forward raw bytes built a different chain while following the text.
+The nonce had the same exposure and none of the pinning.
+
+**Found by writing the first wire schema** (`ACP-78` slice 2), which is the same way
+`codegen.sh` found four defects in `spec/schemas/bundle/`, and for the same reason:
+nothing had ever had to *generate* from that text. Reading normative prose does not
+force the question "what exactly is this value?"; emitting a `pattern` does.
+
+Fixed at the root as **WE-4** (Normative), spec **v1.3.17 → v1.3.18**, with a §1 alert.
+A base64 value carries its type prefix; stripping the prefix, omitting the padding, or
+substituting the URL-safe alphabet each produce a different value and **MUST** be
+rejected rather than normalized. `ACP-87`.
+
+### The clause is one rule and the size is another — `ACP-88`
+
+Porting WE-4 into `acp-decision` surfaced a second thing, and it is the part worth
+generalising. The obvious fix was to tighten the reference's pattern to the schema's
+`^b64:[A-Za-z0-9+/]{22}==$`, which the schema had pinned since the day it was written
+while the reference accepted any length. **That closes the divergence and names the wrong
+clause doing it.**
+
+| rule | pins | scope |
+| --- | --- | --- |
+| **WE-4** | the **type** — `b64:` + RFC 4648 §4 with padding | also the receipt nonce and the signatures, none of which are 16 bytes |
+| **AT-1** | the **size** — "a 128-bit fresh attestation nonce" | the attestation nonce only |
+
+A 64-bit nonce is a perfectly well-formed `b64:` value. Folding the size into the type
+check answers `WE-4` for a violation of `AT-1`, and the cross-language differential
+compares refusal **names** — two implementations that both refuse an object while naming
+different rules have not been shown to agree on anything an operator could act on. Split,
+and applied **type-then-size** in both languages, because an object wrong in both ways
+must stop at the same rule everywhere.
+
+The old pattern was also weaker than the clause it cited. `^b64:[A-Za-z0-9+/]+={0,2}$`
+accepts `b64:A`, `b64:AAA` and `b64:AAAAA` — lengths that are not a multiple of four and
+are therefore not base64 at all — and the padding-stripped form of a legitimate value,
+which WE-4 says **MUST** be rejected. A check that is present and means something weaker
+than its clause is the shape a deletion mutant cannot find; the control for it is a
+conformance case, verified by reverting the pattern and watching the suite go red.
+
+### The mutation harness rejected the first control and was right
+
+The WE-4 mutant was first paired with the unprefixed-nonce attack and reported
+**SURVIVE**. Correct: stripping the prefix also changes the value's **length**, so AT-1
+refuses it even with WE-4 deleted, and against that attack WE-4 is redundant. It is now
+paired with the **URL-safe alphabet**, which preserves the length and the decoded bytes
+and changes only the string — the one shape no other rule catches.
+
+Redundancy is a claim about the attacks you enumerated, and the first enumeration here
+was wrong. The published claim is the experiment, not the green run.
+
+A second defect in the same change, kept for the same reason: the AT-1 check was first
+written as a base64 **decode**, which *raises* on the URL-safe alphabet and on stripped
+padding. It was total only because WE-4 ran ahead of it. A rule whose behaviour on bad
+input is "crash" is not a refusal, and one that is total only because of its neighbour is
+one reordering away from being neither.
+
+### Three definitions of one type, and nothing compared them
+
+The type now exists in the reference, in `spec/schemas/wire/attestation_object.schema.json`
+and in `crates/acp-decision`. Two of them **had already diverged and every gate was
+green**: the schema pinned twenty-four characters from its first day, the reference
+accepted any length, and no fixture anywhere fed a wrong-length nonce, so nothing ever
+evaluated the two on an input that told them apart.
+
+Aligning them by hand fixes the drift that happened and not the next one.
+`tools/nonce-type-vectors.json` is one corpus with three consumers — the reference and the
+schema via `tools/check-nonce-type.py`, the Rust check via an `acp-decision` test, and
+Python against Rust via the decision differential. Every pair is pinned by something that
+executes, and `selftest.sh` loosens the schema back to the old pattern and asserts the
+check goes red.
+
+### The simulation was never conformant, and no local gate said so
+
+`sim/` builds its own Attestation Objects with bare nonces, so WE-4 made every one of them
+non-conformant: `python3 -m sim.acceptance` went from **11 pass, 1 partial, 0 fail** to
+**5 pass, 1 partial, 6 fail**, every failure a WE-4 refusal. It shipped that way for two
+commits while `verify.sh --suites` and `selftest.sh` were both green, because **neither of
+them executes a line of `sim/`**. CI does, and CI is not a thing a session reads before
+saying "green".
+
+This is a recurrence with a correction already published in this file's own repository:
+`tools/verify.sh` carries the note that *"sim/bundle.py was load-bearing with NO gate line
+for several releases and silently dropped three fields from a hash (ACP-35)"*. That fix
+gave one file a gate line and left the rest of `sim/` where it was. `selftest.sh` now runs
+`sim.acceptance` and asserts its **result line**, so a criterion regressing cannot be
+satisfied by exiting 0.
+
+**The general shape, since WE-4 exercised it four times in a day.** A new normative clause
+invalidates every fixture written before it, *including the ones nobody files under
+"fixtures"*: the conformance corpus, the ACP-80 cross-language probe (twice — once on the
+type, once on the size), the Rust test fixtures, and the simulation. Only the first was
+migrated in the same change as the clause.
+
+### Disclosed and not closed
+
+**`ACP-89`.** WE-4 governs the receipt `nonce` too, and nothing checks it in either
+language. `receipt["nonce"]` goes straight into `claim_nonce` at §9.3 step 6, so two
+spellings of one nonce claim two ledger slots and **T-13 reopens one field over** — the
+same defect, one field across. Named in a `DISCLOSED GAP` comment at the check site in
+both implementations rather than left silent. Closing it needs the receipt and DS-6f
+origin fixtures migrated in both languages.
+
+WE-4's third named category — "any signature or byte string carried as text" — is
+unpinned for the same reason and belongs in the same change.
+
+---
+
 ## Unreleased since v1.3.14 — the same number, spelled differently, removed the human quorum
 
 **Specification moves v1.3.15 → v1.3.17** (there is no spec v1.3.16; package v1.3.16 shipped
