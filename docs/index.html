@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>ACP - Agent Control Plane</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="A control plane that decides whether an AI agent's action is authorised, outside the model, where prompt injection cannot reach.">
+<meta name="description" content="A separate service decides whether an AI agent's action is allowed. It sits outside the AI, where instructions hidden in the documents the agent reads cannot reach it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -52,15 +52,20 @@
   }
   p{max-width:var(--measure)}
 
-  /* The pipeline is the one idea; it gets to be a diagram, not a paragraph. */
+  /* The pipeline is the one idea; it gets to be a diagram, not a paragraph.
+     Each cell leads with what the part DOES and demotes its name to a label:
+     a reader who has never seen the specification must be able to follow the
+     four steps, and a reader who has must still be able to map them back. */
   .flow{
     display:grid;gap:1px;background:var(--g3);border:1px solid var(--g3);
-    grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:0 0 1rem
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin:0 0 1.25rem
   }
-  .flow div{background:var(--k);padding:1.15rem 1.25rem}
-  .flow b{display:block;font-weight:400;font-size:1.05rem;margin-bottom:.3rem}
-  .flow span{font-family:var(--mono);font-size:.66rem;line-height:1.5;
-    letter-spacing:.05em;text-transform:uppercase;color:var(--g2);display:block}
+  .flow div{background:var(--k);padding:1.25rem 1.25rem 1.1rem}
+  .flow b{display:block;font-weight:400;font-size:1.05rem;line-height:1.25;margin-bottom:.45rem}
+  .flow p{margin:0 0 .9rem;max-width:none;color:var(--g1);
+    font-size:.84rem;line-height:1.5}
+  .flow i{display:block;font-family:var(--mono);font-size:.62rem;font-style:normal;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--g2)}
 
   /* Numbers the repository actually prints. Tabular so they align. */
   .stats{display:grid;gap:1px;background:var(--g3);border:1px solid var(--g3);
@@ -104,9 +109,10 @@
   <h1>A credential is not <em>authorisation</em>.</h1>
 
   <p class="lede">
-    Give an agent the keys and every document it reads holds the keys. ACP moves the
-    authorise-or-refuse decision <strong>outside the model</strong>, where prompt injection
-    cannot reach it. The model proposes. It never authorises.
+    Give an agent the keys and every document it reads holds the keys: an instruction
+    hidden in an invoice or a web page can spend them. ACP moves the allow-or-refuse
+    decision <strong>out of the AI</strong> and into a separate service the AI cannot
+    reach. The model proposes. It never authorises.
   </p>
 
   <ul class="cta">
@@ -119,25 +125,46 @@
 
   <h2>The shape</h2>
   <div class="flow">
-    <div><b>The model</b><span>proposes &middot; holds no keys</span></div>
-    <div><b>Policy engine</b><span>recomputes risk from signed policy the model cannot see</span></div>
-    <div><b>Approvers</b><span>sign the exact hash, where a quorum is required</span></div>
-    <div><b>Executor</b><span>releases on a verified receipt, or nothing happens</span></div>
+    <div>
+      <b>Asks, and can do nothing else</b>
+      <p>The AI writes down what it wants done. It holds no keys and can reach nothing on its own.</p>
+      <i>The model</i>
+    </div>
+    <div>
+      <b>Works out how risky that is</b>
+      <p>From a rulebook the AI cannot see or edit - never from what the request claims.</p>
+      <i>Policy engine</i>
+    </div>
+    <div>
+      <b>Collects the human sign-offs</b>
+      <p>Where the rulebook demands them, named people sign this exact request, not a summary of it.</p>
+      <i>Approvers</i>
+    </div>
+    <div>
+      <b>Acts, or nothing happens</b>
+      <p>It acts only on a signed record that every check passed. One failed check and nothing happens.</p>
+      <i>Executor</i>
+    </div>
   </div>
   <p>
-    A compromised model can request a synthesis order as often as it likes and never cause
-    one. The risk level is recomputed from signed policy the model never sees, and an
-    irreversible action needs human signatures bound to that exact request.
+    An agent that has been fooled can ask for a dangerous action a thousand times and never
+    once cause it. The rulebook sets the risk level, not the agent, and anything that cannot
+    be undone waits for human signatures on that exact request.
   </p>
 
   <hr class="rule">
 
   <h2>Every number here replays on your machine</h2>
   <div class="stats">
-    <div><b>36</b><span>Dafny theorems<br>zero errors</span></div>
-    <div><b>82/82</b><span>attack scenarios<br>fail closed</span></div>
-    <div><b>36/36</b><span>mutants killed<br>the suites can fail</span></div>
+    <div><b>36</b><span>machine-checked proofs<br>zero errors</span></div>
+    <div><b>82/82</b><span>attack scenarios<br>refused, nothing ran</span></div>
+    <div><b>36/36</b><span>sabotaged copies caught<br>the tests can fail</span></div>
   </div>
+  <p style="margin-top:1.25rem">
+    Software checks those proofs, not a person reading them; they are written in Dafny and sit
+    in the repository. The last figure tests the tests: we broke the code on purpose 36 times
+    and the suites caught all 36. A suite that cannot fail proves nothing.
+  </p>
   <p style="margin-top:1.25rem">Check them rather than believing them:</p>
   <pre>git clone https://github.com/yacine-kellib/agent-control-plane
 cd agent-control-plane
@@ -147,13 +174,14 @@ cd agent-control-plane
 
   <h2>What this does not claim</h2>
   <ul class="limits">
-    <li><strong>No independent adversarial review.</strong> Every suite here was written by
-      the party that wrote the code. Agreement between two implementations is evidence about
-      consistency, never about correctness.</li>
-    <li><strong>Nothing runs end to end yet</strong> outside the simulation. The control
-      plane services moved to a separate repository, so nothing here has a main() that
-      could be mistaken for a running system - there is no longer anything to mistake.</li>
-    <li><strong>Status: evaluate, not deploy.</strong> The residual risks are published
+    <li><strong>No outside review, and no outside attacker.</strong> Every test here was
+      written by the party that wrote the code. Agreement between two implementations is
+      evidence about consistency, never about correctness.</li>
+    <li><strong>Nothing runs end to end yet</strong> outside a simulation that runs on
+      one machine. The services that would do this work moved to a separate repository, so
+      nothing here can be started and mistaken for a running system - there is no longer
+      anything to mistake.</li>
+    <li><strong>Status: evaluate, not deploy.</strong> The risks that remain are published
       before the positive claims, deliberately, and they are the part worth reading first.</li>
   </ul>
 
