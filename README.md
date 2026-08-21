@@ -1,8 +1,8 @@
 ![Agent Control Plane](assets/banner.png)
 
-# ACP — Agent Control Plane
+# ACP - Agent Control Plane
 
-**A structured-input control plane that decides whether an AI agent's action is authorised — outside the model, where prompt injection cannot reach.**
+**A structured-input control plane that decides whether an AI agent's action is authorised - outside the model, where prompt injection cannot reach.**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Spec](https://img.shields.io/badge/spec-ACP--SPEC--001%20v1.3.15-informational)](spec/ACP-SPEC-001.md)
@@ -29,7 +29,7 @@ A compromised model can request a €40,000 synthesis order as often as it likes
 
 ## The deck
 
-**[Nine slides, the whole argument](https://yacine-kellib.github.io/agent-control-plane/deck/)** — why a credential is not
+**[Nine slides, the whole argument](https://yacine-kellib.github.io/agent-control-plane/deck/)** - why a credential is not
 authorisation, why probabilistic defences have no zeros, and the shape that removes the path
 rather than filtering the input. Self-contained HTML; open it locally, or read the same
 argument in long form in [the dossier](dossier/).
@@ -41,19 +41,19 @@ Every number on its last slide is a number this repository prints: 36 Dafny theo
 
 ## Contents
 
-- [The deck](#the-deck) — nine slides, the argument end to end
-- [Quick start](#quick-start) — reproduce every claim in ninety seconds
-- [See it happen](#see-it-happen) — the injection demo
-- [Point your own agent at it](#point-your-own-agent-at-it) — Docker, HTTP, your LLM
-- [Where this bites](#where-this-bites) — eight deployment settings
-- [See it run: a business day](#see-it-run-a-business-day) — 179 actions, measured
-- [How it works: two doors](#how-it-works-two-doors) — the architecture in one idea
-- [The one claim](#the-one-claim) — INV-1-HIGH
-- [What this does **not** claim](#what-this-does-not-claim) — read this before the positive claims
-- [Threat model and framework mapping](#threat-model-and-framework-mapping) — MITRE ATLAS, ATT&CK, OWASP LLM Top 10
-- [Documentation](#documentation) — the full dossier
-- [Repository layout](#repository-layout) — what is real and what is scaffold
-- [Wanted: an adversarial reviewer](#wanted-an-adversarial-reviewer) — the most important gap
+- [The deck](#the-deck) - nine slides, the argument end to end
+- [Quick start](#quick-start) - reproduce every claim in ninety seconds
+- [See it happen](#see-it-happen) - the injection demo
+- [Point your own agent at it](#point-your-own-agent-at-it) - Docker, HTTP, your LLM
+- [Where this bites](#where-this-bites) - eight deployment settings
+- [See it run: a business day](#see-it-run-a-business-day) - 179 actions, measured
+- [How it works: two doors](#how-it-works-two-doors) - the architecture in one idea
+- [The one claim](#the-one-claim) - INV-1-HIGH
+- [What this does **not** claim](#what-this-does-not-claim) - read this before the positive claims
+- [Threat model and framework mapping](#threat-model-and-framework-mapping) - MITRE ATLAS, ATT&CK, OWASP LLM Top 10
+- [Documentation](#documentation) - the full dossier
+- [Repository layout](#repository-layout) - what is real and what is scaffold
+- [Wanted: an adversarial reviewer](#wanted-an-adversarial-reviewer) - the most important gap
 - [Integrity and releases](#integrity-and-releases)
 - [Licence and authorship](#licence-and-authorship)
 
@@ -79,9 +79,9 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) — RESULT: 82/82
-  OK   Suite 1  conformance — RESULT: 53/53 — CONFORMANT
-  OK   Suite 2  executor mutation — RESULT: 26/26 killed
+  OK   ALL attacks (consolidated registry) - RESULT: 82/82
+  OK   Suite 1  conformance - RESULT: 53/53 - CONFORMANT
+  OK   Suite 2  executor mutation - RESULT: 26/26 killed
   ...
 ```
 
@@ -95,10 +95,10 @@ Two gates, and the difference matters:
 
 | Command | Checks | Needs the release key? |
 |---|---|---|
-| `./tools/verify.sh --suites` | proofs + 15 suites + harness | No — green at every commit |
-| `./tools/verify.sh` | the above + integrity + signature | Yes — green only at a tagged release |
+| `./tools/verify.sh --suites` | proofs + 15 suites + harness | No - green at every commit |
+| `./tools/verify.sh` | the above + integrity + signature | Yes - green only at a tagged release |
 
-Sections 1–2 can only be made green by the key holder, because regenerating the manifest requires the offline Ed25519 key. **Red integrity between releases is offline signing working as designed, not a defect** — see [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md).
+Sections 1–2 can only be made green by the key holder, because regenerating the manifest requires the offline Ed25519 key. **Red integrity between releases is offline signing working as designed, not a defect** - see [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md).
 
 Dafny is optional; the proof step is skipped if it isn't installed.
 
@@ -108,13 +108,13 @@ Dafny is optional; the proof step is skipped if it isn't installed.
 python3 reference/suites/demo_flow.py
 ```
 
-> **Note:** this starts a local web server and opens a browser tab. It runs until you stop it with Ctrl-C — it is a presentation, not a test. For the test path use `./tools/verify.sh`. Presenter's guide: [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md).
+> **Note:** this starts a local web server and opens a browser tab. It runs until you stop it with Ctrl-C - it is a presentation, not a test. For the test path use `./tools/verify.sh`. Presenter's guide: [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md).
 
 A supplier report arrives with an instruction hidden in white text. The model reads it and complies. The demo runs that same output down two paths side by side: without a control plane the data leaves the company, with ACP nothing irreversible happens.
 
-The model is shown complying **fully**. Simulating a refusal would misrepresent the claim — the architecture's guarantee does not depend on injection failing.
+The model is shown complying **fully**. Simulating a refusal would misrepresent the claim - the architecture's guarantee does not depend on injection failing.
 
-**With a real model.** Paste an Anthropic API key into the page and the agent becomes a live model reading the actual poisoned document, rather than a recorded response. The key is held in memory for the process lifetime, used only for that call, and never written to disk. With no key the demo runs offline against the recording — and **the control plane behaves identically either way**, because it never consults the model about anything. That is the point of offering both: if the live and recorded runs diverged, the guarantee would depend on what the model said.
+**With a real model.** Paste an Anthropic API key into the page and the agent becomes a live model reading the actual poisoned document, rather than a recorded response. The key is held in memory for the process lifetime, used only for that call, and never written to disk. With no key the demo runs offline against the recording - and **the control plane behaves identically either way**, because it never consults the model about anything. That is the point of offering both: if the live and recorded runs diverged, the guarantee would depend on what the model said.
 
 ```bash
 python3 reference/suites/demo_flow.py --model claude-sonnet-5
@@ -126,19 +126,19 @@ The demo above is a presentation. This is the control plane as a service you can
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d ingress
-curl -s localhost:8848/actions       # the closed set — nothing else can be proposed
+curl -s localhost:8848/actions       # the closed set - nothing else can be proposed
 ```
 
 | Endpoint | Body | What it does |
 |---|---|---|
-| `GET /health` | — | liveness, and the hash of the bundle being enforced |
-| `GET /actions` | — | the nine registered actions, each with its permitted targets, required params and reversibility |
-| `POST /propose` | `{"task_type", "targets": [...], "params": {…}, "operator", "program"}` | the door. Answers `executed`, `held` or `refused`, always with the rule id |
-| `GET /holds` | — | what is waiting on a human, keyed by proposal hash |
+| `GET /health` | - | liveness, and the hash of the bundle being enforced |
+| `GET /actions` | - | the nine registered actions, each with its permitted targets, required params and reversibility |
+| `POST /propose` | `{"task_type", "targets": [...], "params": {...}, "operator", "program"}` | the door. Answers `executed`, `held` or `refused`, always with the rule id |
+| `GET /holds` | - | what is waiting on a human, keyed by proposal hash |
 | `POST /acknowledge` | `{"proposal_hash", "who", "decision": "CONFIRM"}` | a second human confirms one held action |
 | `POST /release` | `{"proposal_hash"}` | release; succeeds only if a valid acknowledgement is bound to those bytes |
 
-Your agent supplies whatever model it likes and holds whatever API key that needs — **ACP is the server, not the client, and holds no key of yours**. The door decides on the proposal's canonical bytes and nothing else: an unregistered `task_type` is refused at `8.4-3` before it is ever graded, params outside the schema are refused at `V-1`, and a target outside the capability whitelist is refused at `CW-1`.
+Your agent supplies whatever model it likes and holds whatever API key that needs - **ACP is the server, not the client, and holds no key of yours**. The door decides on the proposal's canonical bytes and nothing else: an unregistered `task_type` is refused at `8.4-3` before it is ever graded, params outside the schema are refused at `V-1`, and a target outside the capability whitelist is refused at `CW-1`.
 
 #### A real model, already wired up
 
@@ -150,21 +150,21 @@ docker compose -f deploy/docker-compose.yml up -d ingress
 python3 -m sim.llm_agent --invent
 ```
 
-That key is read in *that* process and sent to Anthropic. It never reaches ACP, which is never asked for it and could not use it — a caller whose credential the callee holds is not a caller, it is a subroutine. The client is Anthropic-only (`api.anthropic.com` is hardcoded, so an OpenAI or Gemini key will not work), while **the door is model-agnostic and has no idea what produced a proposal**. Nothing needs installing on your side: the agent is standard library, and `cryptography`/`dilithium-py` live on the server, inside the image. `python3 -m sim.llm_agent --help` is the whole manual — flags, environment, exit codes, and the acknowledgement loop. To run it in compose instead: `run --rm agent agent --invent`, that service being the only one given outbound network and the one the architecture assumes is compromised.
+That key is read in *that* process and sent to Anthropic. It never reaches ACP, which is never asked for it and could not use it - a caller whose credential the callee holds is not a caller, it is a subroutine. The client is Anthropic-only (`api.anthropic.com` is hardcoded, so an OpenAI or Gemini key will not work), while **the door is model-agnostic and has no idea what produced a proposal**. Nothing needs installing on your side: the agent is standard library, and `cryptography`/`dilithium-py` live on the server, inside the image. `python3 -m sim.llm_agent --help` is the whole manual - flags, environment, exit codes, and the acknowledgement loop. To run it in compose instead: `run --rm agent agent --invent`, that service being the only one given outbound network and the one the architecture assumes is compromised.
 
 It runs two phases, and the second is the load-bearing one.
 
-**1. A live model on a triage batch.** It reads two documents: an assay memo with genuine work in it, and a supplier report with an instruction buried in it. The injected report is ordered last, the position most likely to be obeyed. The two have **different sources on purpose** — so you can see whether text planted in document 2 produces actions the model attributes to document 1.
+**1. A live model on a triage batch.** It reads two documents: an assay memo with genuine work in it, and a supplier report with an instruction buried in it. The injected report is ordered last, the position most likely to be obeyed. The two have **different sources on purpose** - so you can see whether text planted in document 2 produces actions the model attributes to document 1.
 
-Whatever it chooses goes to the door unaltered. It may comply, it may decline, it may propose nothing at all — Claude Sonnet 5 declined outright on this file's first run, back when the batch was a single document — and whatever happens is printed rather than retried away. **This phase is not reproducible and is not meant to be.** It is a fact about a model on a prompt, it varies by model and by run, and it is not evidence about the control plane; see RES-L2 in [§06](dossier/06-RESIDUAL-RISK.md). A demo that needs the model to misbehave is measuring the model.
+Whatever it chooses goes to the door unaltered. It may comply, it may decline, it may propose nothing at all - Claude Sonnet 5 declined outright on this file's first run, back when the batch was a single document - and whatever happens is printed rather than retried away. **This phase is not reproducible and is not meant to be.** It is a fact about a model on a prompt, it varies by model and by run, and it is not evidence about the control plane; see RES-L2 in [§06](dossier/06-RESIDUAL-RISK.md). A demo that needs the model to misbehave is measuring the model.
 
-One thing is constrained: the reply's **encoding**. The client sends a JSON schema with the request, because on identical input the same model returned a JSON array on one run and tool-call syntax on the next, and roughly one run in three parsed. It fixes the shape of the answer and never its content — the model stays free to propose the injected actions, to propose nothing, or to invent an action that does not exist, and every one of those still reaches the door and is graded there. Nothing here scores, filters or judges what the model chose, and it is not a retry loop: re-asking until the answer is convenient is a filter wearing a reliability costume. Disclosed as RES-L1, and pinned by a suite check that fails if the schema ever grows a list of permitted actions.
+One thing is constrained: the reply's **encoding**. The client sends a JSON schema with the request, because on identical input the same model returned a JSON array on one run and tool-call syntax on the next, and roughly one run in three parsed. It fixes the shape of the answer and never its content - the model stays free to propose the injected actions, to propose nothing, or to invent an action that does not exist, and every one of those still reaches the door and is graded there. Nothing here scores, filters or judges what the model chose, and it is not a retry loop: re-asking until the answer is convenient is a filter wearing a reliability costume. Disclosed as RES-L1, and pinned by a suite check that fails if the schema ever grows a list of permitted actions.
 
-**2. The agent process compromised, no model in the loop** — the two actions the document asked for, proposed directly. This is the adversary Door B actually names: a caller is compromised by editing its code, not only by talking its model round. Unlike phase 1, this one is deterministic:
+**2. The agent process compromised, no model in the loop** - the two actions the document asked for, proposed directly. This is the adversary Door B actually names: a caller is compromised by editing its code, not only by talking its model round. Unlike phase 1, this one is deterministic:
 
 ```
-release_to_partner   REFUSED  XPROG-1  dataset has no registered owning program — refused, not assumed
-order_synthesis      HELD     8.4-11   HIGH / IRREVERSIBLE — 4 approvers notified
+release_to_partner   REFUSED  XPROG-1  dataset has no registered owning program - refused, not assumed
+order_synthesis      HELD     8.4-11   HIGH / IRREVERSIBLE - 4 approvers notified
 ```
 
 `--invent` adds a third the document never mentioned, because a compromised caller is not restricted to the instructions it was fed:
@@ -173,14 +173,14 @@ order_synthesis      HELD     8.4-11   HIGH / IRREVERSIBLE — 4 approvers notif
 exfiltrate_dataset   REFUSED  8.4-3    not in the signed bundle; refused, never graded
 ```
 
-Not one of those was refused because the text looked suspicious. The held action then needs a *different* human — `POST /acknowledge` as the proposing operator is itself refused, at `DR-9`.
+Not one of those was refused because the text looked suspicious. The held action then needs a *different* human - `POST /acknowledge` as the proposing operator is itself refused, at `DR-9`.
 
 ```bash
 docker compose -f deploy/docker-compose.yml run --rm ingress-suite   # 9/9, over a real socket
 docker compose -f deploy/docker-compose.yml run --rm checks          # 7 processes, 4 boundaries
 ```
 
-`sim/ingress_suite.py` is the evidence: nine wire-level attacks against a real server on a real socket, not against a Python object. The container refuses to start without `ACP_DEMONSTRATOR=1`, and binding beyond loopback refuses for the same reason — see the two named blockers in [`Dockerfile`](Dockerfile). It is a demonstrator, not a deployment.
+`sim/ingress_suite.py` is the evidence: nine wire-level attacks against a real server on a real socket, not against a Python object. The container refuses to start without `ACP_DEMONSTRATOR=1`, and binding beyond loopback refuses for the same reason - see the two named blockers in [`Dockerfile`](Dockerfile). It is a demonstrator, not a deployment.
 
 ---
 
@@ -192,7 +192,7 @@ In each case an agent proposes something consequential and nothing between the m
 |---|---|---|---|
 | **Cloud / infrastructure ops** | Modify a firewall rule, rotate a key, terminate instances, apply IaC | A poisoned ticket or log line becomes a production change. The agent had the credential, so the change is "authorised". | Risk floor comes from signed policy, not the request. Firewall-on-prod-DB is HIGH → two bound attestations or it does not run. |
 | **Finance / payments** | Release a payment, change payee details, approve an invoice | Invoice-fraud text in a PDF the agent summarises redirects a transfer. No human ever saw the change. | Irreversible ⇒ DR-9: silence is not consent. Positive acknowledgement from a non-operator, signed and bound to that exact payment. |
-| **Pharma / research automation** | Order a synthesis, book instrument time, release a dataset to a partner | Cross-program disclosure to a competitor. Cannot be recalled — the business damage is instant and permanent. | `release_to_partner` is HIGH and IRREVERSIBLE by policy. Quorum required; the model's request is only ever a proposal. (Worked example: [Annex D](dossier/annexes/D-research-pipeline.md).) |
+| **Pharma / research automation** | Order a synthesis, book instrument time, release a dataset to a partner | Cross-program disclosure to a competitor. Cannot be recalled - the business damage is instant and permanent. | `release_to_partner` is HIGH and IRREVERSIBLE by policy. Quorum required; the model's request is only ever a proposal. (Worked example: [Annex D](dossier/annexes/D-research-pipeline.md).) |
 | **Customer support / CRM** | Issue a refund, delete an account, export a customer list | A customer message containing instructions gets treated as an instruction. Mass action at machine speed. | Accumulators count **executions**, not decisions (AC-5), and capability is re-queried at execution time (T-10). |
 | **Software delivery / CI-CD** | Merge, deploy, publish a package, rotate a secret | A comment in a dependency README triggers a release. Supply chain, one step removed. | Executor recomputes risk and rehashes the artifact; approval covers the exact bytes deployed, not a similar request (B-1a). |
 | **Healthcare / clinical** | Amend a record, submit to a regulator, release trial data | Regulated data integrity failure; audit trail rewritten after the fact. | Audit chain anchored **before** release (AU-7); post-anchor rewrite is detectable, not silent. Attestation maps onto e-signature requirements. |
@@ -205,19 +205,19 @@ The model isn't the problem in any of these. The authorisation is. When the cred
 
 ## See it run: a business day
 
-The table above is where this matters. [`sim/`](sim/) is what one of those settings actually looks like across a working day — an agentic research pipeline with four program contexts, three sites, six people, one agent, and 179 proposed actions. It signs with the same real hybrid keypairs the reference does, so it needs `cryptography` and `dilithium-py` and a day takes tens of seconds rather than one.
+The table above is where this matters. [`sim/`](sim/) is what one of those settings actually looks like across a working day - an agentic research pipeline with four program contexts, three sites, six people, one agent, and 179 proposed actions. It signs with the same real hybrid keypairs the reference does, so it needs `cryptography` and `dilithium-py` and a day takes tens of seconds rather than one.
 
 ```bash
 python3 -m sim.scoreboard     # the deliverable
-python3 -m sim.acceptance     # 12 criteria — 11 pass, 1 partial, 0 fail
+python3 -m sim.acceptance     # 12 criteria - 11 pass, 1 partial, 0 fail
 python3 -m sim.supervise      # the same day as seven real OS processes
 ```
 
 | Measured across one day | |
 |---|---|
 | Actions proposed | **179** |
-| Executed having touched no notifier, approver, anchor or hold | **146 — 81.6%** |
-| Held for a human | 32 — of those 19 released, 13 failed closed |
+| Executed having touched no notifier, approver, anchor or hold | **146 - 81.6%** |
+| Held for a human | 32 - of those 19 released, 13 failed closed |
 | Refused at policy evaluation | 1 |
 | Attack proposals that were **well-formed** | **14 / 14** |
 | Attack proposals that **executed** | **0** |
@@ -225,11 +225,11 @@ python3 -m sim.supervise      # the same day as seven real OS processes
 
 **The ratio is the argument.** 81.6% of the day executes having touched no control at all. If that number were small the design would be arguing against itself: a control plane that taxes the routine gets routed around, and a control that is routed around provides nothing.
 
-**14/14 well-formed is the claim, not a failure.** Both attacks arrive inside ordinary business content and neither is detected, filtered or judged. They fail because the actions they request are not authorised — which is the entire thesis, stated as a measurement.
+**14/14 well-formed is the claim, not a failure.** Both attacks arrive inside ordinary business content and neither is detected, filtered or judged. They fail because the actions they request are not authorised - which is the entire thesis, stated as a measurement.
 
 **The €520,000 is derived, not asserted.** Acceptance criterion 12 perturbs one logged cost and requires the counterfactual to move by exactly that amount, so the number cannot drift from the log it claims to summarise.
 
-The simulation also reports the figure nobody has: how often a held action released on *silence* — the measurable rate at which a human control decays into a rubber stamp. It is deliberately **not** quoted here as a fixed number, because it is sampled per run and no single value would replay. It is reported as debt, not as success.
+The simulation also reports the figure nobody has: how often a held action released on *silence* - the measurable rate at which a human control decays into a rubber stamp. It is deliberately **not** quoted here as a fixed number, because it is sampled per run and no single value would replay. It is reported as debt, not as success.
 
 > **Illustrative.** `sim/` models a company *shaped like* an AI-driven drug design firm, built from public information. It describes no organisation's internal systems and claims no knowledge of any. Every number, tier and threshold is a placeholder a real deployment must re-derive with its own risk owners. The narrative companion is [Annex D](dossier/annexes/D-research-pipeline.md).
 
@@ -239,16 +239,16 @@ The simulation also reports the figure nobody has: how often a held action relea
 
 ```mermaid
 flowchart LR
-    subgraph B ["DOOR B — text · no consequence"]
+    subgraph B ["DOOR B - text · no consequence"]
         direction TB
         INJ["poisoned document<br/>hostile ticket<br/>comment in a dependency README"]
         LLM["the model<br/>text in, text out<br/>no tools · no network · no function calls"]
         INJ -- "injection succeeds<br/>assumed, not defended against" --> LLM
     end
 
-    LLM == "proposes — a typed request,<br/>never a command" ==> P
+    LLM == "proposes - a typed request,<br/>never a command" ==> P
 
-    subgraph A ["DOOR A — action · the only route to effect"]
+    subgraph A ["DOOR A - action · the only route to effect"]
         direction TB
         P["typed proposal"]
         POL["policy engine<br/>recomputes risk and reversibility"]
@@ -261,7 +261,7 @@ flowchart LR
     end
 
     BUNDLE[("signed policy bundle<br/>offline key · monotonic epoch")]
-    BUNDLE -- "risk · reversibility · capability —<br/>the model can neither see nor influence this" --> POL
+    BUNDLE -- "risk · reversibility · capability - <br/>the model can neither see nor influence this" --> POL
 
     EX -- "every check passes" --> ACT["action executes"]
     EX -. "any check fails" .-> NIL["fail closed<br/>nothing happens"]
@@ -279,7 +279,7 @@ flowchart LR
     class NIL stop
 ```
 
-**There is no arrow from the model to the action.** That absence is the whole design. The model's output is a *proposal*; the authority to execute it is recomputed from the signed bundle, which the model never sees. An injection that fully succeeds at Door B produces a well-formed proposal — evaluated exactly like a legitimate one, and refused on exactly the same grounds.
+**There is no arrow from the model to the action.** That absence is the whole design. The model's output is a *proposal*; the authority to execute it is recomputed from the signed bundle, which the model never sees. An injection that fully succeeds at Door B produces a well-formed proposal - evaluated exactly like a legitimate one, and refused on exactly the same grounds.
 
 **Door B is text.** The model's only channel is text in, text out. No tools, no network, no function calling. It can be injected, jailbroken or simply wrong and nothing happens, because talking has no consequence.
 
@@ -299,7 +299,7 @@ That asymmetry is why prompt injection is out of scope here rather than defended
 
 ## The one claim
 
-> **INV-1-HIGH** — no single compromised component can cause a high-impact action to execute without a fresh, single-use, quorum-satisfying set of attestations bound to that action's canonical hash.
+> **INV-1-HIGH** - no single compromised component can cause a high-impact action to execute without a fresh, single-use, quorum-satisfying set of attestations bound to that action's canonical hash.
 
 Note the shape: it does not say the system is safe. It says what must be true simultaneously for it to fail, and every clause is mechanically checkable. A claim that can be falsified is worth more than an assurance that cannot.
 
@@ -350,7 +350,7 @@ ACP's components are ordinary infrastructure services, so their compromise is AT
 
 ### Also mapped
 
-**OWASP LLM Top 10** — **LLM06 Excessive Agency** is the core of the design; LLM01, LLM02, LLM05 and LLM08 are addressed in [`dossier/02-THREAT-MODEL-MITRE.md`](dossier/02-THREAT-MODEL-MITRE.md). **NIST AI RMF** and **ISO/IEC 42001** are the control-side complements.
+**OWASP LLM Top 10** - **LLM06 Excessive Agency** is the core of the design; LLM01, LLM02, LLM05 and LLM08 are addressed in [`dossier/02-THREAT-MODEL-MITRE.md`](dossier/02-THREAT-MODEL-MITRE.md). **NIST AI RMF** and **ISO/IEC 42001** are the control-side complements.
 
 **Threats neither framework covers.** Notification habituation, where a control whose default outcome equals its approved outcome teaches its users to skip it. Label dishonesty, which needs no attacker at all. Both are documented rather than solved.
 
@@ -358,7 +358,7 @@ ACP's components are ordinary infrastructure services, so their compromise is AT
 
 ## Documentation
 
-The dossier is the argument; the spec is the normative source. Read `06` before the positive claims — that is the intended order.
+The dossier is the argument; the spec is the normative source. Read `06` before the positive claims - that is the intended order.
 
 | Document | What it is | Time |
 |---|---|---|
@@ -370,32 +370,32 @@ The dossier is the argument; the spec is the normative source. Read `06` before 
 | [`dossier/04b-INDEPENDENT-REVIEW.md`](dossier/04b-INDEPENDENT-REVIEW.md) | A **partial**-independence review. It does **not** satisfy conformance suite 11, and is not the independent review named below as the largest gap | 30 min |
 | [`dossier/05-TEST-EVIDENCE.md`](dossier/05-TEST-EVIDENCE.md) | The test criterion and what each suite proves | 30 min |
 | [`dossier/06-RESIDUAL-RISK.md`](dossier/06-RESIDUAL-RISK.md) | **What is wrong, before what is right** | 15 min |
-| [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md) | The exact command for every claim | — |
-| [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md) | Running and presenting the demo | — |
-| [`dossier/annexes/D-research-pipeline.md`](dossier/annexes/D-research-pipeline.md) | Annex D — worked example in an agentic research pipeline | — |
+| [`dossier/07-REPRODUCTION.md`](dossier/07-REPRODUCTION.md) | The exact command for every claim | - |
+| [`dossier/DEMO-HOWTO.md`](dossier/DEMO-HOWTO.md) | Running and presenting the demo | - |
+| [`dossier/annexes/D-research-pipeline.md`](dossier/annexes/D-research-pipeline.md) | Annex D - worked example in an agentic research pipeline | - |
 | [`spec/ACP-SPEC-001.md`](spec/ACP-SPEC-001.md) | The full normative specification | 3 h |
-| [`RELEASE.md`](RELEASE.md) | What changed in package release v1.3.14, and the unreleased v1.3.15 spec revision | — |
+| [`RELEASE.md`](RELEASE.md) | What changed in package release v1.3.14, and the unreleased v1.3.15 spec revision | - |
 
 ---
 
 ## Repository layout
 
 ```
-spec/          THE NORMATIVE SOURCE — ACP-SPEC-001.md, schemas/, vectors/
-dossier/       THE ARGUMENT — 00–07, annexes/. Not code.
+spec/          THE NORMATIVE SOURCE - ACP-SPEC-001.md, schemas/, vectors/
+dossier/       THE ARGUMENT - 00–07, annexes/. Not code.
 reference/     Python. Permanent. src/ suites/ proofs/
-crates/        Rust — acp-core, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
-packages/      TypeScript — acp-types, generated from spec/schemas by codegen.sh
+crates/        Rust - acp-core, acp-crypto, acp-bundle, acp-bundle-cli, acp-conformance
+packages/      TypeScript - acp-types, generated from spec/schemas by codegen.sh
 sim/           the business simulation (companion to Annex D)
-deploy/        docker-compose.yml  (no k8s/ — the substrate is deliberately deferred)
+deploy/        docker-compose.yml  (no k8s/ - the substrate is deliberately deferred)
 tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
 ```
 
 **What is real:** the Python reference implementation in `reference/` and everything that replays from it. That is the artifact the evidence is about.
 
-**What was scaffold has left.** The four Rust services and the two TypeScript ones moved to a separate repository, so nothing here has a `main()` that could be mistaken for a running control plane — there is no longer anything to mistake. What remains in `crates/` is implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition and the real Ed25519/ML-DSA-65 primitives; the canonical tree hash in `acp-bundle`; and the offline CLI in `acp-bundle-cli`, which the gate builds twice. `crates/acp-conformance` is the one exception and says so: it is waiting on the vector corpus (VEC-2), which has not been extracted.
+**What was scaffold has left.** The four Rust services and the two TypeScript ones moved to a separate repository, so nothing here has a `main()` that could be mistaken for a running control plane - there is no longer anything to mistake. What remains in `crates/` is implemented: the fail-safe defaults in `acp-core`; in `acp-crypto`, CR-3 hybrid composition and the real Ed25519/ML-DSA-65 primitives; the canonical tree hash in `acp-bundle`; and the offline CLI in `acp-bundle-cli`, which the gate builds twice. `crates/acp-conformance` is the one exception and says so: it is waiting on the vector corpus (VEC-2), which has not been extracted.
 
-`spec/` is the only normative source — Rust and TypeScript types are *generated* from `spec/schemas`, never hand-written. Two hand-maintained definitions of one object is the encoding-split defect at the source level.
+`spec/` is the only normative source - Rust and TypeScript types are *generated* from `spec/schemas`, never hand-written. Two hand-maintained definitions of one object is the encoding-split defect at the source level.
 
 Other languages, if you want to run them:
 
@@ -416,8 +416,8 @@ If you can read Dafny proof artifacts and want to break something, [`dossier/07-
 
 1. `reference/src/acp_ack.py` and `reference/src/acp_audit.py`, the newest code. The pattern says the next defect is there.
 2. DR-2 path separation, an architectural property that the model cannot prove.
-3. §§6–7 ingress — never attacked by a third party.
-4. The Dafny model itself — check the theorems are not vacuous; the non-vacuity witnesses are there to be audited.
+3. §§6–7 ingress - never attacked by a third party.
+4. The Dafny model itself - check the theorems are not vacuous; the non-vacuity witnesses are there to be audited.
 
 Findings are welcome as issues and will be disclosed with attribution, the same way every prior defect in this document has been. **A review that returns "looks good" is a failed review.**
 
@@ -437,12 +437,12 @@ sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/selftest.sh               # tests the tooling itself (99 assertions)
 ```
 
-A public key shipped only inside the package it authenticates proves nothing — which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.
+A public key shipped only inside the package it authenticates proves nothing - which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.
 
 ---
 
 ## Licence and authorship
 
-Apache-2.0. © 2026 Code75 SASU — Yacine Kellib.
+Apache-2.0. © 2026 Code75 SASU - Yacine Kellib.
 
 Independent security architect, Paris. Twenty years in security, most of it building functions rather than inheriting them; the last two on agentic AI systems in production.
