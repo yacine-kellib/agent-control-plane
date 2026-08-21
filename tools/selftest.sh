@@ -782,6 +782,70 @@ else
   [ $? -ne 0 ]; chk $? "and a stale BLOCKED entry is caught rather than shrinking the denominator"
 fi
 
+printf '\n\033[1m== no tracked file claims scaffolds in services/ (ACP-63) ==\033[0m\n'
+
+# ACP-66 moved all six services to the product repository. ACP-71 corrected the
+# prose that still called them scaffold -- in CLAUDE.md, README.md and three
+# places in ACP-DEPLOY-001 -- and MISSED one, in acp-bundle-cli's module doc,
+# which went on describing "the scaffolds in services/" for a directory that had
+# stopped holding source. Nothing caught it because it is a CLAIM, not a count,
+# and selftest asserts counts.
+#
+# The rule this encodes: the claim and the tree must agree. If services/ holds no
+# tracked file, no tracked file may say scaffolds live there. Both halves are
+# derived, so this keeps holding if the services ever come back.
+SVC_TRACKED=$(git ls-files services/ | wc -l | tr -d ' ')
+
+# The pattern cannot separate an ASSERTION from a QUOTATION by grammar, and it
+# must not try: this repository publishes corrections by quoting the sentence
+# that was wrong, so the dead claim legitimately survives inside its own
+# correction. The first cut of this check matched exactly those quotations and
+# reported them as defects -- the instrument was wrong, not the prose.
+#
+# So the rule is: a file may carry the sentence only if it also cites the
+# correction. Claim without citation is the uncorrected form, which is what
+# acp-bundle-cli had. `tools/selftest.sh` is excluded because a detector cannot
+# be its own subject -- it necessarily contains the string it hunts for.
+CLAIM_RE='scaffolds? in `?services/|services/[a-z-]*`? *(is|are) *(a )?scaffold'
+
+claims_without_citation() {  # $1 = grep command prefix, rest = paths
+  local f
+  for f in $("$@" 2>/dev/null || true); do
+    case "$f" in tools/selftest.sh) continue ;; esac
+    grep -qE 'ACP-(63|66|71)' "$f" || printf '%s ' "$f"
+  done
+}
+
+if [ "$SVC_TRACKED" -eq 0 ]; then
+  UNCITED=$(claims_without_citation git grep -lE "$CLAIM_RE" -- ':!.claude' ':!docs')
+  if [ -z "$UNCITED" ]; then
+    ok "services/ has no tracked file, and every mention of scaffolds there cites its correction"
+  else
+    bad "services/ is empty but these assert scaffolds live there, uncorrected: $UNCITED"
+  fi
+
+  # THE ASSERTION ABOVE IS VACUOUS ON ITS OWN. "Nothing uncited" is also what a
+  # rotted pattern returns, and a correction pass missing one site is exactly how
+  # this defect survived. Manufacture the uncorrected sentence -- claim, no
+  # citation -- and require the detector to name it.
+  T63=$(mktemp -d)
+  printf '%s\n' '//! Unlike the scaffolds in `services/`, whose main() exits non-zero.' > "$T63/decoy.rs"
+  # And a CONTROL: the same sentence WITH its citation must NOT be reported, or
+  # the check would forbid publishing the correction it exists to require.
+  printf '%s\n' '//! It used to say "the scaffolds in `services/`" -- corrected under ACP-63.' > "$T63/cited.rs"
+  D=$(claims_without_citation grep -rlE "$CLAIM_RE" "$T63")
+  case "$D" in
+    *decoy.rs*) case "$D" in
+                  *cited.rs*) bad "the ACP-63 detector flags a CITED correction — it would forbid publishing one" ;;
+                  *)          ok  "and it names an uncited claim while passing the cited correction (non-vacuous)" ;;
+                esac ;;
+    *) bad "the ACP-63 detector matched NOTHING on a manufactured uncited claim — the check is vacuous" ;;
+  esac
+  rm -rf "$T63"
+else
+  ok "services/ holds $SVC_TRACKED tracked file(s) — the ACP-63 claim check does not apply"
+fi
+
 printf '\n\033[1m== a vacuous sync FAILS the run (ACP-83) ==\033[0m\n'
 
 # The defect this closes: `sync-counts.sh` printed "pattern matched nothing --

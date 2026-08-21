@@ -6,9 +6,15 @@
 //! can produce a valid bundle signature. A signing tool on a control-plane host
 //! turns that from cryptography back into file permissions.
 //!
-//! Unlike the scaffolds in `services/`, whose `main()` exits non-zero so a stub
-//! cannot be mistaken for a running control plane, this one is real and exits
-//! zero when it works.
+//! **This is the only binary in this repository that is real and exits zero when
+//! it works.** It used to say "unlike the scaffolds in `services/`, whose
+//! `main()` exits non-zero" — that comparison died with ACP-66, which moved all
+//! six services to the product repository. They are now *absent* rather than
+//! scaffold, which is **weaker, not stronger**: a `main()` that exits non-zero is
+//! a refusal a reader can observe, and a missing directory is nothing at all.
+//! Corrected under ACP-63 rather than deleted, because the sentence was what a
+//! reader consulted to decide whether anything here could be mistaken for a
+//! running control plane, and the answer changed.
 //!
 //! # The discipline is inherited from `tools/sign-release.sh`
 //!
