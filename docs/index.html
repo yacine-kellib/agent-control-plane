@@ -156,14 +156,20 @@
 
   <h2>Every number here replays on your machine</h2>
   <div class="stats">
-    <div><b>36</b><span>machine-checked proofs<br>zero errors</span></div>
-    <div><b>82/82</b><span>attack scenarios<br>refused, nothing ran</span></div>
-    <div><b>36/36</b><span>sabotaged copies caught<br>the tests can fail</span></div>
+    <div><b>36</b><span>proofs &middot; cover every case<br>not just the ones tried</span></div>
+    <div><b>82/82</b><span>attacks tried against it<br>every one refused</span></div>
+    <div><b>36/36</b><span>safety checks deleted<br>every one was caught</span></div>
   </div>
   <p style="margin-top:1.25rem">
-    Software checks those proofs, not a person reading them; they are written in Dafny and sit
-    in the repository. The last figure tests the tests: we broke the code on purpose 36 times
-    and the suites caught all 36. A suite that cannot fail proves nothing.
+    A test tries some cases; a proof covers all of them, and a machine checks it rather than a
+    person reading it. They prove things like: whoever runs the system cannot approve their own
+    irreversible action, and an approval for one action cannot be reused for another.
+  </p>
+  <p style="margin-top:1.25rem">
+    The 82 attacks are named and written out - "an approval is replayed onto a later action" is
+    one. The last row tests the tests: each safety check was deleted in turn, and the attack it
+    blocks then got through, which is how you know the check was doing something. A suite that
+    cannot fail proves nothing.
   </p>
   <p style="margin-top:1.25rem">Check them rather than believing them:</p>
   <pre>git clone https://github.com/yacine-kellib/agent-control-plane
