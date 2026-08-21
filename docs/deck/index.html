@@ -10,8 +10,10 @@ body{background:#000;margin:0}
 .deck{display:flex;overflow-x:auto;overflow-y:hidden;height:100vh;
   scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .deck::-webkit-scrollbar{display:none}
-.s{width:1080px;height:1080px;flex:none;scroll-snap-align:center;
-  margin:auto 0;background:var(--k);color:var(--w);
+.slot{width:100vw;height:100vh;height:100dvh;flex:none;scroll-snap-align:start;
+  display:grid;place-items:center;overflow:hidden;background:var(--k)}
+.s{width:1080px;height:1080px;flex:none;
+  margin:0;background:var(--k);color:var(--w);
   position:relative;overflow:hidden;font-family:var(--serif);padding:0}
 @media print{.deck{display:block;overflow:visible;height:auto}
   .deck .s{zoom:1 !important;margin:0;page-break-after:always}}
@@ -284,13 +286,38 @@ h2 em{font-style:italic}
 <div class="nav">← → · SWIPE</div>
 <script>
 const d=document.getElementById('deck');
-function fit(){const z=Math.min(innerWidth,innerHeight)/1080;
-  document.querySelectorAll('.deck .s').forEach(el=>el.style.zoom=z);}
-addEventListener('resize',fit);fit();
+
+/* One slide must equal one page. The slides are a fixed 1080x1080, so on any
+   viewport wider than that the old zoom factor -- min(w,h)/1080 -- came out at
+   1 and two slides sat side by side in the scroller. Each slide now lives in a
+   slot exactly one viewport wide, which is what scroll-snap actually snaps to. */
+const slides=[...d.querySelectorAll('.s')];
+slides.forEach(el=>{
+  const slot=document.createElement('div');
+  slot.className='slot';
+  el.parentNode.insertBefore(slot,el);
+  slot.appendChild(el);
+});
+
+/* transform, not zoom: zoom changes the layout box, so the slide would fight
+   the slot it is centred in. transform is purely visual. */
+function fit(){
+  const z=Math.min(innerWidth,innerHeight)/1080;
+  slides.forEach(el=>{el.style.zoom='';el.style.transform='scale('+z+')';});
+}
+addEventListener('resize',fit);
+fit();
+
+const at=()=>Math.round(d.scrollLeft/innerWidth);
+const go=n=>d.scrollTo({left:Math.max(0,Math.min(slides.length-1,n))*innerWidth,
+                        behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});
+
 addEventListener('keydown',e=>{
-  const w=d.querySelector('.s').getBoundingClientRect().width;
-  if(e.key==='ArrowRight')d.scrollBy({left:w,behavior:'smooth'});
-  if(e.key==='ArrowLeft')d.scrollBy({left:-w,behavior:'smooth'});
+  const k=e.key;
+  if(k==='ArrowRight'||k==='PageDown'||k===' '){e.preventDefault();go(at()+1);}
+  else if(k==='ArrowLeft'||k==='PageUp'){e.preventDefault();go(at()-1);}
+  else if(k==='Home'){e.preventDefault();go(0);}
+  else if(k==='End'){e.preventDefault();go(slides.length-1);}
 });
 </script>
 </body></html>
