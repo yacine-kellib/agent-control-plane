@@ -973,6 +973,25 @@ rm -f "$LEGBAK"
 OUT=$(python3 tools/check-flow-legs.py 2>&1); rc=$?
 [ $rc -eq 0 ]; chk $? "and the restored register passes again (got $rc)"
 
+# --- ACP-88: SOME gate has to execute sim/, and none of them did ---------------
+# Neither `verify.sh --suites` nor this script ran a single line of `sim/`, so
+# the simulation built its own Attestation Objects with bare nonces and stayed
+# non-conformant for two commits after WE-4 landed. CI caught it -- 11 pass / 0
+# fail became 5 pass / 6 fail, every failure a WE-4 refusal -- and CI is not a
+# thing a session reads before saying "green".
+#
+# THE SAME CLASS ALREADY HAS A PUBLISHED CORRECTION. `tools/verify.sh` carries
+# the note: "sim/bundle.py was load-bearing with NO gate line for several
+# releases and silently dropped three fields from a hash (ACP-35)". That gave
+# `sim/bundle.py` a gate line and left the rest of `sim/` where it was.
+#
+# Asserted on the RESULT LINE rather than the exit code. A criterion regressing
+# from PASS to FAIL is the finding, and the line names how many of each -- so a
+# suite that starts failing differently cannot satisfy this by exiting 0.
+OUT=$(python3 -m sim.acceptance 2>&1)
+has 'RESULT: 11 pass, 1 partial, 0 fail' \
+    "sim acceptance is executed by a local gate, and still reads 11 pass, 1 partial, 0 fail"
+
 # --- ACP-88: the nonce type has one language across three definitions ----------
 # `tools/check-nonce-type.py` compares the reference against the wire schema on
 # a shared corpus; the Rust half of the same corpus runs in acp-decision's test
