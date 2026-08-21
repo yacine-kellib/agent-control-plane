@@ -70,7 +70,7 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   150 files match MANIFEST.sha256
+  OK   151 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -427,7 +427,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 150 files across 8 signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 151 files across 8 signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
