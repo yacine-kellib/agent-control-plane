@@ -267,6 +267,66 @@ run_mutant "at2-self-approval (the proposer approves themselves)" acp-decision "
   '    if approvals.contains(&operator) {' \
   '    if false {')"
 
+# ========================================= acp-decision (§9.3, the checklist)
+#
+# Slice 6. These target `decide.rs`, the composition -- the module whose whole
+# job is running the checks in the specification's ORDER. Note what each mutant
+# breaks: not "is this input refused" but "is it refused for the stated reason",
+# which is what a cross-language differential compares and what an operator acts
+# on.
+
+# B-1a. The receipt is signed over one proposal and consumed against another.
+# Nothing is malformed and the signature verifies, so only the recomputed
+# comparison stops it. Delete it and a signed receipt executes a proposal its
+# issuer never saw.
+run_mutant "9.3-3-proposal-binding (a receipt executes another proposal)" acp-decision "$(sub \
+  crates/acp-decision/src/decide.rs \
+  '        return Err(Refusal::new("9.3-3", "receipt not bound to this proposal"));' \
+  '        let _ = &proposal_hash;')"
+
+# PB-KEY. The attester registry is INSIDE the bundle hash, so this comparison is
+# what stops a receipt issued under a bundle that trusts DIFFERENT keys. Two
+# Executors trusting different attesters must not be able to agree that they
+# hold the same policy.
+run_mutant "9.3-4-policy-basis (a receipt from another bundle is accepted)" acp-decision "$(sub \
+  crates/acp-decision/src/decide.rs \
+  '        return Err(Refusal::new("9.3-4", "policy bundle hash mismatch"));' \
+  '        {}')"
+
+# The epoch half, mutated separately: it is a DIFFERENT comparison, and a single
+# mutant over both would be killed by either test while leaving one deletable.
+run_mutant "9.3-4-epoch (a receipt from another epoch is accepted)" acp-decision "$(sub \
+  crates/acp-decision/src/decide.rs \
+  '    if receipt_json.get("bundle_epoch").and_then(serde_json::Value::as_u64) != Some(bundle.epoch) {' \
+  '    if false {')"
+
+# Y2. The window LENGTH, which is not the same check as the window POSITION --
+# a receipt can be comfortably unexpired and still carry an hour-long validity
+# window, which is an attacker widening the interval a stolen receipt is usable
+# in. Delete this and Y2 succeeds.
+run_mutant "l14-window-ceiling (an hour-long receipt window is consumed as fresh)" acp-decision "$(sub \
+  crates/acp-decision/src/decide.rs \
+  '    if exp - iat > MAX_VALIDITY_WINDOW_SECS {' \
+  '    if false {')"
+
+# Tenant scoping. Both sides come from artifacts the verifier holds separately
+# -- the KMS-signed receipt and the independently received Proposal -- so this
+# is not the issuer checking its own consistency.
+run_mutant "9.3-8-tenant-scoping (a receipt consumes another tenant's proposal)" acp-decision "$(sub \
+  crates/acp-decision/src/decide.rs \
+  '    if receipt_json.get("tenant_id") != proposal_json.get("tenant_id") {' \
+  '    if false {')"
+
+# CR-3's EXACTNESS, which is a separate rule from its conjunctivity. The suite's
+# primitives are all genuine and all verify; an extra undeclared one is added.
+# The conjunctive combiner downstream is perfectly happy -- it was handed every
+# primitive it asked for. Only the set comparison sees it, and an accepted extra
+# primitive is an undeclared code path the attacker chose (§1123).
+run_mutant "cr3-sig-key-set (an extra undeclared primitive is accepted)" acp-decision "$(sub \
+  crates/acp-decision/src/decide.rs \
+  '    if map.len() != required.len() || !required.iter().all(|p| map.contains_key(prim_wire(*p))) {' \
+  '    if !required.iter().all(|p| map.contains_key(prim_wire(*p))) {')"
+
 # ================================================== acp-bundle (the registry)
 #
 # PB-7 is the OTHER half of INV-1-HIGH and it is enforced at bundle LOAD, not on

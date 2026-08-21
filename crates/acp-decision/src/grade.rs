@@ -1,5 +1,19 @@
 //! The fold itself: §8.4 grading, RV-1, DR-13.
 
+//! # Suite 12 classification — R / B / T
+//!
+//! | input | class | why |
+//! | --- | :---: | --- |
+//! | `p.task_type` | **B** | selects the risk function and the reversibility class; it is a field of the canonical Proposal the verifier received independently (B-1a), and `decide.rs` step 3 binds that Proposal to the receipt |
+//! | `p.params`, `p.targets`, `p.cidrs`, `p.schema_id` | **B** | likewise — all of one artifact, bound as a whole |
+//! | `floors`, `risk_functions`, `reversibility`, `notice_targets`, `adapters` | **R** | read from the signed bundle. Not "recomputed" in the arithmetic sense; recomputed in RES-8's sense — the verifier derives the value from policy it trusts instead of accepting the issuer's answer |
+//! | the resulting risk, reversibility, fidelity, notice recipients | **R** | *derived here*. These are the values X1 and RV-3 exist because an Executor once read from the receipt instead |
+//!
+//! **No `T` entries, and this module is the reason there are none downstream.**
+//! Every value it produces is one a compromised issuer would otherwise assert.
+//! X1 is the concrete history: a receipt claiming `risk: LOW` suppressed
+//! attestation entirely, because the Executor read the field.
+//!
 use acp_core::generated::{Reversibility, Risk};
 
 use crate::{build_env, risk_of, risk_ord, Policy, Proposal, Refusal};

@@ -685,8 +685,14 @@ else
   # KILL when a mutant fails to build, and this asserts the run actually
   # reached all of them -- a script that silently ran zero would otherwise
   # print a green nothing.
+  # NOTE: this number is HAND-MAINTAINED. `sync-counts.sh` derives every other
+  # published count in this repository but knows nothing about mutate-rust.sh,
+  # so adding a mutant means editing this line. That is tolerable only because
+  # the assertion is what forces the edit -- it went red on slice 6 the moment
+  # the count moved 20 -> 26, which is the behaviour ACP-42/ACP-43 wanted and
+  # a hand-maintained number usually fails to give.
   N=$(printf '%s' "$OUT" | grep -c 'KILL')
-  [ "$N" -eq 20 ]; chk $? "and all twenty mutants actually ran (counted $N)"
+  [ "$N" -eq 26 ]; chk $? "and all twenty-six mutants actually ran (counted $N)"
 fi
 
 printf '\n\033[1m== EL-1 differential: Python vs Rust on generated source ==\033[0m\n'
@@ -718,6 +724,62 @@ else
 
   printf '%s' "$OUT" | grep -q 'pinned divergence'
   chk $? "and the disclosed i64-width divergences are still exactly as pinned"
+fi
+
+printf '\n\033[1m== the WHOLE-DECISION differential: §9.3 in both languages (ACP-45 slice 6) ==\033[0m\n'
+
+# The EL-1 differential above compares one expression language. This one drives
+# the whole §9.3 checklist on BOTH implementations from one set of inputs -- the
+# exact receipt, proposal and bundle the reference Executor itself was handed --
+# and compares the verdict, the recomputed risk, the operator, and WHICH CLAUSE
+# refused.
+#
+# The clause is the point. Two implementations that both refuse a forged,
+# expired receipt -- one saying 9.3-1, the other 9.3-5 -- have not been shown to
+# agree on anything an operator could act on.
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '  \033[33mSKIP\033[0m cargo is not installed; the decision differential not checked\n'
+else
+  # --selfcheck FIRST, and it asserts BOTH failure modes: a verdict divergence
+  # and a same-verdict-DIFFERENT-CLAUSE divergence. The second is the one this
+  # comparison exists for and the one a naive comparator misses, so a harness
+  # proving only the first would leave its interesting half untested.
+  python3 tools/check-decision-differential.py --selfcheck >/dev/null 2>&1
+  chk $? "the decision differential can detect a divergence, INCLUDING a wrong clause"
+
+  OUT=$(python3 tools/check-decision-differential.py --quiet 2>&1); rc=$?
+  [ $rc -eq 0 ]; chk $? "Python and Rust agree on §9.3 across the conformance corpus (rc=$rc)"
+
+  # NON-VACUITY, asserted as a NUMBER. A stale BLOCKED entry, a case that stops
+  # reaching Executor.execute, or a harness that quietly compared nothing all
+  # produce a green run with a smaller denominator. `git add -A` before
+  # sync-counts.sh exists for the same reason: green is not the assertion.
+  N=$(printf '%s' "$OUT" | sed -n 's/.*agree on \([0-9]\{1,\}\) case(s).*/\1/p' | head -1)
+  [ -n "$N" ] && [ "$N" -ge 33 ]; chk $? "and it actually compared at least 33 cases (got ${N:-none})"
+
+  # The classification must cover every conformance case. Adding one to
+  # conformance.py turns this red until somebody classifies it -- the harness
+  # imports that list rather than keeping a second copy of it.
+  printf '%s' "$OUT" | grep -q 'PARTIAL'
+  chk $? "and it reports the blocked cases as PARTIAL rather than a smaller total"
+
+  printf '%s' "$OUT" | grep -q 'pinned divergence'
+  chk $? "and the disclosed CR-1/CR-4 divergence (ACP-82) is still exactly as pinned"
+
+  # ACP-80 has no conformance case, so the corpus above cannot reach it -- a
+  # corpus derived from a case list exercises only what that list holds (T-33).
+  # The probe flips ONE byte of unsigned wire data and requires both languages
+  # to agree that the outcome changes. If `kind` ever becomes signature-covered
+  # the probe must be rewritten, and it says so rather than passing quietly.
+  printf '%s' "$OUT" | grep -q 'ACP-80 pinned in BOTH languages'
+  chk $? "and ACP-80 (unsigned kind decides quorum membership) reproduces in both"
+
+  # A stale exemption is the failure mode that still prints GREEN: it shrinks
+  # the denominator and nothing else changes. So the detector is made to fire on
+  # purpose rather than trusted -- the experiment is the claim, the passing run
+  # is not.
+  python3 tools/check-decision-differential.py --inject-stale --selfcheck >/dev/null 2>&1
+  [ $? -ne 0 ]; chk $? "and a stale BLOCKED entry is caught rather than shrinking the denominator"
 fi
 
 printf '\n\033[1m== published assertion count matches this run ==\033[0m\n'

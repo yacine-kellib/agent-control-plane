@@ -70,7 +70,7 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   146 files match MANIFEST.sha256
+  OK   150 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -400,7 +400,7 @@ tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
 Other languages, if you want to run them:
 
 ```bash
-cargo check --workspace && cargo test --workspace   # Rust: 164 tests
+cargo check --workspace && cargo test --workspace   # Rust: 178 tests
 pnpm install && pnpm -r typecheck                   # TypeScript: 1 project
 ```
 
@@ -425,7 +425,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 146 files across 8 signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 150 files across 8 signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
@@ -434,7 +434,7 @@ Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b
 ```bash
 sha256sum -c MANIFEST.sha256      # integrity alone
 ./tools/verify.sh                 # integrity + signature + proofs + suites
-./tools/selftest.sh               # tests the tooling itself (99 assertions)
+./tools/selftest.sh               # tests the tooling itself (106 assertions)
 ```
 
 A public key shipped only inside the package it authenticates proves nothing - which is the same argument this architecture makes about every other transmitted value. The fingerprint above is the out-of-band half.

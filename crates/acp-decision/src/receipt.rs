@@ -26,6 +26,30 @@
 //! Reading `min_suite` here rather than from the receipt is TR-8 at the suite
 //! boundary.
 
+//!
+//! # Suite 12 classification — R / B / T
+//!
+//! Every control input this module reads, classified **R** (recomputed), **B**
+//! (bound to signed bytes) or **T** (trusted as transmitted). An unlisted `T`
+//! is a conformance failure (§14 suite 12), and the classification is written
+//! with the code rather than regenerated afterwards — 02b's own lesson is that
+//! every classification pass finds something, always in the newest machinery.
+//!
+//! | input | class | why |
+//! | --- | :---: | --- |
+//! | `alg` | **B** | CR-5 makes it signature-covered. It selects the primitive set the signature is then verified under, so a rewritten `alg` invalidates the object it travelled on. |
+//! | `floor` (`manifest.min_suite`) | **R** | from the signed bundle the verifier holds, never from the receipt — the asymmetry described above |
+//! | `key` (`bundle.receipt_key`) | **R** | the verifier's out-of-band configuration; RES-8's whole point |
+//! | `signed_bytes` | **R** | canonicalised by the caller from the receipt body it received, never a transmitted preimage (RES-9: a transmitted identifier is a name for a binding, not evidence of one) |
+//! | `parts` | **B** | each verified under `key`; the SET is compared against the suite's, so an extra or missing primitive refuses rather than being tolerated |
+//! | `decision` | **B** | read only *after* the signature verifies, which is why step 2 is last among the cryptographic checks — reading it can then only cause a refusal, never an acceptance |
+//!
+//! **No `T` entries.** That is a claim about this module only: every input it
+//! reads is either the verifier's own configuration or covered by a signature
+//! it checked itself. The receipt's *semantic* fields — risk, reversibility,
+//! tenant, operator — are not read here at all; they are `grade.rs`'s and
+//! `decide.rs`'s, and `decide.rs` carries the `T` entries for the composition.
+//!
 use acp_core::generated::SuiteId;
 use acp_crypto::{verify_ed25519, verify_mldsa65, Primitive, PrimitiveVerdict, Suite};
 
