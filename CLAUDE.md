@@ -22,9 +22,9 @@ That framing drives most of the rules below. A change that makes a number in the
 
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
-PYTHONPATH=../src python3 conformance.py          # 53/53
-PYTHONPATH=../src python3 attack_registry.py      # 82/82  (--compose → 4/4)
-PYTHONPATH=../src python3 mutate_executor.py      # 26/26  deletes each check, asserts the attack succeeds
+PYTHONPATH=../src python3 conformance.py          # 54/54
+PYTHONPATH=../src python3 attack_registry.py      # 83/83  (--compose → 4/4)
+PYTHONPATH=../src python3 mutate_executor.py      # 27/27  deletes each check, asserts the attack succeeds
 PYTHONPATH=../src python3 ack_suite.py            # 14/14  (--mutate → 6/6)
 PYTHONPATH=../src python3 audit_suite.py          # 12/12  (--mutate → 4/4)
 PYTHONPATH=../src python3 partition_suite.py      # 9/9
@@ -107,7 +107,7 @@ Four failures, three shapes. 2026-08-17 burned ~4M tokens and produced no artifa
 
 **Never fork `reference/src/*.py`. Import them.** Those modules carry mutation-test markers in comments — `# AU-7-anchor-before-release (mutation target)`, `# AC-5-anchor-release (do not move)`, `# AU-6-suspend-sampling`. `mutate_executor.py`, `ack_suite.py --mutate` and `audit_suite.py --mutate` locate checks by reading the source text and deleting them, then assert the matching attack succeeds. A copied-and-edited executor silently voids the repository's own evidence. When new domain behaviour is needed, subclass and extend (see `sim/release.py:ResearchGate`).
 
-**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 26 + 6 + 4 = **36 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
+**Mutation suites read source files by path** and rebuild them in a temp dir. They resolve `reference/src` explicitly and **strip `PYTHONPATH` from the mutant subprocess** — if it leaked, a failed copy would silently import the real module and the mutant would report SURVIVE, recording a load-bearing check as redundant. Check these first after any restructure: they break in ways that still print green. 27 + 6 + 4 = **37 mutants** must keep being killed. Each mutant temp dir must also receive `acp_crypto.py`, which `acp_executor` hard-imports; without it the mutant dies at import and is reported **ERROR**, never KILL — an unrun mutant is not a caught one, and `tools/selftest.sh` asserts exactly that.
 
 **Make the code work. Never shape the test around the code.** The failure mode this repository is most exposed to is not a bug, it is a green run that means nothing — and every incentive points at manufacturing one, because the whole argument rests on numbers replaying. So:
 
@@ -143,7 +143,7 @@ The reason this stopped being a modelling detail is worth keeping: HMAC is symme
 
 `HybridKey` derives **both** halves from its seed. It must stay that way: `sim.supervise` is seven OS processes, and an unseeded ML-DSA keygen gives each process a different key for the same identity. That was a real defect, found by this rule not existing.
 
-**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 36 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
+**Conformance vectors are defined over canonical bytes and declared mutations, never over signatures.** Signatures are still not portable across implementations, but the reason changed in v1.3.14 and the old one ("Python signs with modelled HMAC") is dead: both sides now use FIPS 204 / RFC 8032. What remains is that ML-DSA signing is hedged (randomised) unless a deployment pins deterministic signing, and that a vector carrying a signature would have to carry key material to be checkable. Revisit as part of ACP-1/VEC-1. Passing the corpus stays a **partial** claim: vectors express input → verdict, not the 37 mutants, ordering properties such as AU-7 anchor-before-release, partition behaviour, or render-path distinctness. Those are per-implementation obligations.
 
 ## Writing style for this repository
 
@@ -173,7 +173,7 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale three times by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence. It fired again on 2026-08-21, when the branch it named was archived and deleted in the same session that left the sentence standing — so the instruction works only if someone actually runs `git branch`. Run it.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 151 files across 8 roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 152 files across 8 roots.
 
 **Phase 8 is done (ACP-44).** `tools/codegen.sh` generates the Rust and TypeScript wire types from `spec/schemas/bundle/` and is the first thing that ever read those files — it found four defects on its first pass, one a live quorum bypass (ACP-53: PB-7 compared whole registry entries, so changing a `role` string let one key holder satisfy a k=2 quorum alone). **The fail-safe defaults live in the schema as `x-acp-absent` data**, not in a generator table, and the generator halts rather than guessing when a lookup table has no rule. `x-acp-ordered` is applied only where an order is declared — `SuiteId` gets no `Ord`, because CR-4 is containment and not rank. `tools/sync-counts.sh` re-derives every published count, which had been hand-work and had already recurred twice (ACP-42, ACP-43).
 

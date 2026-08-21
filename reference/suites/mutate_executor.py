@@ -44,6 +44,18 @@ MUTANTS = [
             raise CriticalAlert("L-14", f"validity window {exp-iat}s exceeds 120s")
 ''', "a_Y2_long_window"),
 
+    # WE-4 (v1.3.18). Sits BENEATH the closed-schema mutant below: AT-8b closes
+    # the field SET, and this closes the field's TYPE. The defect it kills needs
+    # no extra field and no missing field -- only the same nonce spelled without
+    # its prefix, which derives a second attestation_id and claims a second
+    # ledger slot.
+    ("b64 type pin [WE-4]",
+     '''            if not WE4_B64.match(str(obj.get("att_nonce", ""))):
+                raise CriticalAlert("WE-4",
+                                    f"att_nonce {obj.get('att_nonce')!r} is not "
+                                    f"b64: + RFC 4648 sec 4 base64 with padding")
+''', "a_WE4_unprefixed_nonce"),
+
     ("closed schema [Z4]",
      '''            if set(obj.keys()) != set(AT1_FIELDS):
                 missing = set(AT1_FIELDS) - set(obj)

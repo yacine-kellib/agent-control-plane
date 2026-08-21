@@ -75,10 +75,18 @@ LEDGER = "ACP-46 — needs a ledger that survives restart"
 CONTEXT = "Context Store — §8.8 names three provider classes; none is chosen"
 DOOR = "ACP-47 — the deferred-release gate and the two doors"
 BUNDLE = "acp-bundle — refused at bundle load, before §9.3 is entered"
+WIRE = ("ACP-88 — WE-4's b64 type pin exists in the Python reference only; "
+        "Rust has no equivalent, so the two would disagree by construction")
 
 BLOCKED = {
     # --- positives
     "DS-6 re-drive dedup": LEDGER,
+    # WE-4 landed in the reference in v1.3.18 and NOT in acp-decision. Blocking
+    # it is the honest classification: comparing here would report agreement
+    # about a clause only one side implements, which is the vacuous-green shape
+    # this harness exists to prevent. It is also the cheapest of the blockers to
+    # clear -- one regex, no missing component -- so it should not linger.
+    "WE4 unprefixed b64 nonce": WIRE,
     # --- attacks whose refusal IS the missing machinery
     "Z3  origin substitution": LEDGER,
     "T15 epoch rollback": LEDGER,
@@ -340,7 +348,14 @@ def kind_probe():
     p = C.proposal()
     phash = C.h(p)
     obj1 = C.att_obj(b, phash, 1600.0)
-    obj2 = dict(obj1, att_nonce="n2")
+    # WE-4 (v1.3.18): a nonce must be `b64:` + RFC 4648 sec 4 base64 with
+    # padding. This probe used a bare "n2" until the clause landed, and Python
+    # then refused at WE-4 BEFORE reaching the `kind` logic -- which silently
+    # turned an ACP-80 reproduction into a WE-4 refusal and would have read as
+    # "ACP-80 no longer reproduces". The harness caught it by asserting the
+    # probe still reproduces rather than merely that both sides agree; that
+    # assertion is why this is a fixture fix and not a lost pin.
+    obj2 = dict(obj1, att_nonce="b64:bjItYWNwODAtcHJvYmU=")
 
     def run(kind_of_second, nonce):
         # A FRESH Executor per run: the ledger claims nonces and attestation

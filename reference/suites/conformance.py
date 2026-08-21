@@ -13,7 +13,7 @@ everything, which is why the positive path is a first-class test. Each attack
 below is the actual defect from Annex C, mounted as a single compromised
 component against a running implementation.
 """
-import copy, sys, time
+import base64, copy, hashlib, sys, time
 from dataclasses import replace
 # Run-from-anywhere: put the sibling reference/src on the path so
 # `python3 reference/suites/<x>.py` works without the caller exporting
@@ -85,12 +85,28 @@ def proposal(task="modify_firewall_rule", target="prod-db", schema="fw.v1"):
             "cidrs": {"source_cidr": 24}}
 
 
+def b64n(seed):
+    """A WE-4 conforming 128-bit attestation nonce, derived from a fixture seed.
+
+    WE-4 (v1.3.18) pins the type: `b64:` + RFC 4648 sec 4 base64 WITH padding,
+    carried and hashed AS THAT STRING. These fixtures used bare tokens -- "r3",
+    "x2", "q1" -- so every one of them became non-conformant the moment the
+    clause landed, and 31 of 53 cases went red. That is the clause having an
+    effect, which is the point: a type nothing can violate is not a type.
+
+    Derived from the seed rather than drawn at random so a fixture stays
+    reproducible across runs, and so two distinct seeds stay distinct -- which
+    is the only property the call sites ever relied on.
+    """
+    return "b64:" + base64.b64encode(hashlib.sha256(seed.encode()).digest()[:16]).decode()
+
+
 def att_obj(b, phash, expires, operator=OP, alg="hybrid-ed25519-mldsa65"):
     return {"alg": alg, "proposal_hash": phash, "policy_bundle_hash": b.hash(),
             "bundle_epoch": b.epoch, "context_snapshot_hash": "sha256:ctx",
             "floor_only_risk": "HIGH", "required_roles": ["net_approver"],
             "required_count": 2, "operator": operator,
-            "att_nonce": f"n-{expires}-{operator}", "expires_at": expires}
+            "att_nonce": b64n(f"n-{expires}-{operator}"), "expires_at": expires}
 
 
 def entry(obj, attester, kind="approval"):
@@ -119,8 +135,8 @@ def fresh(context=None):
 
 def quorum(b, p, now=1000.0, operator=OP):
     o = att_obj(b, h(p), now + 600, operator)
-    return [entry(o, A1), entry(dict(o, att_nonce="n2"), A2),
-            entry(dict(o, att_nonce="n3"), OP, "confirmation")]
+    return [entry(o, A1), entry(dict(o, att_nonce=b64n("n2")), A2),
+            entry(dict(o, att_nonce=b64n("n3")), OP, "confirmation")]
 
 
 # ============================================================== POSITIVE
@@ -147,8 +163,8 @@ def t_honest_redrive():
     r1 = receipt(b, p, atts=quorum(b, p))
     k1 = ex.execute(r1, p)["idempotency_key"]
     o = att_obj(b, h(p), 1600.0)
-    a2 = [entry(dict(o, att_nonce="r1"), A1), entry(dict(o, att_nonce="r2"), A2),
-          entry(dict(o, att_nonce="r3"), OP, "confirmation")]
+    a2 = [entry(dict(o, att_nonce=b64n("r1")), A1), entry(dict(o, att_nonce=b64n("r2")), A2),
+          entry(dict(o, att_nonce=b64n("r3")), OP, "confirmation")]
     r2 = receipt(b, p, atts=a2, nonce="nonce-2")
     k2 = ex.execute(r2, p, redrive=True)["idempotency_key"]
     assert k1 == k2, "DS-6: re-drive must present the SAME idempotency key"
@@ -186,8 +202,8 @@ def a_Y4_operator_swap():
     b, ex = fresh({A1: {"modify_firewall_rule:prod-db"}})
     p = proposal()
     o = att_obj(b, h(p), 1600.0, operator=A1)         # object says operator=A1
-    atts = [entry(o, A1), entry(dict(o, att_nonce="x2"), A2),
-            entry(dict(o, att_nonce="x3"), OP, "confirmation")]
+    atts = [entry(o, A1), entry(dict(o, att_nonce=b64n("x2")), A2),
+            entry(dict(o, att_nonce=b64n("x3")), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts, operator=OP), p)
 
 
@@ -197,8 +213,8 @@ def a_Z3_origin_substitution():
     p = proposal()
     ex.execute(receipt(b, p, atts=quorum(b, p)), p)
     o = att_obj(b, h(p), 1600.0)
-    a2 = [entry(dict(o, att_nonce="q1"), A1), entry(dict(o, att_nonce="q2"), A2),
-          entry(dict(o, att_nonce="q3"), OP, "confirmation")]
+    a2 = [entry(dict(o, att_nonce=b64n("q1")), A1), entry(dict(o, att_nonce=b64n("q2")), A2),
+          entry(dict(o, att_nonce=b64n("q3")), OP, "confirmation")]
     r = receipt(b, p, atts=a2, nonce="nonce-9", origin_nonce="nonce-OTHER")
     ex.execute(r, p, redrive=True)
 
@@ -211,6 +227,32 @@ def a_Z4_optional_field():
     obj = dict(atts[0]["obj"]); obj["extension"] = None
     atts[0] = {"obj": obj, "kind": "approval", "attester": A1,
                "sig": sign(SIGNERS[A1], h(obj))}
+    ex.execute(receipt(b, p, atts=atts), p)
+
+
+def a_WE4_unprefixed_nonce():
+    """The same nonce, spelled without its type prefix: two ids, two ledger slots.
+
+    WE-4 (v1.3.18). The prefix is PART OF THE VALUE, so `AAAA==` and
+    `b64:AAAA==` are two values, not two spellings of one. `attestation_id` is
+    SHA-256 over the canonical encoding of the whole object (AT-8a), so an
+    issuer and a verifier that disagree derive two ids for one attestation and
+    it claims two ledger slots -- Z4 and T-14 reopening BENEATH AT-8b, which
+    closes the field SET and says nothing about a field's spelling. At the
+    verifier the mismatch is indistinguishable from a forgery.
+
+    Deliberately signed correctly. The signature verifies, the field set is
+    exact, the binding is honest, and the object is still refused -- because
+    what is wrong with it is its TYPE, and nothing else in the checklist looks
+    at that.
+    """
+    b, ex = fresh()
+    p = proposal()
+    atts = quorum(b, p)
+    obj = dict(atts[0]["obj"])
+    obj["att_nonce"] = obj["att_nonce"].removeprefix("b64:")   # prefix stripped
+    atts[0] = {"obj": obj, "kind": "approval", "attester": A1,
+               "sig": sign(SIGNERS[A1], h(obj), obj["alg"])}
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -300,8 +342,8 @@ def a_AT2_self_approval():
     b, ex = fresh()
     p = proposal()
     o = att_obj(b, h(p), 1600.0)
-    atts = [entry(o, A1), entry(dict(o, att_nonce="s2"), OP),
-            entry(dict(o, att_nonce="s3"), OP, "confirmation")]
+    atts = [entry(o, A1), entry(dict(o, att_nonce=b64n("s2")), OP),
+            entry(dict(o, att_nonce=b64n("s3")), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -323,7 +365,7 @@ def a_AT3_partial_quorum():
     p = proposal()
     o = att_obj(b, h(p), 1600.0, OP)
     atts = [entry(o, A1),
-            entry(dict(o, att_nonce="p2"), OP, "confirmation")]
+            entry(dict(o, att_nonce=b64n("p2")), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -379,8 +421,8 @@ def a_AT9_attesters_signed_for_a_larger_quorum():
     p = proposal()
     o = att_obj(b, h(p), 1600.0, OP)
     o = dict(o, required_count=3)          # what the humans were shown
-    atts = [entry(o, A1), entry(dict(o, att_nonce="q2"), A2),
-            entry(dict(o, att_nonce="q3"), OP, "confirmation")]
+    atts = [entry(o, A1), entry(dict(o, att_nonce=b64n("q2")), A2),
+            entry(dict(o, att_nonce=b64n("q3")), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -413,8 +455,8 @@ def a_PBDISTINCT_one_key_two_identities():
         return {"obj": obj, "kind": "approval", "attester": who,
                 "sig": sign(SIGNERS[A1], h(obj), obj["alg"])}
 
-    atts = [as_(o, A1), as_(dict(o, att_nonce="dup2"), A2),
-            entry(dict(o, att_nonce="dup3"), OP, "confirmation")]
+    atts = [as_(o, A1), as_(dict(o, att_nonce=b64n("dup2")), A2),
+            entry(dict(o, att_nonce=b64n("dup3")), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -760,8 +802,8 @@ def a_CR4_attestation_suite_downgrade():
     b, ex = fresh()
     p = proposal()
     o = att_obj(b, h(p), 1600.0, alg="ed25519")
-    atts = [entry(o, A1), entry(dict(o, att_nonce="d2"), A2),
-            entry(dict(o, att_nonce="d3"), OP, "confirmation")]
+    atts = [entry(o, A1), entry(dict(o, att_nonce=b64n("d2")), A2),
+            entry(dict(o, att_nonce=b64n("d3")), OP, "confirmation")]
     ex.execute(receipt(b, p, atts=atts), p)
 
 
@@ -865,6 +907,7 @@ ATTACKS = [
     ("Y4  operator substitution",       a_Y4_operator_swap,     "AT-2"),
     ("Z3  origin substitution",         a_Z3_origin_substitution, "DS-6f"),
     ("Z4  optional-field encoding",     a_Z4_optional_field,    "AT-8b"),
+    ("WE4 unprefixed b64 nonce",        a_WE4_unprefixed_nonce, "WE-4"),
     ("X1  risk downgrade in receipt",   a_X1_risk_downgrade,    "TR-8"),
     ("--  floor-HIGH, no attestation",  a_no_attestation,       "INV-1-HIGH"),
     ("T15 epoch rollback",              a_epoch_rollback,       "RAD-3"),

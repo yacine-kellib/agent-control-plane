@@ -70,7 +70,7 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
 
 ```
 == 1. Integrity ==
-  OK   151 files match MANIFEST.sha256
+  OK   152 files match MANIFEST.sha256
 
 == 2. Manifest signature (Ed25519, offline release key) ==
   OK   detached signature verifies against release-key.pub
@@ -79,17 +79,17 @@ Abridged output. A complete run prints 20 result lines across five numbered sect
   OK   Dafny program verifier finished with 36 verified, 0 errors
 
 == 4. Test suites ==
-  OK   ALL attacks (consolidated registry) - RESULT: 82/82
-  OK   Suite 1  conformance - RESULT: 53/53 - CONFORMANT
-  OK   Suite 2  executor mutation - RESULT: 26/26 killed
+  OK   ALL attacks (consolidated registry) - RESULT: 83/83
+  OK   Suite 1  conformance - RESULT: 54/54 - CONFORMANT
+  OK   Suite 2  executor mutation - RESULT: 27/27 killed
   ...
 ```
 
-Fourteen suite lines in all, spanning 10 numbered suites, and 36 mutation controls across three of them.
+Fourteen suite lines in all, spanning 10 numbered suites, and 37 mutation controls across three of them.
 
 If a claim here does not replay on your machine, don't believe it. That includes these numbers.
 
-**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 36 of them: 26 executor, 6 acknowledgement, 4 audit.
+**The mutation results are the ones worth reading.** Each security check is deleted in turn and the matching attack has to succeed, which is how you know the check does something and the test isn't vacuous. 37 of them: 27 executor, 6 acknowledgement, 4 audit.
 
 Two gates, and the difference matters:
 
@@ -430,7 +430,7 @@ Findings are welcome as issues and will be disclosed with attribution, the same 
 
 ## Integrity and releases
 
-`MANIFEST.sha256` covers 151 files across 8 signed roots and is signed with an offline Ed25519 key.
+`MANIFEST.sha256` covers 152 files across 8 signed roots and is signed with an offline Ed25519 key.
 
 ```
 Release key fingerprint: SHA256:636caed2e7bd9172eeaa8bd75482ec2b

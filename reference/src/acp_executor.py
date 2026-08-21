@@ -35,7 +35,7 @@ FAIL-CLOSED CONTRACT. Every check raises FailClosed. There is no path that
 logs-and-continues. `execute()` returns only when every check passed.
 """
 from __future__ import annotations
-import hashlib, json, time
+import hashlib, json, re, time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,6 +50,13 @@ TIER = {"T0": 0, "T1": 1, "T2": 2, "T3": 3}
 AT1_FIELDS = ("proposal_hash", "policy_bundle_hash", "bundle_epoch",
               "context_snapshot_hash", "floor_only_risk", "required_roles",
               "required_count", "operator", "att_nonce", "expires_at", "alg")
+
+# WE-4 (v1.3.18): `b64:` + RFC 4648 sec 4 alphabet, WITH padding. The URL-safe
+# alphabet (sec 5) and an unpadded form are DIFFERENT VALUES, not lenient
+# spellings of one -- see the clause. Anchored both ends: an unanchored pattern
+# would accept `xxb64:AAAA==yy`, which is the shape of the defect, not a check
+# against it.
+WE4_B64 = re.compile(r"^b64:[A-Za-z0-9+/]+={0,2}$")
 
 # CR-1: signature suites. A suite is a SET of primitives, all of which must
 # verify. `hybrid` is classical AND post-quantum -- never OR: an OR composition
@@ -844,6 +851,20 @@ class Executor:
                 extra = set(obj) - set(AT1_FIELDS)
                 raise CriticalAlert("AT-8b",
                                     f"object schema violation missing={missing} extra={extra}")
+
+            # WE-4: the b64 type is pinned, and the prefix is PART OF THE VALUE.
+            # AT-8b closes the FIELD SET; it says nothing about the spelling of
+            # a field's value, so this defect sat one layer beneath it. `aid` is
+            # SHA-256 over the canonical encoding of the whole object, so an
+            # issuer carrying `b64:AAAA==` and a verifier carrying `AAAA==`
+            # derive TWO ids for ONE object and claim TWO ledger slots -- Z4 and
+            # T-14 reopening with no optional field involved. Rejected, never
+            # normalized: normalizing here would make this verifier accept both
+            # spellings and hand the divergence to the next implementation.
+            if not WE4_B64.match(str(obj.get("att_nonce", ""))):
+                raise CriticalAlert("WE-4",
+                                    f"att_nonce {obj.get('att_nonce')!r} is not "
+                                    f"b64: + RFC 4648 sec 4 base64 with padding")
 
             # (i) signature over the canonical object -- CRYPTO-SWAP
             aid = h(obj)
