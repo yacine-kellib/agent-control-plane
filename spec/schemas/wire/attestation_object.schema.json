@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.spec/schemas/wire/attestation_object.schema.json",
+  "title": "Attestation Object (ACP-SPEC-001 §8.6, AT-1 / AT-8 / AT-8a / AT-8b / AT-9)",
+  "x-acp-name": "AttestationObject",
+  "description": "A signed human act bound to a `proposal_hash`. Carried on legs F4.3 and F4.4 of the leg register (ACP-DEPLOY-001 Annex A).\n\nWHY THIS SCHEMA IS CLOSED, AND WHY THAT IS THE SECURITY PROPERTY RATHER THAN A STYLE CHOICE. AT-8b: every AT-1 field is REQUIRED; there are no optional fields, no defaultable fields, and no extension points. An object carrying an unknown field, or omitting any AT-1 field, MUST be rejected — never normalized, never defaulted. That is why `additionalProperties` is false and why `required` lists every property, and it is the one place in this repository where an absent-value rule would be a DEFECT rather than a control: `x-acp-absent` deliberately appears nowhere below.\n\nThe reason is Z4. AT-8a pinned the canonicalizer but not the field set. Given ANY optional field, an object present-as-null and the same object with the field omitted are EACH valid canonical CBOR, hash to TWO DISTINCT ids, and therefore claim TWO ledger slots — one attestation, consumed twice. T-14 attestation amplification reopens through the very mechanism Y1b closed. Canonicalization cannot fix it: the ambiguity is in the field set, not the encoding. Mechanized as `Z4_OptionalFieldYieldsTwoIds`.\n\nCONSEQUENCE FOR ANYONE EDITING THIS FILE: adding a field here is a BREAKING change requiring a `receipt_version` increment, never an additive one (AT-8b). A future revision that adds an optional field to be helpful reopens T-14.\n\nENCODING. The wire form is canonical CBOR, RFC 8949 §4.2 (AT-8a) — the same canonicalization as the receipt (WE-1/WE-2). JCS (RFC 8785) MUST NOT be used for this object; JCS is the Proposal's rule and mixing them is the encoding split at the point it does the most damage. JSON here is the diagnostic form the schema is written against, never an accepted input. An object whose RECEIVED encoding is not the canonical one MUST be rejected and MUST NOT be re-serialized and accepted.\n\nWHAT IS NOT A FIELD. `attestation_id` is DERIVED, not carried: it is SHA-256 over the canonical CBOR encoding of this object (AT-1, AT-8a) and the Executor recomputes it (§9.3 step 7b(v)). Transmitting it for trust is what v1.3.2 did, and under one compromised KMS a receipt bearing a genuine quorum raised for proposal P1 verified against an attacker-chosen P2 — Y1. A schema that gave `attestation_id` a property would invite exactly that read, so it has none.\n\nSUITE 12 CLASSIFICATION. Every field below is class T at the schema layer — this document constrains SHAPE, and shape is not authority. The Executor's obligations are elsewhere and are not restated here (DP-3/DP-84): `proposal_hash` is bound (9.3-3), floor-only risk is RECOMPUTED and never read from here (TR-8), and `required_count` is subject to AT-9's two disjoint rules described on that property.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "proposal_hash",
+    "policy_bundle_hash",
+    "bundle_epoch",
+    "context_snapshot_hash",
+    "floor_only_risk",
+    "required_roles",
+    "required_count",
+    "operator",
+    "att_nonce",
+    "expires_at"
+  ],
+  "properties": {
+    "proposal_hash": {
+      "$ref": "#/$defs/sha256",
+      "description": "The canonical Proposal this attester signed. The binding the whole object exists to carry: the Executor verifies the executed proposal hashes to this value (9.3-3) rather than trusting that it does."
+    },
+    "policy_bundle_hash": {
+      "$ref": "#/$defs/sha256",
+      "description": "The signed bundle in force when the attestation was raised."
+    },
+    "bundle_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Epoch of that bundle. Monotonicity is enforced at the KMS against a durable high-water mark (RAD-3), never from this value."
+    },
+    "context_snapshot_hash": {
+      "$ref": "#/$defs/sha256",
+      "description": "The Context read the Decision was computed over (§8.8 `snapshot_hash()`)."
+    },
+    "floor_only_risk": {
+      "$ref": "#/$defs/risk_level",
+      "description": "FLOOR-ONLY risk, not effective risk. AT-3 requires the attester to have been shown floor tiers and the bundle `rule_id`s that raised the risk, NOT Context-asserted values — that separation is what closes A-8's display path. The Executor recomputes this from the signed bundle and the canonical Proposal (TR-8); a disagreement with the value here is a critical alert, because it means the signing substrate emitted a Decision the bundle does not support."
+    },
+    "required_roles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 },
+      "description": "Attester roles the rule demanded. `uniqueItems` because a repeated role is a second spelling of one requirement, and two spellings of one thing is the defect this repository is built around."
+    },
+    "required_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The threshold the attester was shown and signed.\n\nAT-9 places TWO requirements on this field and NEITHER SUBSTITUTES FOR THE OTHER. (1) It MUST NOT be an input to the quorum decision, in whole or in part, INCLUDING where every entry agrees on it: the threshold is taken from the signed bundle's `quorum_k` (PB-6) and is class R — recomputed. `required_count` is signed by the attester, and the attester is exactly the party under verification, so reading the threshold from it asks the adversary how large a quorum to demand. (2) It MUST nonetheless equal `quorum_k`, and a mismatch MUST fail closed with a critical alert — because it is part of what the attester was SHOWN (AT-3), so a mismatch means the humans approved under a policy the engine did not apply.\n\nAn implementation that keeps only (1) satisfies INV-1-HIGH while silently executing actions no attester agreed to. This clause exists because its absence was exploited — see the v1.3.15 alert in §1(a)."
+    },
+    "operator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The operator the action is attributed to. Carried HERE, inside the signature, so approver-distinctness (AT-2) and the §9.3 step-9 capability recheck key on a signature-covered value rather than a receipt-body claim. The receipt's top-level `operator` is diagnostic only. Mechanized as `Y4_OperatorTamperDetected`."
+    },
+    "att_nonce": {
+      "type": "string",
+      "pattern": "^b64:[A-Za-z0-9+/]{22}==$",
+      "description": "A fresh 128-bit attestation nonce (AT-1), making the derived `attestation_id` unique per attestation. Single use is enforced by ledger consumption of that id (AT-5, CL-3), not by assertion — v1.2.0 stated single-use as a property with no enforcing mechanism, which permitted attestation amplification (T-14).\n\nTHE PATTERN IS TWO RULES, AND THEY REFUSE UNDER DIFFERENT NAMES. `b64:` plus the RFC 4648 §4 alphabet with padding is WE-4, the wire type; the twenty-four characters are AT-1's 128 bits. A verifier folding them into one check answers `WE-4` for a 64-bit nonce, which is a perfectly well-formed `b64:` value — the wrong clause name, and the cross-language differential compares names. `reference/src/acp_executor.py` and `crates/acp-decision/src/quorum.rs` both apply the type rule first and the size rule second, in that order, because an object wrong in both ways must stop at the same rule everywhere.\n\nWHY THE PREFIX IS PART OF THE VALUE. `attestation_id` is SHA-256 over the canonical CBOR of this object (AT-8a), so an issuer carrying `b64:AAAA…` and a verifier carrying `AAAA…` derive TWO IDS FOR ONE OBJECT and claim TWO LEDGER SLOTS — one human approval, spent twice. That is Z4 and T-14 reopening through a type nobody had written down, reached with no optional field and therefore untouched by AT-8b, which closes the field set one layer above this. §11.2 pins `sha256:` to the character for the same reason and records what happened without it: an implementer who fed forward raw digest bytes built a different chain while following the text.\n\nHISTORY, KEPT BECAUSE IT IS THE ARGUMENT. When this schema was first written the prefix was pinned HERE and nowhere else — `b64:` occurred exactly twice in ACP-SPEC-001, both times inside §9.2's diagnostic JSON, and no clause said whether it was part of the value. Writing the schema is what surfaced that (ACP-87); it is now fixed at the root as WE-4 in v1.3.18, so this pattern restates the specification rather than exceeding it. A type that exists only in a schema is a type the specification does not have, and a second implementation written from the document alone would never have seen it.\n\nThe three definitions of this type — here, the Python reference and the Rust verifier — DID diverge, and no gate noticed: this pattern pinned twenty-four characters from its first day while the reference accepted any length, and no fixture ever fed a wrong-length nonce. `tools/nonce-type-vectors.json` is now the one corpus all three are evaluated against."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 instant, at most 60 minutes after issuance (AT-1). Expired attestations are void and partial quorum at expiry is void (AT-5). Evaluated against NTS-disciplined wall time within the L-20 skew allowance, never against a monotonic clock — leg F9.1 carries that dependency and DP-52 states the distinction."
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "x-acp-name": "Sha256Hash",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "`\"sha256:\"` followed by a lowercase-hex SHA-256 digest — 71 characters. The type is pinned rather than left to the implementer because §11.2 records an implementer who fed forward raw digest bytes and built a different chain while following the text."
+    },
+    "risk_level": {
+      "x-acp-name": "RiskLevel",
+      "x-acp-ordered": true,
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH"],
+      "description": "Ordered: LOW < MEDIUM < HIGH. §8.4 composes with max, so the ordering is load-bearing. Note this is a RISK LEVEL and not a TIER — conflating the two is a defect this repository has already published: a generator returned HIGH where T3 was required."
+    }
+  }
+}

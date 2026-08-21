@@ -83,10 +83,10 @@ run() { # run <script> <expected-substring> <label> [args]
   o=$(python3 "$s" "$@" 2>&1 | grep -E '^RESULT' | tail -1)
   echo "$o" | grep -q "$e"; chk $? "$l — ${o:-no RESULT line}"
 }
-run attack_registry.py      "82/82"      "ALL attacks (consolidated registry)"
+run attack_registry.py      "86/86"      "ALL attacks (consolidated registry)"
 run attack_registry.py      "4/4"        "Composition ack x ledger" --compose
-run conformance.py          "53/53"      "Suite 1  conformance"
-run mutate_executor.py      "26/26"      "Suite 2  executor mutation"
+run conformance.py          "57/57"      "Suite 1  conformance"
+run mutate_executor.py      "28/28"      "Suite 2  executor mutation"
 run partition_suite.py      "9/9"        "Suite 3  ledger partition"
 run partition_integration.py "6/6"       "Suite 4  executor x ledger"
 run cbor_suite.py           "8/8"        "Suite 5  canonical CBOR"

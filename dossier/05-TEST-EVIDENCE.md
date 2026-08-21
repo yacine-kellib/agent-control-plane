@@ -15,19 +15,19 @@ And (A)+(B) remain insufficient without **(C)**: every check is deleted one at a
 
 ---
 
-## Suite 1 — Conformance (53/53)
+## Suite 1 — Conformance (57/57)
 
 `python3 reference/suites/conformance.py`
 
 Every defect in the history mounted as a live attack against the reference implementation: attestation misbinding (Y1), forged identifier (Y1b), over-long validity window (Y2), operator substitution (Y4), origin substitution (Z3), encoding split (Z4), risk downgrade (X1), quorum threshold read from the attestation (AT-3), two attester identities sharing one key (PB-DISTINCT), nonce and attestation replay, epoch rollback, self-approval, revoked capability, tampered proposal, signature suite downgrade, a suite floor met by an algorithm it does not name (CR-4), stripped hybrid signature, an irreversible action below floor-HIGH with no notice channel named in the bundle (DR-13), a Proposal parameter spelled as a JSON float so that every numeric clause stops firing (EL-2).
 
-Nine positive paths, which is why the suite total is 53 and not 44: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, a sampled action is treated as irreversible, and an irreversible action below floor-HIGH executes while leaving a committed notice. **44 attacks must fail closed; 9 honest paths must execute.**
+Nine positive paths, which is why the suite total is 57 and not 48: floor-HIGH executes, floor-LOW requires no attestation, DS-6 re-drive is dedupped, a reversible hold releases on silence, floor-LOW is not deferred, a lying screen is caught by repudiation, an irreversible action executes only after acknowledgement, a sampled action is treated as irreversible, and an irreversible action below floor-HIGH executes while leaving a committed notice. **48 attacks must fail closed; 9 honest paths must execute.**
 
 *(This paragraph said 44 and 36 while the suite printed 45. The drift predates the AT-3 fix below and is corrected here rather than quietly: a number in the prose that no longer matches a number the code prints is a defect in this repository, whichever direction it drifted.)*
 
 **Not covered:** attacks nobody thought of. That is the structural limit of any test suite, and the reason the mechanized proofs (§04) exist. The DR-13 row above is what that limit looks like when it bites: it is here because an **external** corpus harness found the gap, not because this suite's enumeration reached it. See Suite 2's sixth lesson.
 
-## Suite 2 — Implementation mutation (26/26 kill)
+## Suite 2 — Implementation mutation (28/28 kill)
 
 `python3 reference/suites/mutate_executor.py`
 
@@ -128,7 +128,7 @@ The T-31 tests in Suite 8 pass when the defect is present; these are their inver
 - **ACK-4 was masked.** The identity-swap attack is caught upstream by ACK-2, because rewriting `acknowledger` invalidates the signature — the same masking Suite 2 documents for X1 and B-1a. Re-isolated on the operator self-confirmation, where the signature is valid and the returned identity is the only thing deciding the outcome.
 - **ACK-5 was redundant.** A gate-local consumed-set duplicated the ledger's CL-3 refusal and killed nothing. Removed; the ledger is now **mandatory**, which is what actually carries single-use. Same disposition as the AU-7 pre-check in Suite 7: a check that kills no mutant is not a control.
 
-## Suite 10 — consolidated registry and composition (82/82, 4/4)
+## Suite 10 — consolidated registry and composition (86/86, 4/4)
 
 `python3 reference/suites/attack_registry.py` and `--compose`
 

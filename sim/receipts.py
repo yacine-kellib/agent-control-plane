@@ -21,6 +21,8 @@ attesters; the Executor it feeds holds none of them.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import itertools
 
 import sim  # noqa: F401
@@ -40,7 +42,32 @@ _nonce = itertools.count(1)
 
 
 def fresh_nonce(prefix: str = "n") -> str:
-    return f"{prefix}-{next(_nonce):06d}"
+    """A WE-4 conforming, AT-1 sized nonce, unique per call.
+
+    This returned a bare `att-000264` until ACP-88, and the sim's attestations
+    were non-conformant from the moment WE-4 landed in v1.3.18 -- `sim.acceptance`
+    went from 11 pass / 0 fail to 5 pass / 6 fail, every failure a WE-4 refusal.
+    It was not caught locally by either gate a session normally runs, because
+    NEITHER `verify.sh --suites` NOR `selftest.sh` EXECUTES `sim/`. CI does, and
+    CI is where it surfaced -- two commits after the clause landed.
+
+    The lesson is the one this repository keeps relearning one artifact at a
+    time: a new normative clause invalidates every fixture written before it,
+    including the fixtures in the places you did not think of as fixtures. The
+    conformance corpus was migrated with the clause, and the ACP-80 probe twice;
+    the simulation builds its own Attestation Objects and was migrated by
+    neither.
+
+    Still a counter, so a run stays reproducible and two calls stay distinct --
+    the only properties any caller relies on. `prefix` survives into the seed
+    rather than the value, so `att` and `rcpt` remain different sequences.
+
+    The receipt nonce is given the same treatment even though nothing checks it
+    yet (ACP-89): WE-4 governs it too, and a demonstration that emits a value
+    its own specification forbids is arguing against itself.
+    """
+    seed = f"{prefix}-{next(_nonce):06d}".encode()
+    return "b64:" + base64.b64encode(hashlib.sha256(seed).digest()[:16]).decode()
 
 
 def att_obj(bundle, proposal_hash: str, operator: str, risk: str,

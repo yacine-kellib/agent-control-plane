@@ -41,7 +41,7 @@ x-demonstrator: &demonstrator
   network_mode: none
   read_only: true
   # A writable /tmp is REQUIRED, not incidental hardening slack. The three
-  # mutation suites (26 executor + 6 ack + 4 audit = 36 mutants) work by copying
+  # mutation suites (28 executor + 6 ack + 4 audit = 38 mutants) work by copying
   # reference/src into a temp directory, deleting one check from the copy, and
   # running the matching attack against the mutant in a subprocess. On a fully
   # read-only filesystem they cannot write the mutant and the suites report
@@ -84,7 +84,7 @@ services:
   # paraphrased: two files describing one run in two wordings is how this
   # comment came to claim the proofs ran here when the image has no Dafny.
   #
-  #   15 suites + harness + 36 mutants (proofs SKIPPED: no Dafny in this image)
+  #   15 suites + harness + 38 mutants (proofs SKIPPED: no Dafny in this image)
   #
   # Integrity and signature are deliberately NOT checked here — regenerating the
   # manifest requires the offline release key, which must never be in a

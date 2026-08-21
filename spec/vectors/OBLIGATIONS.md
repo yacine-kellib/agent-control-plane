@@ -178,7 +178,7 @@ deliberately written to run in both directions.
 
 ## Obligation 7 — the mutation suites
 
-**36 mutants: 26 executor, 6 acknowledgement, 4 audit.**
+**38 mutants: 28 executor, 6 acknowledgement, 4 audit.**
 
 These work by reading the implementation's own source, deleting a named check, rebuilding
 it in a temp directory and asserting that the matching attack now **succeeds**. They are
@@ -211,7 +211,7 @@ cautions carry over with it:
 | 4 — environment and executor-local state | 4 |
 | 5 — the audit layer (remainder) | 8 |
 | 6 — duties on the encoder | 1 |
-| 7 — mutation suites | *(36 mutants, no case rows)* |
+| 7 — mutation suites | *(38 mutants, no case rows)* |
 | **Total cases** | **38** |
 
 Vector-expressible: **48**. Obligations: **38**. Mutants, additionally: **35**.

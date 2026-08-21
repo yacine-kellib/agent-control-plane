@@ -19,10 +19,13 @@ use acp_decision::quorum::{
     attestation_id, verify_quorum, AttestationEntry, AttesterKey, DecisionBasis, QuorumPolicy,
     CLAUSE_ATTESTATION_SUITE, CLAUSE_ATTESTER_SIG, CLAUSE_BINDING, CLAUSE_CONSENT,
     CLAUSE_DERIVED_ID, CLAUSE_NO_ATTESTATIONS, CLAUSE_OBJECT_SCHEMA, CLAUSE_OPERATOR_SELF,
-    CLAUSE_POLICY_BASIS, CLAUSE_QUORUM,
+    CLAUSE_NONCE_SIZE, CLAUSE_POLICY_BASIS, CLAUSE_QUORUM, CLAUSE_WIRE_TYPE,
 };
+use acp_decision::quorum::{is_we4_b64, AT1_NONCE_LEN};
 use acp_decision::receipt::SignaturePart;
 use serde_json::{json, Value};
+
+mod common;
 
 const OP: &str = "op_8842";
 const A1: &str = "op_1121";
@@ -61,7 +64,7 @@ fn registry() -> BTreeMap<String, AttesterKey> {
 fn att_obj(nonce: &str) -> Value {
     json!({
         "alg": "hybrid-ed25519-mldsa65",
-        "att_nonce": nonce,
+        "att_nonce": common::b64n(nonce),
         "bundle_epoch": 47,
         "context_snapshot_hash": "sha256:ctx",
         "expires_at": 1600.0,
@@ -244,6 +247,100 @@ fn at8b_the_object_schema_is_closed_in_both_directions() {
     missing.as_object_mut().unwrap().remove("context_snapshot_hash");
     let entries = vec![entry(A1, missing, "approval")];
     assert_eq!(check(&reg, &entries).unwrap_err().clause, CLAUSE_OBJECT_SCHEMA);
+}
+
+#[test]
+fn we4_the_b64_prefix_is_part_of_the_value() {
+    // ACP-87, recorded as the reference records it. The prefix stripped, and
+    // nothing else touched: signed correctly, exact field set, honest binding.
+    // `attestation_id` is over the canonical bytes of the whole object, so this
+    // is a second id for one attestation and a second ledger slot.
+    let reg = registry();
+    let mut o = att_obj("n1");
+    let bare = o["att_nonce"].as_str().unwrap().strip_prefix("b64:").unwrap().to_string();
+    o["att_nonce"] = json!(bare);
+    let entries = vec![entry(A1, o, "approval")];
+    assert_eq!(check(&reg, &entries).unwrap_err().clause, CLAUSE_WIRE_TYPE);
+}
+
+#[test]
+fn we4_stripped_padding_is_rejected_and_not_normalized() {
+    // WE-4 says omitting the padding MUST be rejected rather than normalized.
+    // The reference's first pattern accepted it — `[A-Za-z0-9+/]+={0,2}` also
+    // matches `b64:A` and `b64:AAA`, lengths that are not base64 at all — so
+    // the clause said one thing and the control enforced a weaker thing.
+    let reg = registry();
+    let mut o = att_obj("n1");
+    let unpadded = o["att_nonce"].as_str().unwrap().trim_end_matches('=').to_string();
+    o["att_nonce"] = json!(unpadded);
+    let entries = vec![entry(A1, o, "approval")];
+    assert_eq!(check(&reg, &entries).unwrap_err().clause, CLAUSE_WIRE_TYPE);
+}
+
+#[test]
+fn we4_the_url_safe_alphabet_is_a_different_value_not_a_spelling() {
+    // THE ONE SHAPE ONLY WE-4 CATCHES, and the reference's mutation harness is
+    // what established that. Stripping the prefix or the padding also changes
+    // the LENGTH, so AT-1 below refuses those even with the type check gone —
+    // against them WE-4 is redundant. Swapping RFC 4648 §4's `+` and `/` for
+    // §5's `-` and `_` preserves the length and the decoded bytes and changes
+    // only the string, so every other step passes it.
+    let reg = registry();
+    let mut o = att_obj("url-safe");
+    let std = o["att_nonce"].as_str().unwrap().to_string();
+    assert!(
+        std.contains('+') || std.contains('/'),
+        "fixture seed produces no alphabet difference, so this tests nothing"
+    );
+    o["att_nonce"] = json!(std.replace('+', "-").replace('/', "_"));
+    let entries = vec![entry(A1, o, "approval")];
+    assert_eq!(check(&reg, &entries).unwrap_err().clause, CLAUSE_WIRE_TYPE);
+}
+
+#[test]
+fn at1_a_well_formed_64_bit_nonce_refuses_under_at1_and_not_we4() {
+    // The refusal NAME is the assertion. This value is exactly what WE-4
+    // demands; what is wrong with it is that AT-1 says 128-bit and this is
+    // half that. A check that folded the size into the type would answer
+    // `WE-4` here, and the cross-language differential compares names.
+    let reg = registry();
+    let mut o = att_obj("n1");
+    // Ten alphabet characters and `==` — a well-formed encoding of eight bytes.
+    let short = format!("b64:{}==", &o["att_nonce"].as_str().unwrap()[4..14]);
+    assert!(is_we4_b64(&short), "the fixture must SATISFY WE-4, or it tests WE-4");
+    o["att_nonce"] = json!(short);
+    let entries = vec![entry(A1, o, "approval")];
+    assert_eq!(check(&reg, &entries).unwrap_err().clause, CLAUSE_NONCE_SIZE);
+}
+
+#[test]
+fn we4_and_at1_agree_with_the_reference_on_the_shared_corpus() {
+    // The two definitions of this type — `attestation_object.schema.json` and
+    // the reference — diverged silently for a whole release: the schema pinned
+    // `{22}==` and the reference accepted any length, and no fixture fed a
+    // wrong-length nonce so both stayed green. The corpus is now ONE file with
+    // three consumers; `tools/check-nonce-type.py` holds the other two.
+    let raw = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tools/nonce-type-vectors.json"),
+    )
+    .expect("the shared corpus must be readable — a vector file nothing reads is not a control");
+    let corpus: Value = serde_json::from_str(&raw).unwrap();
+    let mut checked = 0;
+    for case in corpus["cases"].as_array().unwrap() {
+        let value = case["value"].as_str().unwrap();
+        let want = case["clause"].as_str(); // None => conforming
+        let got = if !is_we4_b64(value) {
+            Some(CLAUSE_WIRE_TYPE)
+        } else if value.len() != AT1_NONCE_LEN {
+            Some(CLAUSE_NONCE_SIZE)
+        } else {
+            None
+        };
+        assert_eq!(got, want, "corpus case {:?}: {}", value, case["why"].as_str().unwrap());
+        checked += 1;
+    }
+    assert!(checked >= 10, "corpus shrank to {checked} cases — a smaller corpus is a weaker claim");
 }
 
 #[test]

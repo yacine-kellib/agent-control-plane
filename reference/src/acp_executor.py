@@ -35,7 +35,7 @@ FAIL-CLOSED CONTRACT. Every check raises FailClosed. There is no path that
 logs-and-continues. `execute()` returns only when every check passed.
 """
 from __future__ import annotations
-import hashlib, json, time
+import hashlib, json, re, time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,6 +50,39 @@ TIER = {"T0": 0, "T1": 1, "T2": 2, "T3": 3}
 AT1_FIELDS = ("proposal_hash", "policy_bundle_hash", "bundle_epoch",
               "context_snapshot_hash", "floor_only_risk", "required_roles",
               "required_count", "operator", "att_nonce", "expires_at", "alg")
+
+# WE-4 (v1.3.18): `b64:` + RFC 4648 sec 4 alphabet, WITH padding. The URL-safe
+# alphabet (sec 5) and an unpadded form are DIFFERENT VALUES, not lenient
+# spellings of one -- see the clause. Anchored both ends: an unanchored pattern
+# would accept `xxb64:AAAA==yy`, which is the shape of the defect, not a check
+# against it.
+#
+# The groups are the point, and the first spelling of this check did not have
+# them. `[A-Za-z0-9+/]+={0,2}` accepts `b64:A`, `b64:AAA` and `b64:AAAAA` --
+# lengths that are not a multiple of four and are therefore not base64 at all,
+# and the padding-stripped form of a legitimate value. WE-4 says omitting the
+# padding MUST be rejected rather than normalized, so a check that accepts it
+# does not enforce the clause it cites.
+WE4_B64 = re.compile(r"^b64:(?:[A-Za-z0-9+/]{4})*"
+                     r"(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$")
+
+# AT-1: "a 128-bit fresh attestation nonce". A SEPARATE rule from WE-4 and it
+# refuses under a separate name, because a 64-bit nonce is a perfectly
+# well-formed `b64:` value -- what is wrong with it is its LENGTH, not its
+# type. Folding the length into WE4_B64 (as `{22}==`) would emit `WE-4` for an
+# AT-1 violation and would also make the pattern unusable for the other values
+# WE-4 governs: the receipt nonce and the signatures, none of which are 16
+# bytes. Naming the wrong clause is the defect the CR-4/CR-1 note in
+# `acp-decision::quorum` exists to prevent, one layer down.
+AT1_NONCE_BYTES = 16
+# Counted, not decoded, and the first version of this line DID decode. Given
+# WE-4 the two are equivalent, so the decode looked like the more honest
+# spelling of "128 bits" -- but `b64decode(validate=True)` RAISES on the
+# URL-safe alphabet and on stripped padding, so the check was TOTAL only while
+# the check above it stood. A rule whose behaviour on bad input is "crash" is
+# not a refusal, and one that is total only because of its neighbour is one
+# reordering away from being neither.
+AT1_NONCE_LEN = len("b64:") + (AT1_NONCE_BYTES + 2) // 3 * 4
 
 # CR-1: signature suites. A suite is a SET of primitives, all of which must
 # verify. `hybrid` is classical AND post-quantum -- never OR: an OR composition
@@ -844,6 +877,45 @@ class Executor:
                 extra = set(obj) - set(AT1_FIELDS)
                 raise CriticalAlert("AT-8b",
                                     f"object schema violation missing={missing} extra={extra}")
+
+            # WE-4: the b64 type is pinned, and the prefix is PART OF THE VALUE.
+            # AT-8b closes the FIELD SET; it says nothing about the spelling of
+            # a field's value, so this defect sat one layer beneath it. `aid` is
+            # SHA-256 over the canonical encoding of the whole object, so an
+            # issuer carrying `b64:AAAA==` and a verifier carrying `AAAA==`
+            # derive TWO ids for ONE object and claim TWO ledger slots -- Z4 and
+            # T-14 reopening with no optional field involved. Rejected, never
+            # normalized: normalizing here would make this verifier accept both
+            # spellings and hand the divergence to the next implementation.
+            #
+            # DISCLOSED GAP. WE-4 governs the receipt `nonce` too, and
+            # NOTHING CHECKS IT THERE (ACP-89). `receipt["nonce"]` goes
+            # straight into `claim_nonce` at step 6, so two spellings of one
+            # nonce claim two ledger slots -- T-13 through the same hole this
+            # line closes.
+            # Disclosed rather than half-fixed: it needs the receipt fixtures
+            # and the DS-6f origin path migrated in both languages.
+            nonce = str(obj.get("att_nonce", ""))
+            if not WE4_B64.match(nonce):
+                raise CriticalAlert("WE-4",
+                                    f"att_nonce {obj.get('att_nonce')!r} is not "
+                                    f"b64: + RFC 4648 sec 4 base64 with padding")
+
+            # AT-1: 128 bits. Checked AFTER WE-4 and never before it -- a value
+            # that is wrong in BOTH ways must produce the same refusal name in
+            # both languages, and the only way to guarantee that is to fix the
+            # order.
+            #
+            # WHAT THIS DOES NOT PROVE, because the mutation harness said so.
+            # Deleting WE-4 leaves the unprefixed and unpadded attacks blocked
+            # HERE, at the wrong name -- stripping either also changes the
+            # length. So WE-4 is load-bearing against neither, and its mutant
+            # is paired with the URL-safe alphabet instead, which preserves
+            # both the length and the decoded bytes and changes only the
+            # string. That is the one shape only WE-4 catches.
+            if len(nonce) != AT1_NONCE_LEN:
+                raise CriticalAlert("AT-1",
+                                    f"att_nonce is not {AT1_NONCE_BYTES * 8}-bit")
 
             # (i) signature over the canonical object -- CRYPTO-SWAP
             aid = h(obj)
