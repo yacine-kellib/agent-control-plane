@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Spec](https://img.shields.io/badge/spec-ACP--SPEC--001%20v1.3.15-informational)](spec/ACP-SPEC-001.md)
 [![Status](https://img.shields.io/badge/status-evaluate%2C%20not%20deploy-orange)](#wanted-an-adversarial-reviewer)
-[![Deck](https://img.shields.io/badge/deck-nine%20slides-8A63D2)](docs/deck/ziffer-acp-deck.html)
+[![Deck](https://img.shields.io/badge/deck-nine%20slides-8A63D2)](https://yacine-kellib.github.io/agent-control-plane/deck/)
 
 Most agent deployments give the model a credential and call that authorisation. It isn't. It means anyone who can influence the model can act with the agent's rights: a poisoned document, a hostile support ticket, a comment in a dependency README. No break-in required.
 
@@ -29,7 +29,7 @@ A compromised model can request a €40,000 synthesis order as often as it likes
 
 ## The deck
 
-**[Nine slides, the whole argument](docs/deck/ziffer-acp-deck.html)** — why a credential is not
+**[Nine slides, the whole argument](https://yacine-kellib.github.io/agent-control-plane/deck/)** — why a credential is not
 authorisation, why probabilistic defences have no zeros, and the shape that removes the path
 rather than filtering the input. Self-contained HTML; open it locally, or read the same
 argument in long form in [the dossier](dossier/).
