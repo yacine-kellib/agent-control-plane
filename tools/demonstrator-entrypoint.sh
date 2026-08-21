@@ -93,7 +93,7 @@ case "${1:-day}" in
     # result lines rather than 18. A skipped proof is not a passed one -- to
     # replay the 36 proofs, run ./tools/verify.sh --suites on a host with Dafny.
     # CI does exactly that on every push.
-    echo "== 15 suites + harness + 37 mutants (proofs SKIPPED: no Dafny in this image) =="
+    echo "== 15 suites + harness + 38 mutants (proofs SKIPPED: no Dafny in this image) =="
     exec ./tools/verify.sh --suites
     ;;
   ingress)

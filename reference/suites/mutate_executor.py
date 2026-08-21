@@ -46,15 +46,35 @@ MUTANTS = [
 
     # WE-4 (v1.3.18). Sits BENEATH the closed-schema mutant below: AT-8b closes
     # the field SET, and this closes the field's TYPE. The defect it kills needs
-    # no extra field and no missing field -- only the same nonce spelled without
-    # its prefix, which derives a second attestation_id and claims a second
-    # ledger slot.
+    # no extra field and no missing field -- only the same nonce spelled in a
+    # different alphabet, which derives a second attestation_id and claims a
+    # second ledger slot.
+    #
+    # PAIRED WITH THE URL-SAFE ATTACK, NOT THE UNPREFIXED ONE, and the harness
+    # is why. `a_WE4_unprefixed_nonce` is the case that recorded ACP-87, but
+    # stripping the prefix also changes the value's LENGTH, so AT-1 below
+    # refuses it even with this line gone -- pairing it here reported SURVIVE
+    # and it was RIGHT: against that attack WE-4 is redundant. The URL-safe
+    # spelling preserves the length and the decoded bytes and changes only the
+    # string, so it passes every other step and this is the only line that
+    # stops it. Redundancy is a claim about the attack you enumerated, and the
+    # first enumeration here was wrong.
     ("b64 type pin [WE-4]",
-     '''            if not WE4_B64.match(str(obj.get("att_nonce", ""))):
+     '''            if not WE4_B64.match(nonce):
                 raise CriticalAlert("WE-4",
                                     f"att_nonce {obj.get('att_nonce')!r} is not "
                                     f"b64: + RFC 4648 sec 4 base64 with padding")
-''', "a_WE4_unprefixed_nonce"),
+''', "a_WE4_urlsafe_alphabet_nonce"),
+
+    # AT-1's 128-bit nonce, a SEPARATE line refusing under a SEPARATE name.
+    # Deleting it must not be caught by either WE-4 mutant above: a 64-bit
+    # nonce is a well-formed `b64:` value, so if this mutant dies to a WE-4
+    # refusal the two rules have been conflated and the refusal name is wrong.
+    ("128-bit nonce [AT-1]",
+     '''            if len(nonce) != AT1_NONCE_LEN:
+                raise CriticalAlert("AT-1",
+                                    f"att_nonce is not {AT1_NONCE_BYTES * 8}-bit")
+''', "a_AT1_nonce_too_short"),
 
     ("closed schema [Z4]",
      '''            if set(obj.keys()) != set(AT1_FIELDS):

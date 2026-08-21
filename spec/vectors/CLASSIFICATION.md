@@ -92,7 +92,7 @@ depend on that vocabulary existing. They are marked `sig-mutation` below.
 
 ---
 
-## Suite 1 — conformance (54 cases: 9 positive, 45 attacks)
+## Suite 1 — conformance (57 cases: 9 positive, 48 attacks)
 
 Where a case fails closed, the rule and the raising function were taken from a run, not
 from the docstring.
@@ -263,7 +263,7 @@ audit chain hashes canonical CBOR, or declare the canonicalisation in the vector
 | Audit / anchor / accumulator (Suite 7) | 12 | 1 | 11 |
 | **Total** | **87** | **48** | **39** |
 
-Plus **37 mutation cases** — 27 executor, 6 ack, 4 audit — which are obligations by
+Plus **38 mutation cases** — 28 executor, 6 ack, 4 audit — which are obligations by
 definition and get no per-case rows: a mutant deletes a line of the implementation's own
 source, and no data file can ask another implementation to do that. They are the
 repository's evidence that its checks are load-bearing, and that evidence does not

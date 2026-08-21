@@ -256,6 +256,103 @@ def a_WE4_unprefixed_nonce():
     ex.execute(receipt(b, p, atts=atts), p)
 
 
+def a_WE4_padding_stripped_nonce():
+    """The prefix is right, the padding is gone: still two ids for one object.
+
+    WE-4 says omitting the padding MUST be rejected RATHER THAN NORMALIZED, and
+    the first spelling of this check did not enforce that -- `b64:[A-Za-z0-9+/]
+    +={0,2}` accepts `b64:A`, `b64:AAA` and any other length that is not a
+    multiple of four, none of which is base64 at all. So the clause said one
+    thing and the control enforced a weaker thing, which is the shape a
+    deletion mutant cannot find: the check was present and meant the wrong
+    thing.
+
+    The attack is the ACP-87 attack with the prefix left ON. An issuer emitting
+    `b64:AAAA` and a verifier emitting `b64:AAAA==` still derive two ids for
+    one object, because `attestation_id` is over the canonical bytes and those
+    are two different strings. The prefix being correct buys nothing.
+
+    Signed correctly, exact field set, honest binding. Refused on the type.
+    """
+    b, ex = fresh()
+    p = proposal()
+    atts = quorum(b, p)
+    obj = dict(atts[0]["obj"])
+    obj["att_nonce"] = obj["att_nonce"].rstrip("=")            # padding stripped
+    atts[0] = {"obj": obj, "kind": "approval", "attester": A1,
+               "sig": sign(SIGNERS[A1], h(obj), obj["alg"])}
+    ex.execute(receipt(b, p, atts=atts), p)
+
+
+def a_WE4_urlsafe_alphabet_nonce():
+    """Same 16 bytes, same length, RFC 4648 sec 5 alphabet: one nonce, two ids.
+
+    THE PUREST FORM OF ACP-87, and the only one WE-4 catches by itself. The
+    unprefixed and unpadded spellings both change the value's LENGTH, so AT-1
+    refuses them even with WE-4 deleted -- the mutation harness said so, and
+    the first draft of these cases claimed a coverage WE-4 did not have. This
+    one changes nothing but the alphabet: the same 128 bits, the same 28
+    characters, `+` and `/` swapped for `-` and `_`.
+
+    So AT-1 passes it and every other step passes it. `attestation_id` is
+    SHA-256 over the canonical bytes, and these are different bytes, so the
+    issuer and the verifier derive two ids for one attestation and it claims
+    two ledger slots. WE-4 names this shape in as many words -- substituting
+    the URL-safe alphabet MUST be rejected rather than normalized -- and
+    normalizing it here is the tempting mistake, because the decoded value is
+    identical and it looks like the same nonce. It is not the same nonce. The
+    ledger keys on the id, and the id is over the string.
+    """
+    b, ex = fresh()
+    p = proposal()
+    atts = quorum(b, p)
+    obj = dict(atts[0]["obj"])
+    # A seed whose base64 actually CONTAINS `+` and `/`, asserted rather than
+    # assumed -- a fixture that silently produced an alphabet-clean value would
+    # be identical to the honest one and would test nothing.
+    raw = hashlib.sha256(b"urlsafe-seed").digest()[:16]
+    std = base64.b64encode(raw).decode()
+    assert "+" in std or "/" in std, "seed produces no alphabet difference"
+    obj["att_nonce"] = "b64:" + base64.urlsafe_b64encode(raw).decode()
+    atts[0] = {"obj": obj, "kind": "approval", "attester": A1,
+               "sig": sign(SIGNERS[A1], h(obj), obj["alg"])}
+    ex.execute(receipt(b, p, atts=atts), p)
+
+
+def a_AT1_nonce_too_short():
+    """A well-formed `b64:` value carrying 64 bits where AT-1 requires 128.
+
+    NOT a WE-4 violation, and the refusal name says so. This value is exactly
+    what WE-4 demands -- `b64:` plus RFC 4648 sec 4 base64 with padding -- and
+    what is wrong with it is that AT-1 says the nonce is 128-bit and this one
+    is half that. Folding the length into the type check would emit `WE-4`
+    here, naming a clause this object does not violate, and the cross-language
+    differential compares refusal NAMES.
+
+    It matters as an attack because the nonce is the only thing making
+    `attestation_id` unique per attestation (AT-1), and single use is enforced
+    by ledger consumption of that id rather than by assertion (AT-5, CL-3). A
+    64-bit nonce is a 2^-32 birthday collision, and a collision is one id for
+    TWO attestations -- the mirror of Z4, arriving at the same place: a human
+    approval that the ledger cannot tell apart from another one.
+
+    This case exists because the schema and the reference disagreed about it
+    and NOTHING WOULD HAVE CAUGHT THE DRIFT. `attestation_object.schema.json`
+    pinned `{22}==` from the first day it existed; the reference accepted any
+    length; and no fixture fed a wrong-length nonce, so both were green.
+    `tools/check-nonce-type.py` now asserts the two agree on a corpus.
+    """
+    b, ex = fresh()
+    p = proposal()
+    atts = quorum(b, p)
+    obj = dict(atts[0]["obj"])
+    obj["att_nonce"] = "b64:" + base64.b64encode(
+        hashlib.sha256(b"short").digest()[:8]).decode()        # 64-bit, well-formed
+    atts[0] = {"obj": obj, "kind": "approval", "attester": A1,
+               "sig": sign(SIGNERS[A1], h(obj), obj["alg"])}
+    ex.execute(receipt(b, p, atts=atts), p)
+
+
 def a_X1_risk_downgrade():
     """KMS claims floor-LOW for a floor-T3 action and ships no attestations."""
     b, ex = fresh()
@@ -908,6 +1005,9 @@ ATTACKS = [
     ("Z3  origin substitution",         a_Z3_origin_substitution, "DS-6f"),
     ("Z4  optional-field encoding",     a_Z4_optional_field,    "AT-8b"),
     ("WE4 unprefixed b64 nonce",        a_WE4_unprefixed_nonce, "WE-4"),
+    ("WE4 padding-stripped nonce",      a_WE4_padding_stripped_nonce, "WE-4"),
+    ("WE4 url-safe alphabet nonce",     a_WE4_urlsafe_alphabet_nonce, "WE-4"),
+    ("AT-1 64-bit nonce",               a_AT1_nonce_too_short,  "AT-1"),
     ("X1  risk downgrade in receipt",   a_X1_risk_downgrade,    "TR-8"),
     ("--  floor-HIGH, no attestation",  a_no_attestation,       "INV-1-HIGH"),
     ("T15 epoch rollback",              a_epoch_rollback,       "RAD-3"),

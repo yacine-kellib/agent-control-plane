@@ -56,7 +56,33 @@ AT1_FIELDS = ("proposal_hash", "policy_bundle_hash", "bundle_epoch",
 # spellings of one -- see the clause. Anchored both ends: an unanchored pattern
 # would accept `xxb64:AAAA==yy`, which is the shape of the defect, not a check
 # against it.
-WE4_B64 = re.compile(r"^b64:[A-Za-z0-9+/]+={0,2}$")
+#
+# The groups are the point, and the first spelling of this check did not have
+# them. `[A-Za-z0-9+/]+={0,2}` accepts `b64:A`, `b64:AAA` and `b64:AAAAA` --
+# lengths that are not a multiple of four and are therefore not base64 at all,
+# and the padding-stripped form of a legitimate value. WE-4 says omitting the
+# padding MUST be rejected rather than normalized, so a check that accepts it
+# does not enforce the clause it cites.
+WE4_B64 = re.compile(r"^b64:(?:[A-Za-z0-9+/]{4})*"
+                     r"(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$")
+
+# AT-1: "a 128-bit fresh attestation nonce". A SEPARATE rule from WE-4 and it
+# refuses under a separate name, because a 64-bit nonce is a perfectly
+# well-formed `b64:` value -- what is wrong with it is its LENGTH, not its
+# type. Folding the length into WE4_B64 (as `{22}==`) would emit `WE-4` for an
+# AT-1 violation and would also make the pattern unusable for the other values
+# WE-4 governs: the receipt nonce and the signatures, none of which are 16
+# bytes. Naming the wrong clause is the defect the CR-4/CR-1 note in
+# `acp-decision::quorum` exists to prevent, one layer down.
+AT1_NONCE_BYTES = 16
+# Counted, not decoded, and the first version of this line DID decode. Given
+# WE-4 the two are equivalent, so the decode looked like the more honest
+# spelling of "128 bits" -- but `b64decode(validate=True)` RAISES on the
+# URL-safe alphabet and on stripped padding, so the check was TOTAL only while
+# the check above it stood. A rule whose behaviour on bad input is "crash" is
+# not a refusal, and one that is total only because of its neighbour is one
+# reordering away from being neither.
+AT1_NONCE_LEN = len("b64:") + (AT1_NONCE_BYTES + 2) // 3 * 4
 
 # CR-1: signature suites. A suite is a SET of primitives, all of which must
 # verify. `hybrid` is classical AND post-quantum -- never OR: an OR composition
@@ -861,10 +887,35 @@ class Executor:
             # T-14 reopening with no optional field involved. Rejected, never
             # normalized: normalizing here would make this verifier accept both
             # spellings and hand the divergence to the next implementation.
-            if not WE4_B64.match(str(obj.get("att_nonce", ""))):
+            #
+            # DISCLOSED GAP. WE-4 governs the receipt `nonce` too, and
+            # NOTHING CHECKS IT THERE (ACP-89). `receipt["nonce"]` goes
+            # straight into `claim_nonce` at step 6, so two spellings of one
+            # nonce claim two ledger slots -- T-13 through the same hole this
+            # line closes.
+            # Disclosed rather than half-fixed: it needs the receipt fixtures
+            # and the DS-6f origin path migrated in both languages.
+            nonce = str(obj.get("att_nonce", ""))
+            if not WE4_B64.match(nonce):
                 raise CriticalAlert("WE-4",
                                     f"att_nonce {obj.get('att_nonce')!r} is not "
                                     f"b64: + RFC 4648 sec 4 base64 with padding")
+
+            # AT-1: 128 bits. Checked AFTER WE-4 and never before it -- a value
+            # that is wrong in BOTH ways must produce the same refusal name in
+            # both languages, and the only way to guarantee that is to fix the
+            # order.
+            #
+            # WHAT THIS DOES NOT PROVE, because the mutation harness said so.
+            # Deleting WE-4 leaves the unprefixed and unpadded attacks blocked
+            # HERE, at the wrong name -- stripping either also changes the
+            # length. So WE-4 is load-bearing against neither, and its mutant
+            # is paired with the URL-safe alphabet instead, which preserves
+            # both the length and the decoded bytes and changes only the
+            # string. That is the one shape only WE-4 catches.
+            if len(nonce) != AT1_NONCE_LEN:
+                raise CriticalAlert("AT-1",
+                                    f"att_nonce is not {AT1_NONCE_BYTES * 8}-bit")
 
             # (i) signature over the canonical object -- CRYPTO-SWAP
             aid = h(obj)

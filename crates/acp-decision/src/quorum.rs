@@ -83,6 +83,7 @@
 //! | `obj.proposal_hash` | **B** | and compared against the recomputed hash (Y1) |
 //! | `obj.floor_only_risk` | **B** | and compared against the recomputed grade (TR-8/X1) |
 //! | `obj.required_count` | **B** | and compared against `quorum_k` (AT-9) |
+//! | `obj.att_nonce` | **B** | one of the eleven, but read BY NAME and *before* the signature: WE-4 and AT-1 validate its type and size. A read that can only ever refuse adds no trust — it is the derived `attestation_id` that the signature then covers, and the nonce is inside it |
 //! | `entry.attester` | **B** | a name selects a key; the signature establishes identity (ACK-4) |
 //! | `entry.attestation_id` | **R** | derived; a transmitted value is compared, never used (Y1b) |
 //! | `entry.sig` | **B** | verified under a registry key |
@@ -116,6 +117,10 @@ pub const CLAUSE_NO_ATTESTATIONS: &str = "INV-1-HIGH";
 pub const CLAUSE_NO_OBJECT: &str = "AT-8";
 /// AT-8b — the object's field set is not exactly AT-1's.
 pub const CLAUSE_OBJECT_SCHEMA: &str = "AT-8b";
+/// WE-4 — `att_nonce` is not `b64:` + RFC 4648 §4 base64 with padding.
+pub const CLAUSE_WIRE_TYPE: &str = "WE-4";
+/// AT-1 — `att_nonce` is well-formed but is not 128-bit.
+pub const CLAUSE_NONCE_SIZE: &str = "AT-1";
 /// CR-4 — the attestation's suite does not contain every primitive of the floor.
 pub const CLAUSE_ATTESTATION_SUITE: &str = "CR-4";
 /// §9.3 step 7b(i) — the attester signature did not verify under a registry key.
@@ -155,6 +160,60 @@ pub const AT1_FIELDS: [&str; 11] = [
     "required_count",
     "required_roles",
 ];
+
+/// AT-1: the attestation nonce is **128-bit**.
+///
+/// A separate rule from [`is_we4_b64`] refusing under a separate name, because
+/// a 64-bit nonce is a perfectly well-formed `b64:` value — what is wrong with
+/// it is its length, not its type. Folding the size into the type check would
+/// emit `WE-4` for an AT-1 violation, and the cross-language differential
+/// compares refusal **names**. It is the same wrong-clause defect the CR-4
+/// note below already guards against, one layer up.
+pub const AT1_NONCE_BYTES: usize = 16;
+
+/// `"b64:"` plus the base64 of [`AT1_NONCE_BYTES`] — 4 + 24.
+///
+/// Counted rather than decoded, and the reference learned this the hard way:
+/// its first spelling decoded the body, which **raises** on the URL-safe
+/// alphabet and on stripped padding, so the check was total only while the
+/// type check above it stood. A rule whose behaviour on bad input is "crash"
+/// is not a refusal.
+pub const AT1_NONCE_LEN: usize = 4 + (AT1_NONCE_BYTES + 2) / 3 * 4;
+
+/// WE-4: is this the ASCII string `b64:` followed by RFC 4648 **§4** base64,
+/// **with** padding?
+///
+/// Hand-written rather than a regex, and not only because the workspace has no
+/// regex crate. The rule reads more precisely as code than as a pattern: the
+/// body is a whole number of four-character groups, the alphabet is §4's (`+`
+/// and `/`, never §5's `-` and `_`), and `=` appears only as one or two
+/// characters at the very end. Anchored by construction — a function returning
+/// bool has no partial match to leak, which is the failure an unanchored
+/// pattern has (`xxb64:AAAA==yy` is the shape of the defect, not a check
+/// against it).
+///
+/// Rejected, never normalized. Normalizing would make this verifier accept
+/// both spellings and hand the divergence to the next implementation, which is
+/// precisely how one attestation comes to hold two ledger slots (ACP-87).
+pub fn is_we4_b64(s: &str) -> bool {
+    let Some(body) = s.strip_prefix("b64:") else {
+        return false;
+    };
+    if body.len() % 4 != 0 {
+        return false;
+    }
+    let b = body.as_bytes();
+    let pad = b.iter().rev().take_while(|c| **c == b'=').count();
+    if pad > 2 {
+        return false;
+    }
+    // The `=` is excluded from the alphabet here, so this also rejects padding
+    // that appears anywhere but the end — `A=B=` counts one trailing pad and
+    // then fails on the `=` left inside the body.
+    b[..b.len() - pad]
+        .iter()
+        .all(|c| c.is_ascii_alphanumeric() || *c == b'+' || *c == b'/')
+}
 
 /// One attester's decoded verification key, both halves.
 ///
@@ -318,6 +377,38 @@ pub fn verify_quorum(
             return Err(Refusal::new(
                 CLAUSE_OBJECT_SCHEMA,
                 format!("object schema violation missing={missing:?} extra={extra:?}"),
+            ));
+        }
+
+        // WE-4 (ACP-88): the b64 type is pinned, and the prefix is PART OF THE
+        // VALUE. AT-8b above closes the field SET; it says nothing about the
+        // spelling of a field's value, so this sits one layer beneath it. The
+        // id derived on the next line is SHA-256 over the canonical bytes of
+        // the whole object, so an issuer carrying `b64:AAAA==` and a verifier
+        // carrying `AAAA==` derive TWO IDS FOR ONE OBJECT and claim two ledger
+        // slots — Z4 and T-14 reopening with no optional field involved.
+        //
+        // Placed here and not later ON PURPOSE. The reference checks it in
+        // exactly this position, between AT-8b and the id derivation, and the
+        // differential compares refusal names: an object that is wrong in more
+        // than one way must stop at the same rule in both languages or the two
+        // disagree on a case where they in fact agree about the object.
+        //
+        // DISCLOSED GAP, same as the reference. WE-4 governs the receipt
+        // `nonce` too, and nothing checks it there (ACP-89).
+        let nonce = str_field(obj, "att_nonce", CLAUSE_WIRE_TYPE)?;
+        if !is_we4_b64(nonce) {
+            return Err(Refusal::new(
+                CLAUSE_WIRE_TYPE,
+                format!("att_nonce {nonce:?} is not b64: + RFC 4648 sec 4 base64 with padding"),
+            ));
+        }
+
+        // AT-1: 128 bits. After WE-4 and never before it — see above on order.
+        if nonce.len() != AT1_NONCE_LEN {
+            return Err(Refusal::new(
+                CLAUSE_NONCE_SIZE,
+                format!("att_nonce is not {}-bit", AT1_NONCE_BYTES * 8),
             ));
         }
 

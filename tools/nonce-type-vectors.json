@@ -1,0 +1,80 @@
+{
+  "$comment": "The shared WE-4 / AT-1 attestation-nonce type corpus. THREE CONSUMERS, ONE FILE: tools/check-nonce-type.py runs it against the Python reference AND against spec/schemas/wire/attestation_object.schema.json's pattern, and crates/acp-decision/tests/quorum.rs runs it against the Rust check. It exists because those definitions DID diverge and nothing caught it -- the schema pinned {22}== from its first day, the reference accepted any length, and no fixture ever fed a wrong-length nonce, so both stayed green for a release. Aligning them by hand once was never the fix; this is. A null `clause` means the value conforms. Otherwise it is the refusal NAME, and the name is asserted rather than merely the fact of a refusal, because a check that refuses under the wrong clause has told the reader something false.",
+  "cases": [
+    {
+      "value": "b64:aIR/PD8cmr+T7sapBSVjtQ==",
+      "clause": null,
+      "why": "the conforming form: b64: + RFC 4648 sec 4 base64 with padding, 128-bit. The seed is chosen so this value contains BOTH + and /, or the url-safe case below would differ from it in nothing"
+    },
+    {
+      "value": "b64:AAAAAAAAAAAAAAAAAAAAAA==",
+      "clause": null,
+      "why": "all-zero bytes are a legal nonce; the type says nothing about entropy"
+    },
+    {
+      "value": "aIR/PD8cmr+T7sapBSVjtQ==",
+      "clause": "WE-4",
+      "why": "ACP-87: the prefix stripped. Two ids for one object, two ledger slots"
+    },
+    {
+      "value": "b64:aIR/PD8cmr+T7sapBSVjtQ",
+      "clause": "WE-4",
+      "why": "padding omitted. WE-4 says reject rather than normalize"
+    },
+    {
+      "value": "b64:aIR_PD8cmr-T7sapBSVjtQ==",
+      "clause": "WE-4",
+      "why": "RFC 4648 sec 5 alphabet. Same length, same decoded bytes, DIFFERENT STRING -- the only shape AT-1 cannot also catch, which is why the WE-4 mutant is paired with it and not with the unprefixed case"
+    },
+    {
+      "value": "b64:A",
+      "clause": "WE-4",
+      "why": "one character is never base64; the pre-ACP-88 pattern accepted it"
+    },
+    {
+      "value": "b64:AAA",
+      "clause": "WE-4",
+      "why": "three characters unpadded; the pre-ACP-88 pattern accepted it"
+    },
+    {
+      "value": "b64:AAAAA",
+      "clause": "WE-4",
+      "why": "five characters: not a whole number of four-character groups"
+    },
+    {
+      "value": "xxb64:AAAA==yy",
+      "clause": "WE-4",
+      "why": "the unanchored-pattern bait. A partial match here is the defect itself, not a check against it"
+    },
+    {
+      "value": "b64:A=B=",
+      "clause": "WE-4",
+      "why": "padding inside the body rather than only at its end"
+    },
+    {
+      "value": "b64:AAAA====",
+      "clause": "WE-4",
+      "why": "four padding characters; at most two are legal"
+    },
+    {
+      "value": "",
+      "clause": "WE-4",
+      "why": "the empty string carries no type at all"
+    },
+    {
+      "value": "b64:",
+      "clause": "AT-1",
+      "why": "well-formed and empty: WE-4 is satisfied and AT-1 is not. The two clause names differ here, which is the whole reason the rules are split"
+    },
+    {
+      "value": "b64:aIR/PD8cmr8=",
+      "clause": "AT-1",
+      "why": "64-bit. Exactly what WE-4 demands; half of what AT-1 requires. A 2^-32 birthday collision is ONE id for TWO attestations -- Z4 from the other side"
+    },
+    {
+      "value": "b64:aIR/PD8cmr+T7sapBSVjtWiEfzw/HJq/k+7GqQUlY7U=",
+      "clause": "AT-1",
+      "why": "256-bit. Over-long is refused too: AT-1 states a size, not a minimum"
+    }
+  ]
+}

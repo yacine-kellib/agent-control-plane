@@ -973,6 +973,48 @@ rm -f "$LEGBAK"
 OUT=$(python3 tools/check-flow-legs.py 2>&1); rc=$?
 [ $rc -eq 0 ]; chk $? "and the restored register passes again (got $rc)"
 
+# --- ACP-88: the nonce type has one language across three definitions ----------
+# `tools/check-nonce-type.py` compares the reference against the wire schema on
+# a shared corpus; the Rust half of the same corpus runs in acp-decision's test
+# suite. Asserted here rather than trusted, and with a negative control, because
+# the divergence it exists to catch ALREADY HAPPENED and every gate was green
+# through it: the schema pinned twenty-four characters from the day it was
+# written, the reference accepted any length, and no fixture anywhere fed a
+# wrong-length nonce, so nothing ever evaluated the two on an input that told
+# them apart.
+if python3 tools/check-nonce-type.py >/dev/null 2>&1; then
+  ok "WE-4/AT-1: the reference and the wire schema accept exactly the same nonces"
+else
+  bad "WE-4/AT-1: the reference and the wire schema have drifted"
+fi
+
+# The negative control loosens the SCHEMA back to the reference's pre-ACP-88
+# pattern -- the real historical shape of the drift, mirrored -- and the check
+# must go red. A comparison satisfied by `exit 0` compares nothing.
+NONCESCHEMA=spec/schemas/wire/attestation_object.schema.json
+NONCEBAK=$(mktemp)
+cp "$NONCESCHEMA" "$NONCEBAK"
+restore_nonceschema() { [ -s "$NONCEBAK" ] && cp "$NONCEBAK" "$NONCESCHEMA"; }
+trap 'restore_nonceschema; rm -f "$NONCEBAK"' INT TERM EXIT
+
+sed 's|\^b64:\[A-Za-z0-9+/\]{22}==\$|^b64:[A-Za-z0-9+/]+={0,2}$|' "$NONCEBAK" > "$NONCESCHEMA"
+cmp -s "$NONCEBAK" "$NONCESCHEMA"
+[ $? -ne 0 ]; chk $? "the loosened-schema mutant actually changed the file"
+
+OUT=$(python3 tools/check-nonce-type.py 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "loosening the schema pattern makes check-nonce-type FAIL (got $rc)"
+has 'the definitions have drifted' \
+    "and it says the definitions drifted rather than merely exiting non-zero"
+
+restore_nonceschema
+trap - INT TERM EXIT
+cmp -s "$NONCEBAK" "$NONCESCHEMA"
+chk $? "the wire schema is byte-identical again after the restore"
+rm -f "$NONCEBAK"
+
+OUT=$(python3 tools/check-nonce-type.py 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "and the restored schema passes again (got $rc)"
+
 # --- ACP-71: DP-27's custody claims must match custody.rs -----------------------
 # DP-27 is a Normative Disclosure. It said "there is no `KmsSigner`" for weeks
 # after ACP-61 created one. Nothing compared the prose to the code, so the

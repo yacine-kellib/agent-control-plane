@@ -25,6 +25,8 @@ use acp_decision::receipt::ReceiptKey;
 use acp_decision::{Policy, Proposal, Refusal};
 use serde_json::{json, Value};
 
+mod common;
+
 const OP: &str = "op_8842";
 const A1: &str = "op_1121";
 const A2: &str = "op_3307";
@@ -145,7 +147,7 @@ fn proposal(target: &str) -> Value {
 fn att_obj(phash: &str, nonce: &str) -> Value {
     json!({
         "alg": "hybrid-ed25519-mldsa65",
-        "att_nonce": nonce,
+        "att_nonce": common::b64n(nonce),
         "bundle_epoch": EPOCH,
         "context_snapshot_hash": "sha256:ctx",
         "expires_at": NOW + 600.0,
