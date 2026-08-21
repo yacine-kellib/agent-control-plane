@@ -289,6 +289,8 @@ Door B is deliberately unfiltered. Text is unbounded, there is no closed grammar
 
 Door A is controllable because actions are a closed, enumerable set: a finite list, each with a declared risk and reversibility. Deciding about one is arithmetic over trusted bytes rather than a judgement about meaning.
 
+**The two doors are a principle, not two architectures — and that distinction is easy to get backwards.** An earlier revision of the specification sorted *use cases* into Door A and Door B, and v1.3.0 retired that sorting: what actually varied between them was **intent fidelity**, which is a property of an ingress adapter rather than a separate architecture. There is now one pipeline, one enforcement core, and a **fidelity class** stamped on every Proposal by the adapter and never settable by the client — `F-HIGH` where no free text reaches the Proposal, `F-LOW` where a translator model produced it. §2.4 puts it in four words: *intent fidelity is a **dial**, not a **door***. The asymmetry above survives that change untouched, as a normative principle in §5.1a. So Door A and Door B are still the right words for what this section describes; what was retired is the taxonomy, not the doors.
+
 That asymmetry is why prompt injection is out of scope here rather than defended against. The injection succeeds, on the door where success means nothing. Same move that fixed SQL injection: nobody won by writing better sanitisers, they made it impossible for data to become a statement.
 
 > Five rounds of adversarial review found five violations of one rule: a verifier must never accept a derived security value from the party it is verifying. Every one of them was in machinery the previous fix had introduced. Two more turned up inside the proof artifacts. A sixth was found by re-running the classification method against the current version, and is fixed in this release.
@@ -310,6 +312,7 @@ Note the shape: it does not say the system is safe. It says what must be true si
 - That any human read a notification (A-8). Authentication is not comprehension.
 - That the notifier's declared independence is verified at run time. T-32, open: the runtime check is a lint, not a control.
 - That anything here is a running control plane. The services that would be one live in a separate repository and are not part of this argument. What is here is a specification, a reference implementation, and the evidence about them.
+- **That the premise is novel.** Capability-security literature, and DeepMind's CaMeL specifically, reach the same conclusion. §2 says so in the specification's own words: the contribution "is not the insight but its *rigorization*" — the invariant analysis, the conformance regime, the receipt and ledger construction, and the mechanized proof obligations. Evaluate those, not the premise.
 - **That an independent adversarial review has taken place. It has not.** See [below](#wanted-an-adversarial-reviewer).
 
 Full treatment: [`dossier/06-RESIDUAL-RISK.md`](dossier/06-RESIDUAL-RISK.md), which comes *before* the positive claims in the intended reading order.
