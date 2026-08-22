@@ -1353,6 +1353,103 @@ rm -f "$KMSBAK"
 OUT=$(python3 "$KMSPROBE" --selfcheck 2>&1); rc=$?
 [ $rc -eq 0 ]; chk $? "and the restored probe passes again (got $rc)"
 
+# --- ACP-104: the committed KMS transcript is evidence, not decoration --------
+# The probe cannot run here -- credentials, billable keys -- so what a gate CAN
+# check is that the recorded RESULT stays honest. Three things can rot: the
+# transcript can stop saying PASS, it can start leaking the AWS account id into
+# a public repository, and the prose citing it can drift off its date.
+#
+# The date is the whole point. A vendor capability is a fact that expires, and
+# an undated one quietly becomes a claim again -- which is the state ACP-104
+# existed to end. So the check is not "is this recent" (a gate that reddens on a
+# calendar is a time bomb nobody thanks you for); it is "does every sentence
+# citing this run also say WHEN it ran", so a reader in two years sees the age
+# rather than inferring currency from the fact that it is written down.
+printf '\n\033[1m== ACP-104: the committed KMS transcript still reads as evidence ==\033[0m\n'
+
+kms_tx_verdict () {   # honours a substituted file -- that is what makes the falsification possible
+  python3 - "${1:?}" <<'PY'
+import json, re, sys
+p = sys.argv[1]
+raw = open(p).read()
+d = json.loads(raw)
+st = {s["id"]: s["status"] for s in d["steps"]}
+if d.get("verdict") != "PASS" or any(st.get(i) != "PASS" for i in "12345"):
+    print("NOT-PASS", st); raise SystemExit
+if re.search(r"(?<!\d)\d{12}(?!\d)", raw):
+    print("ACCOUNT-ID-LEAKED"); raise SystemExit
+import os
+stem = os.path.basename(p)[len("kms-compat-"):-len(".json")]
+if d.get("verified_as_of") != stem:
+    print("DATE-MISMATCH", d.get("verified_as_of"), stem); raise SystemExit
+print("PASS", d["verified_as_of"])
+PY
+}
+
+KMSTX=$(ls tools/kms-compat-*.json 2>/dev/null | sort | tail -1)
+if [ -n "$KMSTX" ]; then
+  ok "a dated KMS transcript is committed ($KMSTX)"
+else
+  bad "no tools/kms-compat-*.json is committed -- the AWS claims are read again, not executed"
+fi
+
+# Recorded BEFORE any mutant runs, so the restore assertion has something real
+# to compare against.
+KMSSUM=$(shasum -a 256 "$KMSTX" | cut -d" " -f1)
+
+OUT=$(kms_tx_verdict "$KMSTX")
+case "$OUT" in
+  PASS*) ok "it reads PASS on all five steps, leaks no account id, and its date matches its filename" ;;
+  *)     bad "the committed KMS transcript is not clean evidence: $OUT" ;;
+esac
+KMSDATE=${OUT#PASS }
+
+# Every sentence citing the probe must carry its date. DP-4 -- cite, never
+# paraphrase -- made executable: the failure this closes is prose that states
+# AWS's capabilities as timeless fact, which is what RELEASE.md did before
+# ACP-104 and what ACP-90 believed before it.
+CITERS=$(git ls-files '*.md' | xargs grep -l 'kms-compat' 2>/dev/null)
+if [ -z "$CITERS" ]; then
+  bad "no tracked .md cites the KMS transcript (the evidence has no consumer)"
+else
+  UNDATED=""
+  for f in $CITERS; do
+    grep -qF "$KMSDATE" "$f" || UNDATED="$UNDATED $f"
+  done
+  if [ -z "$UNDATED" ]; then
+    ok "every document citing the probe also names its date ($KMSDATE)"
+  else
+    bad "cites the probe without naming its date -- a capability stated as timeless:$UNDATED"
+  fi
+fi
+
+# MANUFACTURED, twice. The first is the leak this repository cannot take back
+# once pushed; the second is the drift the date exists to prevent. Both are
+# injected into a COPY -- the real transcript is signed evidence and is never
+# written to.
+KMSFAKE=$(mktemp)
+sed 's/<account>/510869689444/' "$KMSTX" > "$KMSFAKE"
+cmp -s "$KMSTX" "$KMSFAKE"
+[ $? -ne 0 ]; chk $? "the account-id mutant actually changed the transcript copy"
+case "$(kms_tx_verdict "$KMSFAKE")" in
+  ACCOUNT-ID-LEAKED*) ok "an un-redacted account id in the transcript is DETECTED, not published" ;;
+  *)                  bad "an un-redacted account id was NOT detected -- the redaction check is vacuous" ;;
+esac
+
+sed 's/"verdict": "PASS"/"verdict": "FAIL"/' "$KMSTX" > "$KMSFAKE"
+case "$(kms_tx_verdict "$KMSFAKE")" in
+  NOT-PASS*) ok "and a transcript recording a FAILED run is not accepted as evidence" ;;
+  *)         bad "a FAILED transcript still read as evidence -- the verdict check is vacuous" ;;
+esac
+rm -f "$KMSFAKE"
+
+# NOT `cmp "$KMSTX" "$KMSTX"` -- a file always equals itself, so that form is
+# the assertion-that-cannot-fail this repository publishes corrections about. It
+# was written that way first; the hash is taken before the mutants run.
+[ "$(shasum -a 256 "$KMSTX" | cut -d" " -f1)" = "$KMSSUM" ]
+chk $? "and the real transcript is byte-identical -- the mutants only ever touched a copy"
+
+
 
 # THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
 # is TOTAL+1 as measured here, and a reader counting OK lines gets the same

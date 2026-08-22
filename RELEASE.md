@@ -288,9 +288,19 @@ Three checks carry the security content, and each was verified by deletion:
   is a new epoch rather than a retry.
 
 A hybrid identity's tier is that of its **weakest** half, so `KmsSigner` refuses to construct
-unless both halves are KMS-held. This is reachable rather than aspirational: AWS KMS carries
-`ML_DSA_65` under `ML_DSA_SHAKE_256` and `ED25519_SHA_512`, and this crate's ML-DSA context
-is empty, which is what a KMS exposing no context parameter uses.
+unless both halves are KMS-held. This is reachable rather than aspirational, and as of
+**2026-08-22** that is executed rather than read: `tools/kms-compat-2026-08-22.json` records a
+run against real AWS KMS in which a plain RFC 8032 verifier in `acp_crypto.py` accepted an
+`ED25519_SHA_512` + `MessageType: RAW` signature, and `dilithium_py`'s ordinary
+`ML_DSA_65.verify` accepted an `ML_DSA_SHAKE_256` signature produced via `EXTERNAL_MU` — with
+an **empty** ML-DSA context, which is what a KMS exposing no context parameter uses and is
+therefore the same claim this crate makes, checked rather than asserted.
+
+The date is load-bearing and is why the transcript carries one. A vendor capability is a fact
+that expires; an undated one quietly becomes a claim again. The previous version of this
+paragraph stated the same three facts with **no executable consumer at all** — read from AWS
+documentation, believed, and repeated — which is the defect class this specification has
+published four corrections for, one source further out (ACP-104).
 
 **T3 remains declared and not implemented**, and a test in the `kms` build asserts that
 implementing T2 did not quietly make it available — the interesting failure being a

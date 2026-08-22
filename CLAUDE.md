@@ -15,10 +15,11 @@ That framing drives most of the rules below. A change that makes a number in the
 ```bash
 ./tools/verify.sh --suites         # proofs + 15 suites + harness — THE PER-COMMIT GATE, no key needed
 ./tools/verify.sh                  # + integrity and signature — the release gate
-./tools/selftest.sh                # tests the tooling itself (133 assertions)
+./tools/selftest.sh                # tests the tooling itself (140 assertions)
 ./tools/sign-release.sh list       # what the next signature will cover (no key needed)
 ./tools/codegen.sh                 # regenerate Rust + TS types from spec/schemas/ (--check to verify)
 ./tools/sync-counts.sh             # re-derive every published count (--check to report drift)
+./tools/check-kms-compat.py --selfcheck   # the KMS probe's local half — free, no AWS, no boto3
 
 # individual suites — run from reference/suites/, they use flat imports
 cd reference/suites
@@ -75,6 +76,7 @@ sim/           the business simulation (companion to Annex D)
 deploy/        docker-compose.yml  (no k8s/ — the substrate is deliberately deferred,
                see `git show main:docs/plans/roadmap.md`)
 tools/         verify.sh sign-release.sh selftest.sh codegen.sh sync-counts.sh
+               check-kms-compat.py + its dated transcript (out-of-band, never a gate line)
 docs/          working documents — deliberately OUTSIDE the signed roots
 ```
 
@@ -173,9 +175,11 @@ On `main`: the restructure and scaffold, the Docker demonstrator, the HTTP ingre
 
 **This paragraph has gone stale three times by naming a branch that no longer exists.** If you are reading it against a `git branch` that disagrees, believe git and fix the sentence. It fired again on 2026-08-21, when the branch it named was archived and deleted in the same session that left the sentence standing — so the instruction works only if someone actually runs `git branch`. Run it.
 
-`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 156 files across 8 roots.
+`MANIFEST.sha256` goes stale the moment any covered file is edited. The release action is `./tools/sign-release.sh sign <keyfile>`, which only the key holder can run. Coverage is 157 files across 8 roots.
 
 **Phase 8 is done (ACP-44).** `tools/codegen.sh` generates the Rust and TypeScript wire types from `spec/schemas/bundle/` and is the first thing that ever read those files — it found four defects on its first pass, one a live quorum bypass (ACP-53: PB-7 compared whole registry entries, so changing a `role` string let one key holder satisfy a k=2 quorum alone). **The fail-safe defaults live in the schema as `x-acp-absent` data**, not in a generator table, and the generator halts rather than guessing when a lookup table has no rule. `x-acp-ordered` is applied only where an order is declared — `SuiteId` gets no `Ord`, because CR-4 is containment and not rank. `tools/sync-counts.sh` re-derives every published count, which had been hand-work and had already recurred twice (ACP-42, ACP-43).
+
+**The AWS KMS claims are executed, not read (ACP-104).** `tools/check-kms-compat.py` signs real bytes with a real KMS key and hands the result to `acp_crypto.py`, which knows nothing about AWS. `tools/kms-compat-2026-08-22.json` records 5/5 PASS: a plain RFC 8032 verifier accepts `ED25519_SHA_512` + `MessageType: RAW`, the 4,096-byte cap is real and AWS names it when refusing the 14,898-byte k=2 body, `EXTERNAL_MU` yields a signature ordinary `ML_DSA_65.verify` accepts over the whole message, and an `ED25519_PH_SHA_512` signature is *refused* by the reference — which is the step that would have gone green if the earlier, wrong conclusion had been right. **It cannot be a gate line and must never become one**: it needs credentials and creates billable keys, and `selftest.sh` asserts it stays out of `verify.sh`, because a gate a reader cannot run is not a gate. What the gate does check is `--selfcheck`, and that the committed transcript still reads PASS, leaks no account id, and is cited **with its date** everywhere — a vendor capability is a fact that expires, and a paraphrase loses the date. Re-run it when the claim matters again; the transcript is evidence about 2026-08-22 and nothing later.
 
 **Two things are disclosed and NOT closed**: nothing validates a bundle against the schemas and every fixture is in fact schema-invalid (ACP-52), and the Python reference does not bound integers to the schema's declared domain — three divergences are pinned in the differential, which asserts both sides so the divergence vanishing or moving turns it red (ACP-54).
 
