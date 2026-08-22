@@ -1132,6 +1132,57 @@ else
 fi
 rm -f "$CUSTODYCOPY"
 
+# --- ACP-101: the DP-27 check above is an EXISTENCE test and cannot see a
+# CONTRADICTION. `spec_claims` asks whether the document says "T2 is implemented"
+# SOMEWHERE. DP-27 said it, while DP-33 and DP-80 said the exact opposite further
+# down the same file, and this run stayed green for both. An existence test over
+# a document that states one fact in three places is satisfied by whichever place
+# happens to be right. This asserts the other direction: no SURVIVING claim that
+# an implemented tier is unimplemented.
+#
+# The exemption is load-bearing, and it is the ACP-63 shape. This repository
+# publishes corrections by QUOTING the text that was wrong, so a detector
+# matching the stale phrase alone forbids the practice it exists to protect --
+# it would flag the two "A correction worth recording" notes that record this
+# very defect. A line that introduces its quotation with "Until this revision" is
+# reporting superseded text, not asserting it. Residual, stated rather than
+# hidden: a genuinely new stale claim written onto such a line is not caught.
+# That is the same residual ACP-63's detector accepted for the same reason.
+stale_tier_claims () {  # honours a substituted file — that is what makes falsification possible
+  grep -vF 'Until this revision' "${1:-spec/ACP-DEPLOY-001.md}" \
+  | grep -oE "[Cc]ustody tiers? \*{0,2}T2\*{0,2}( and \*{0,2}T3\*{0,2})? (are|is) \*{0,2}declared and not implemented|the .kms. and .hsm. [Cc]argo features are empty" \
+  | wc -l | tr -d ' '
+}
+
+if [ "$CODE_T2" = "yes" ] && [ "$(stale_tier_claims)" -eq 0 ]; then
+  ok "and no clause in ACP-DEPLOY-001 still calls custody tier T2 unimplemented"
+else
+  bad "ACP-DEPLOY-001 vs custody.rs on custody tier T2: KmsSigner=$CODE_T2, surviving unimplemented-claims=$(stale_tier_claims)"
+fi
+
+# MANUFACTURED: restore the defect verbatim in a COPY and the check must go red.
+# Without this the assertion passes whenever the pattern rots, which is the same
+# defect one level up. The real source is never written to.
+DEPLOYCOPY=$(mktemp)
+sed 's/Custody tier \*\*T2 is implemented\*\*/Custody tiers T2 and T3 are **declared and not implemented**/g' \
+  spec/ACP-DEPLOY-001.md > "$DEPLOYCOPY"
+if [ "$(stale_tier_claims "$DEPLOYCOPY")" -ge 1 ]; then
+  ok "and restoring the ACP-101 defect in a copy is caught, naming ACP-DEPLOY-001"
+else
+  bad "restoring the ACP-101 defect in a copy was NOT caught — the detector is vacuous"
+fi
+rm -f "$DEPLOYCOPY"
+
+# CONTROL: the published corrections DO carry the stale phrase, on purpose. If the
+# exemption ever stops working this goes red, and a green run above would then
+# mean the detector had been narrowed until it agreed with the file.
+CORRECTIONS=$(grep -cF 'Cargo features are empty' spec/ACP-DEPLOY-001.md)
+if [ "$CORRECTIONS" -ge 2 ] && [ "$(stale_tier_claims)" -eq 0 ]; then
+  ok "and the $CORRECTIONS published corrections quoting the dead claim are not flagged"
+else
+  bad "the correction-quoting exemption is wrong: $CORRECTIONS quoted site(s), $(stale_tier_claims) flagged"
+fi
+
 # --- ACP-72: the in-image gate is described once, by the thing that runs it ---
 # deploy/docker-compose.yml said the in-image gate ran "proofs + 15 suites".
 # Eight lines away tools/demonstrator-entrypoint.sh prints "proofs SKIPPED: no
