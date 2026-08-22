@@ -1287,6 +1287,73 @@ case "$D" in
 esac
 rm -f "$TMPIDX"
 
+# --- ACP-104: the KMS compatibility probe's local half ------------------------
+# `tools/check-kms-compat.py` is the executable consumer for three claims about
+# AWS that ACP-90 currently READS from vendor documentation. It cannot be a gate
+# line -- it needs credentials and creates billable keys -- so what runs here is
+# its --selfcheck: everything provable without AWS, including the negatives.
+#
+# WHY THIS IS WORTH AN ASSERTION. The probe is run once, by hand, and cited
+# afterwards. If `raw_from_spki` is broken the run fails at step 4 with a
+# symptom that reads exactly like "AWS EXTERNAL_MU does not work" -- a false
+# finding about a vendor, produced by a bug here, discovered after paying for
+# it. This is the cheap check that stops that.
+printf '\n\033[1m== ACP-104: the KMS probe is not broken before it is run ==\033[0m\n'
+
+OUT=$(python3 tools/check-kms-compat.py --selfcheck 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "check-kms-compat --selfcheck passes with no AWS and no boto3 (got $rc)"
+
+# A gate that needed AWS credentials could not be run by a reader, and this
+# repository's whole premise is that a reader can replay every claim. The probe
+# must therefore STAY out of verify.sh. Asserted, because "nobody would do that"
+# is how the services scaffold got into ROOTS.
+# `grep -q` on an unreadable path is ALSO non-zero, so the absence branch would
+# report OK for a verify.sh that had been renamed -- "nothing found" arriving
+# from "cannot see". Readability is asserted first, for the same reason the
+# ACP-63 block manufactures a violation.
+if [ ! -r tools/verify.sh ]; then
+  bad "tools/verify.sh is unreadable, so this check cannot see whether the probe is wired in"
+elif grep -q 'check-kms-compat' tools/verify.sh; then
+  bad "check-kms-compat is wired into verify.sh — the gate now needs AWS credentials"
+else
+  ok "check-kms-compat is NOT in verify.sh (a gate a reader cannot run is not a gate)"
+fi
+
+# MANUFACTURED: loosen the size matcher the way it would plausibly be loosened
+# -- someone reading real ValidationException text adds "reject" -- and the
+# selfcheck must go red AND name the assertion. Without this, --selfcheck
+# passing proves only that the file parses.
+#
+# Mutated IN PLACE, not in a temp copy: the script resolves reference/src from
+# its own __file__, so a copy elsewhere dies at import and reports failure
+# without ever running an assertion. That is the ERROR-not-KILL shape the
+# mutation suites are built to avoid, and it was hit while writing this block.
+KMSPROBE=tools/check-kms-compat.py
+KMSBAK=$(mktemp)
+cp "$KMSPROBE" "$KMSBAK"
+restore_kmsprobe() { [ -s "$KMSBAK" ] && cp "$KMSBAK" "$KMSPROBE"; }
+trap 'restore_kmsprobe; rm -f "$KMSBAK"' INT TERM EXIT
+
+sed 's/("length", "size", "too long", "exceed", "4096")/("length", "size", "too long", "exceed", "4096", "reject")/' \
+  "$KMSBAK" > "$KMSPROBE"
+cmp -s "$KMSBAK" "$KMSPROBE"
+[ $? -ne 0 ]; chk $? "the loosened-matcher mutant actually changed the file"
+
+OUT=$(python3 "$KMSPROBE" --selfcheck 2>&1); rc=$?
+[ $rc -ne 0 ]; chk $? "loosening the size matcher makes --selfcheck FAIL (got $rc)"
+has 'a non-size error is NOT counted as the cap' \
+    "and it names the assertion that broke, rather than merely exiting non-zero"
+
+restore_kmsprobe
+trap - INT TERM EXIT
+cmp -s "$KMSBAK" "$KMSPROBE"
+chk $? "the probe is byte-identical again after the restore"
+rm -f "$KMSBAK"
+
+OUT=$(python3 "$KMSPROBE" --selfcheck 2>&1); rc=$?
+[ $rc -eq 0 ]; chk $? "and the restored probe passes again (got $rc)"
+
+
 # THIS ASSERTION COUNTS ITSELF. It is the (TOTAL+1)-th, so the published number
 # is TOTAL+1 as measured here, and a reader counting OK lines gets the same
 # figure. An off-by-one would be a wrong published number arriving by exactly
