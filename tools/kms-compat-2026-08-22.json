@@ -1,0 +1,112 @@
+{
+  "check": "ACP-104 AWS KMS compatibility",
+  "environment": {
+    "base_body_bytes": 381,
+    "boto3": "1.43.78",
+    "botocore": "1.43.78",
+    "ed25519_signing_algorithms": [
+      "ED25519_PH_SHA_512",
+      "ED25519_SHA_512"
+    ],
+    "hybrid_fingerprint": "sha256:01c67d048c4c3529ba452b8fd0b034cff6ac117901c372291d78503f15eafda2",
+    "k2_body_bytes": 14898,
+    "mldsa65_signing_algorithms": [
+      "ML_DSA_SHAKE_256"
+    ],
+    "python": "3.14.6",
+    "sdk_enums": {
+      "KeySpec": [
+        "RSA_2048",
+        "RSA_3072",
+        "RSA_4096",
+        "ECC_NIST_P256",
+        "ECC_NIST_P384",
+        "ECC_NIST_P521",
+        "ECC_SECG_P256K1",
+        "SYMMETRIC_DEFAULT",
+        "HMAC_224",
+        "HMAC_256",
+        "HMAC_384",
+        "HMAC_512",
+        "SM2",
+        "ML_DSA_44",
+        "ML_DSA_65",
+        "ML_DSA_87",
+        "ECC_NIST_EDWARDS25519"
+      ],
+      "MessageType": [
+        "RAW",
+        "DIGEST",
+        "EXTERNAL_MU"
+      ],
+      "SigningAlgorithmSpec": [
+        "RSASSA_PSS_SHA_256",
+        "RSASSA_PSS_SHA_384",
+        "RSASSA_PSS_SHA_512",
+        "RSASSA_PKCS1_V1_5_SHA_256",
+        "RSASSA_PKCS1_V1_5_SHA_384",
+        "RSASSA_PKCS1_V1_5_SHA_512",
+        "ECDSA_SHA_256",
+        "ECDSA_SHA_384",
+        "ECDSA_SHA_512",
+        "SM2DSA",
+        "ML_DSA_SHAKE_256",
+        "ED25519_SHA_512",
+        "ED25519_PH_SHA_512"
+      ]
+    }
+  },
+  "failed_steps": [],
+  "not_run_steps": [],
+  "region": "us-east-1",
+  "steps": [
+    {
+      "detail": "both key specs accepted in us-east-1",
+      "id": "1",
+      "keys": {
+        "ed25519": "arn:aws:kms:us-east-1:<account>:key/58cf020c-5c09-4cf6-a11f-74ab4f87343e",
+        "mldsa65": "arn:aws:kms:us-east-1:<account>:key/1fd53760-2182-4dd9-9e79-e230bd7cf392"
+      },
+      "status": "PASS",
+      "title": "create ECC_NIST_EDWARDS25519 and ML_DSA_65 keys"
+    },
+    {
+      "advertised": true,
+      "detail": "a plain RFC 8032 verifier accepted an AWS signature over the 381-byte body; the ACP-90 correction holds",
+      "id": "2",
+      "signature_len": 64,
+      "status": "PASS",
+      "title": "ED25519_SHA_512 + RAW is pure RFC 8032",
+      "verified_by_reference": true
+    },
+    {
+      "aws_error": "ValidationException",
+      "aws_message": "1 validation error detected: Value at 'message' failed to satisfy constraint: Member must have length less than or equal to 4096",
+      "detail": "refused, naming the size: ValidationException: 1 validation error detected: Value at 'message' failed to satisfy constraint: Member must have length less than or equal to 4096",
+      "id": "3",
+      "message_bytes": 14898,
+      "status": "PASS",
+      "title": "RAW refuses a body over 4096 B"
+    },
+    {
+      "detail": "dilithium_py's plain verify accepted the KMS signature over the whole 14898-byte body",
+      "id": "4",
+      "mu_bytes": 64,
+      "signature_len": 3309,
+      "status": "PASS",
+      "title": "EXTERNAL_MU yields an ordinary ML-DSA-65 signature",
+      "verified_by_reference": true
+    },
+    {
+      "detail": "AWS produced a ph signature, it differs from the pure one, and acp_crypto refuses it -- the two algorithms are distinguishable and step 2 used the right one",
+      "differs_from_pure": true,
+      "id": "5",
+      "produced": true,
+      "rejected_by_reference": true,
+      "status": "PASS",
+      "title": "ED25519_PH_SHA_512 is rejected by the reference"
+    }
+  ],
+  "verdict": "PASS",
+  "verified_as_of": "2026-08-22"
+}
